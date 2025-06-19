@@ -1,0 +1,21 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+{alwaysApply: true, globs: ["**/*"]}
+
+| Слой                | Библиотека/Сервис      | Версия     | Назначение                                      | Документация                                      |
+|---------------------|------------------------|------------|--------------------------------------------------|----------------------------------------------------|
+| Ядро                | Python                 | >=3.10     | Основной язык разработки                         | https://docs.python.org/3/                        |
+| GPT API             | openai                 | >=1.0.0    | Запросы к OpenAI GPT (или совместимым)           | https://platform.openai.com/docs/api-reference     |
+| Альтернативный GPT  | qwen-api (опционально) | latest     | Поддержка альтернативных моделей                 | https://github.com/QwenLM/Qwen-API                 |
+| CLI                 | click                  | >=8.0      | CLI-интерфейс                                    | https://click.palletsprojects.com/                 |
+| Telegram Bot        | python-telegram-bot    | >=20.0     | Telegram-бот                                     | https://docs.python-telegram-bot.org/              |
+| Web                 | FastAPI                | >=0.100    | Web API и сервер                                 | https://fastapi.tiangolo.com/                      |
+| Web (UI)            | Jinja2                 | >=3.0      | Рендеринг HTML-шаблонов                          | https://jinja.palletsprojects.com/                 |
+| LaTeX-рендеринг     | MathJax (через web)    | latest     | Рендеринг формул в браузере                      | https://www.mathjax.org/                           |
+| LaTeX-рендеринг CLI | rich                   | >=13.0     | Отображение формул в терминале                   | https://rich.readthedocs.io/                       |
+| Тестирование        | pytest                 | >=7.0      | Юнит-тесты                                       | https://docs.pytest.org/                           |
+| Документация        | mkdocs                 | >=1.4      | Документирование                                 | https://www.mkdocs.org/                            |
+| Управление зависимостями | poetry             | >=1.5      | Управление зависимостями и пакетами               | https://python-poetry.org/docs/                    |
