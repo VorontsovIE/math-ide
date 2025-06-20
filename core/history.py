@@ -12,10 +12,10 @@ class HistoryStep:
     """
     id: str
     step_number: int
-    latex_content: str
+    expression: str
     available_transformations: List[Dict[str, Any]]
     chosen_transformation: Optional[Dict[str, Any]]
-    result_latex: Optional[str]
+    result_expression: Optional[str]
     timestamp: datetime
     parent_id: Optional[str] = None  # Для поддержки ветвления в будущем
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -33,18 +33,18 @@ class SolutionHistory:
         self.current_step_number = 0
     
     def add_step(self, 
-                 latex_content: str, 
+                 expression: str, 
                  available_transformations: List[Dict[str, Any]],
                  chosen_transformation: Optional[Dict[str, Any]] = None,
-                 result_latex: Optional[str] = None) -> str:
+                 result_expression: Optional[str] = None) -> str:
         """
         Добавляет новый шаг в историю.
         
         Args:
-            latex_content: LaTeX-содержимое шага
+            expression: Выражение шага
             available_transformations: Список доступных преобразований
             chosen_transformation: Выбранное преобразование (если есть)
-            result_latex: Результат применения преобразования (если есть)
+            result_expression: Результат применения преобразования (если есть)
             
         Returns:
             ID созданного шага
@@ -59,10 +59,10 @@ class SolutionHistory:
         step = HistoryStep(
             id=step_id,
             step_number=self.current_step_number,
-            latex_content=latex_content,
+            expression=expression,
             available_transformations=available_transformations,
             chosen_transformation=chosen_transformation,
-            result_latex=result_latex,
+            result_expression=result_expression,
             timestamp=datetime.now(),
             parent_id=parent_id
         )
@@ -108,21 +108,21 @@ class SolutionHistory:
         """
         summary = {
             "step_number": step.step_number,
-            "latex_content": step.latex_content,
+            "expression": step.expression,
             "timestamp": step.timestamp.isoformat(),
             "has_chosen_transformation": step.chosen_transformation is not None,
-            "has_result": step.result_latex is not None
+            "has_result": step.result_expression is not None
         }
         
         if step.chosen_transformation:
             summary["chosen_transformation"] = {
                 "description": step.chosen_transformation.get("description", ""),
                 "type": step.chosen_transformation.get("type", ""),
-                "latex": step.chosen_transformation.get("latex", "")
+                "expression": step.chosen_transformation.get("expression", "")
             }
         
-        if step.result_latex:
-            summary["result_latex"] = step.result_latex
+        if step.result_expression:
+            summary["result_expression"] = step.result_expression
         
         return summary
     
@@ -135,7 +135,7 @@ class SolutionHistory:
             "total_steps": len(self.steps),
             "current_step_number": self.current_step_number,
             "steps": [self.get_step_summary(step) for step in self.steps],
-            "is_complete": self.steps and self.steps[-1].result_latex is not None
+            "is_complete": self.steps and self.steps[-1].result_expression is not None
         }
     
     def export_history(self) -> Dict[str, Any]:
@@ -149,10 +149,10 @@ class SolutionHistory:
                 {
                     "id": step.id,
                     "step_number": step.step_number,
-                    "latex_content": step.latex_content,
+                    "expression": step.expression,
                     "available_transformations": step.available_transformations,
                     "chosen_transformation": step.chosen_transformation,
-                    "result_latex": step.result_latex,
+                    "result_expression": step.result_expression,
                     "timestamp": step.timestamp.isoformat(),
                     "parent_id": step.parent_id,
                     "metadata": step.metadata
@@ -173,10 +173,10 @@ class SolutionHistory:
             step = HistoryStep(
                 id=step_data["id"],
                 step_number=step_data["step_number"],
-                latex_content=step_data["latex_content"],
+                expression=step_data["expression"],
                 available_transformations=step_data["available_transformations"],
                 chosen_transformation=step_data["chosen_transformation"],
-                result_latex=step_data["result_latex"],
+                result_expression=step_data["result_expression"],
                 timestamp=datetime.fromisoformat(step_data["timestamp"]),
                 parent_id=step_data["parent_id"],
                 metadata=step_data["metadata"]
@@ -191,57 +191,57 @@ if __name__ == "__main__":
     
     # Добавляем первый шаг
     step1_id = history.add_step(
-        latex_content="2(x + 1) = 4",
+        expression="2(x + 1) = 4",
         available_transformations=[
             {
                 "description": "Раскрыть скобки в левой части",
                 "type": "expand",
-                "latex": "2x + 2 = 4"
+                "expression": "2x + 2 = 4"
             },
             {
                 "description": "Разделить обе части на 2",
                 "type": "divide", 
-                "latex": "x + 1 = 2"
+                "expression": "x + 1 = 2"
             }
         ],
         chosen_transformation={
             "description": "Раскрыть скобки в левой части",
             "type": "expand",
-            "latex": "2x + 2 = 4"
+            "expression": "2x + 2 = 4"
         },
-        result_latex="2x + 2 = 4"
+        result_expression="2x + 2 = 4"
     )
     
     
     step2_id = history.add_step(
-        latex_content="2x + 2 = 4",
+        expression="2x + 2 = 4",
         available_transformations=[
             {
                 "description": "Вычесть 2 из обеих частей",
                 "type": "subtract",
-                "latex": "2x = 2"
+                "expression": "2x = 2"
             },
             {
                 "description": "Разделить обе части на 2",
                 "type": "divide",
-                "latex": "x + 1 = 2"
+                "expression": "x + 1 = 2"
             }
         ],
         chosen_transformation={
             "description": "Разделить обе части на 2",
             "type": "divide",
-            "latex": "x + 1 = 2"
+            "expression": "x + 1 = 2"
         }
-        result_latex="x + 1 = 2"
+        result_expression="x + 1 = 2"
     )
     
     # Выводим сводку
     print("Сводка истории:")
     summary = history.get_full_history_summary()
     for step in summary["steps"]:
-        print(f"Шаг {step['step_number']}: {step['latex_content']}")
+        print(f"Шаг {step['step_number']}: {step['expression']}")
         if step['has_chosen_transformation']:
             print(f"  Выбрано: {step['chosen_transformation']['description']}")
         if step['has_result']:
-            print(f"  Результат: {step['result_latex']}")
+            print(f"  Результат: {step['result_expression']}")
         print() 

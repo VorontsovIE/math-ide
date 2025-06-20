@@ -13,7 +13,7 @@
    [
      {
        "description": "Человекочитаемое описание преобразования на русском языке",
-       "latex": "Результат применения преобразования в формате LaTeX",
+       "expression": "Результат применения преобразования в формате LaTeX",
        "type": "Тип преобразования из списка доступных",
        "metadata": {
          "usefullness": "good|neutral|bad",
@@ -59,7 +59,7 @@
 [
   {
     "description": "Раскрыть скобки в левой части",
-    "latex": "2x + 2 = 4",
+    "expression": "2x + 2 = 4",
     "type": "expand",
     "metadata": {
       "difficulty": "elementary school",
@@ -69,7 +69,7 @@
   },
   {
     "description": "Вычесть из обеих частей 4",
-    "latex": "2(x + 1) - 4 = 4 - 4",
+    "expression": "2(x + 1) - 4 = 4 - 4",
     "type": "subtract",
     "metadata": {
       "difficulty": "elementary school",
@@ -79,7 +79,7 @@
   },
   {
     "description": "Заменить 1 на sin^2(x) + cos^2(x)",
-    "latex": "2(x + sin^2(x) + cos^2(x)) = 4",
+    "expression": "2(x + sin^2(x) + cos^2(x)) = 4",
     "type": "custom",
     "metadata": {
       "difficulty": "middle school",
@@ -89,7 +89,7 @@
   },
   {
     "description": "Умножить обе части на 3",
-    "latex": "6(x + 1) = 12",
+    "expression": "6(x + 1) = 12",
     "type": "multiply",
     "metadata": {
       "difficulty": "elementary school",

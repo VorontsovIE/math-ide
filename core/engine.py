@@ -37,7 +37,7 @@ class TransformationParameter:
 class Transformation:
     """Представляет одно математическое преобразование."""
     description: str
-    latex: str
+    expression: str  # Было latex
     type: str  # Тип преобразования (желательно из BaseTransformationType)
     parameters: Optional[List[TransformationParameter]] = None
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -49,7 +49,7 @@ class SolutionStep:
     Представляет один шаг в процессе решения математической задачи.
     Это может быть уравнение, неравенство, система и т.д. на любом этапе.
     """
-    latex_content: str  # Полное содержимое задачи в формате LaTeX
+    expression: str  # Было latex_content
 
 
 @dataclass
@@ -121,7 +121,7 @@ class TransformationEngine:
             transformation_types = [t.value for t in BaseTransformationType]
             formatted_prompt = self.prompt_manager.format_prompt(
                 self.generation_prompt,
-                current_state=step.latex_content,
+                current_state=step.expression,
                 transformation_types=", ".join(transformation_types)
             )
             
@@ -145,7 +145,7 @@ class TransformationEngine:
             for data in transformations_data:
                 transformation = Transformation(
                     description=data["description"],
-                    latex=data["latex"],
+                    expression=data["expression"],
                     type=data["type"],
                     metadata=data.get("metadata", {})
                 )
@@ -164,7 +164,7 @@ class TransformationEngine:
             print(f"Ошибка генерации преобразований: {e}")
             dummy_transformation = Transformation(
                 description="Раскрыть скобки в левой части",
-                latex="2x + 2 = 4",
+                expression="2x + 2 = 4",
                 type=BaseTransformationType.EXPAND.value,
                 metadata={"difficulty": "easy", "reasoning": "Заглушка при ошибке API"}
             )
@@ -178,7 +178,7 @@ class TransformationEngine:
             # Форматируем промпт
             formatted_prompt = self.prompt_manager.format_prompt(
                 self.apply_prompt,
-                current_state=current_step.latex_content,
+                current_state=current_step.expression,
                 transformation_description=transformation.description,
                 transformation_type=transformation.type
             )
@@ -223,7 +223,7 @@ class TransformationEngine:
             # Форматируем промпт
             formatted_prompt = self.prompt_manager.format_prompt(
                 self.check_prompt,
-                current_state=current_step.latex_content,
+                current_state=current_step.expression,
                 original_task=original_task
             )
             
@@ -268,14 +268,14 @@ if __name__ == "__main__":
     engine = TransformationEngine()
     
     # Пример начального шага задачи
-    initial_step = SolutionStep(latex_content="2(x + 1) = 4")
-    print(f"Начальный шаг: {initial_step.latex_content}")
+    initial_step = SolutionStep(expression="2(x + 1) = 4")
+    print(f"Начальный шаг: {initial_step.expression}")
 
     # 1. Генерируем преобразования
     generation_result = engine.generate_transformations(initial_step)
     print("\nВозможные преобразования:")
     for i, t in enumerate(generation_result.transformations):
-        print(f"{i+1}. Тип: {t.type}, Описание: {t.description}, Результат: {t.latex}")
+        print(f"{i+1}. Тип: {t.type}, Описание: {t.description}, Результат: {t.expression}")
 
     # 2. Применяем первое из сгенерированных преобразований
     if generation_result.transformations:
@@ -284,8 +284,8 @@ if __name__ == "__main__":
         
         apply_result = engine.apply_transformation(initial_step, chosen_transformation)
         if apply_result.is_valid:
-            new_step = SolutionStep(latex_content=apply_result.result)
-            print(f"Новый шаг: {new_step.latex_content}")
+            new_step = SolutionStep(expression=apply_result.result)
+            print(f"Новый шаг: {new_step.expression}")
             print(f"Объяснение: {apply_result.explanation}")
         else:
             print(f"Ошибка применения: {apply_result.explanation}")

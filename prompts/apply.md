@@ -12,7 +12,7 @@
 1. **Формат ответа**: JSON-объект с полями:
    ```json
    {
-     "result": "Результат применения преобразования в формате LaTeX",
+     "result_expression": "Результат применения преобразования в формате LaTeX",
      "is_valid": true,
      "explanation": "Краткое объяснение применённого преобразования",
      "errors": null
@@ -38,7 +38,7 @@
 **Результат**:
 ```json
 {
-  "result": "2x + 2 = 4",
+  "result_expression": "2x + 2 = 4",
   "is_valid": true,
   "explanation": "Применил распределительный закон: 2(x + 1) = 2x + 2",
   "errors": null
@@ -51,7 +51,7 @@
 
 ```json
 {
-  "result": null,
+  "result_expression": null,
   "is_valid": false,
   "explanation": "Описание проблемы",
   "errors": ["Список конкретных ошибок"]

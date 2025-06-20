@@ -18,7 +18,7 @@ class TestTransformationEngine:
     def setup_method(self):
         """Настройка перед каждым тестом."""
         self.engine = TransformationEngine(api_key="test_key")
-        self.sample_step = SolutionStep(latex_content="2(x + 1) = 4")
+        self.sample_step = SolutionStep(expression="2(x + 1) = 4")
     
     def test_engine_initialization(self):
         """Тест инициализации движка."""
@@ -34,7 +34,7 @@ class TestTransformationEngine:
         mock_response.choices[0].message.content = '''[
             {
                 "description": "Раскрыть скобки",
-                "latex": "2x + 2 = 4",
+                "expression": "2x + 2 = 4",
                 "type": "expand",
                 "metadata": {"difficulty": "easy"}
             }
@@ -65,7 +65,7 @@ class TestTransformationEngine:
         """Тест успешного применения преобразования."""
         transformation = Transformation(
             description="Раскрыть скобки",
-            latex="2x + 2 = 4",
+            expression="2x + 2 = 4",
             type="expand"
         )
         
@@ -90,7 +90,7 @@ class TestTransformationEngine:
         """Тест обработки ошибки при применении."""
         transformation = Transformation(
             description="Раскрыть скобки",
-            latex="2x + 2 = 4",
+            expression="2x + 2 = 4",
             type="expand"
         )
         
@@ -106,7 +106,7 @@ class TestTransformationEngine:
     @patch('core.engine.OpenAI')
     def test_check_solution_completeness_solved(self, mock_openai):
         """Тест проверки завершённости - задача решена."""
-        solved_step = SolutionStep(latex_content="x = 2")
+        solved_step = SolutionStep(expression="x = 2")
         
         # Мокаем ответ GPT
         mock_response = Mock()
@@ -165,11 +165,11 @@ class TestSolutionHistory:
     def test_add_step(self):
         """Тест добавления шага."""
         transformations = [
-            {"description": "Раскрыть скобки", "type": "expand", "latex": "2x + 2 = 4"}
+            {"description": "Раскрыть скобки", "type": "expand", "expression": "2x + 2 = 4"}
         ]
         
         step_id = self.history.add_step(
-            latex_content="2(x + 1) = 4",
+            expression="2(x + 1) = 4",
             available_transformations=transformations
         )
         
@@ -179,31 +179,31 @@ class TestSolutionHistory:
         
         current_step = self.history.get_current_step()
         assert current_step is not None
-        assert current_step.latex_content == "2(x + 1) = 4"
+        assert current_step.expression == "2(x + 1) = 4"
         assert current_step.step_number == 0
     
     def test_add_step_with_transformation(self):
         """Тест добавления шага с выбранным преобразованием."""
         transformations = [
-            {"description": "Раскрыть скобки", "type": "expand", "latex": "2x + 2 = 4"}
+            {"description": "Раскрыть скобки", "type": "expand", "expression": "2x + 2 = 4"}
         ]
         chosen_transformation = transformations[0]
         
         step_id = self.history.add_step(
-            latex_content="2(x + 1) = 4",
+            expression="2(x + 1) = 4",
             available_transformations=transformations,
             chosen_transformation=chosen_transformation,
-            result_latex="2x + 2 = 4"
+            result_expression="2x + 2 = 4"
         )
         
         current_step = self.history.get_current_step()
         assert current_step.chosen_transformation == chosen_transformation
-        assert current_step.result_latex == "2x + 2 = 4"
+        assert current_step.result_expression == "2x + 2 = 4"
     
     def test_get_step_by_id(self):
         """Тест получения шага по ID."""
         step_id = self.history.add_step(
-            latex_content="2(x + 1) = 4",
+            expression="2(x + 1) = 4",
             available_transformations=[]
         )
         
@@ -214,7 +214,7 @@ class TestSolutionHistory:
     def test_get_step_by_number(self):
         """Тест получения шага по номеру."""
         self.history.add_step(
-            latex_content="2(x + 1) = 4",
+            expression="2(x + 1) = 4",
             available_transformations=[]
         )
         
@@ -227,21 +227,21 @@ class TestSolutionHistory:
         chosen_transformation = {
             "description": "Раскрыть скобки",
             "type": "expand",
-            "latex": "2x + 2 = 4"
+            "expression": "2x + 2 = 4"
         }
         
         step_id = self.history.add_step(
-            latex_content="2(x + 1) = 4",
+            expression="2(x + 1) = 4",
             available_transformations=[chosen_transformation],
             chosen_transformation=chosen_transformation,
-            result_latex="2x + 2 = 4"
+            result_expression="2x + 2 = 4"
         )
         
         step = self.history.get_step_by_id(step_id)
         summary = self.history.get_step_summary(step)
         
         assert summary["step_number"] == 0
-        assert summary["latex_content"] == "2(x + 1) = 4"
+        assert summary["expression"] == "2(x + 1) = 4"
         assert summary["has_chosen_transformation"]
         assert summary["has_result"]
         assert summary["chosen_transformation"]["description"] == "Раскрыть скобки"
@@ -250,14 +250,14 @@ class TestSolutionHistory:
         """Тест получения полной сводки истории."""
         # Добавляем несколько шагов
         self.history.add_step(
-            latex_content="2(x + 1) = 4",
+            expression="2(x + 1) = 4",
             available_transformations=[]
         )
         self.history.add_step(
-            latex_content="2x + 2 = 4",
+            expression="2x + 2 = 4",
             available_transformations=[],
             chosen_transformation={"description": "Раскрыть скобки"},
-            result_latex="2x + 2 = 4"
+            result_expression="2x + 2 = 4"
         )
         
         summary = self.history.get_full_history_summary()
@@ -272,10 +272,10 @@ class TestSolutionHistory:
         """Тест экспорта и импорта истории."""
         # Добавляем шаг
         self.history.add_step(
-            latex_content="2(x + 1) = 4",
+            expression="2(x + 1) = 4",
             available_transformations=[],
             chosen_transformation={"description": "Раскрыть скобки"},
-            result_latex="2x + 2 = 4"
+            result_expression="2x + 2 = 4"
         )
         
         # Экспортируем
