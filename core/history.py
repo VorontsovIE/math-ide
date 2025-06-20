@@ -203,15 +203,15 @@ if __name__ == "__main__":
                 "type": "divide", 
                 "latex": "x + 1 = 2"
             }
-        ]
+        ],
+        chosen_transformation={
+            "description": "Раскрыть скобки в левой части",
+            "type": "expand",
+            "latex": "2x + 2 = 4"
+        },
+        result_latex="2x + 2 = 4"
     )
     
-    # Выбираем преобразование и добавляем результат
-    chosen_transformation = {
-        "description": "Раскрыть скобки в левой части",
-        "type": "expand",
-        "latex": "2x + 2 = 4"
-    }
     
     step2_id = history.add_step(
         latex_content="2x + 2 = 4",
@@ -224,11 +224,15 @@ if __name__ == "__main__":
             {
                 "description": "Разделить обе части на 2",
                 "type": "divide",
-                "latex": "x = 1"
+                "latex": "x + 1 = 2"
             }
         ],
-        chosen_transformation=chosen_transformation,
-        result_latex="2x + 2 = 4"
+        chosen_transformation={
+            "description": "Разделить обе части на 2",
+            "type": "divide",
+            "latex": "x + 1 = 2"
+        }
+        result_latex="x + 1 = 2"
     )
     
     # Выводим сводку
