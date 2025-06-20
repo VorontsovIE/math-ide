@@ -1,11 +1,30 @@
 import json
 import random
+import logging
 from dataclasses import dataclass, field
 from typing import List, Optional, Any, Dict
 from enum import Enum
 from pathlib import Path
 import openai
 from openai import OpenAI
+
+# Настройка логирования
+logging.basicConfig(
+    format="%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s",
+    level=logging.INFO
+)
+logger = logging.getLogger(__name__)
+
+# Добавляем цветной форматтер для консоли
+try:
+    import coloredlogs
+    coloredlogs.install(
+        level='INFO',
+        logger=logger,
+        fmt="%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
+    )
+except ImportError:
+    logger.info("coloredlogs не установлен. Используется стандартное логирование.")
 
 
 class BaseTransformationType(Enum):
@@ -129,16 +148,22 @@ class TransformationEngine:
         self.client = OpenAI(api_key=api_key)
         self.prompt_manager = PromptManager()
         
+        logger.info(f"Инициализация TransformationEngine с моделью {model}")
+        
         # Загружаем промпты
+        logger.debug("Загрузка промптов...")
         self.generation_prompt = self.prompt_manager.load_prompt("generation.md")
         self.apply_prompt = self.prompt_manager.load_prompt("apply.md")
         self.check_prompt = self.prompt_manager.load_prompt("check.md")
+        logger.debug("Промпты успешно загружены")
 
     def generate_transformations(self, step: SolutionStep) -> GenerationResult:
         """
         Генерирует список допустимых преобразований для текущего шага решения.
         """
         try:
+            logger.info("Генерация преобразований для выражения: %s", step.expression)
+            
             # Форматируем промпт
             transformation_types = [t.value for t in BaseTransformationType]
             formatted_prompt = self.prompt_manager.format_prompt(
@@ -148,6 +173,7 @@ class TransformationEngine:
                 transformation_types_list=get_transformation_types_markdown()
             )
             
+            logger.debug("Отправка запроса к GPT для генерации преобразований")
             # Запрос к GPT
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -159,8 +185,18 @@ class TransformationEngine:
                 max_tokens=1000
             )
             
+            # Логируем токены
+            usage = response.usage
+            logger.info(
+                "Использование токенов: промпт=%d, ответ=%d, всего=%d",
+                usage.prompt_tokens,
+                usage.completion_tokens,
+                usage.total_tokens
+            )
+            
             # Парсим ответ
             content = response.choices[0].message.content
+            logger.debug("Получен ответ от GPT: %s", content)
             transformations_data = json.loads(content)
             
             # Преобразуем в объекты Transformation
@@ -173,6 +209,8 @@ class TransformationEngine:
                     metadata=data.get("metadata", {})
                 )
                 transformations.append(transformation)
+            
+            logger.info("Сгенерировано %d преобразований", len(transformations))
             
             # Сортировка по полезности (good > neutral > bad)
             def usefulness_key(tr: Transformation):
@@ -188,11 +226,12 @@ class TransformationEngine:
             top5 = transformations[:5]
             if len(top5) > 1:
                 random.shuffle(top5)
+            
+            logger.info("Отобрано %d лучших преобразований", len(top5))
             return GenerationResult(transformations=top5)
             
         except Exception as e:
-            # В случае ошибки возвращаем пустой список преобразований
-            print(f"Ошибка генерации преобразований: {e}")
+            logger.error("Ошибка при генерации преобразований: %s", str(e), exc_info=True)
             return GenerationResult(transformations=[])
 
     def apply_transformation(self, current_step: SolutionStep, transformation: Transformation) -> ApplyResult:
@@ -200,14 +239,22 @@ class TransformationEngine:
         Применяет выбранное преобразование к текущему шагу решения.
         """
         try:
+            logger.info(
+                "Применение преобразования типа '%s' к выражению: %s",
+                transformation.type,
+                current_step.expression
+            )
+            
             # Форматируем промпт
             formatted_prompt = self.prompt_manager.format_prompt(
                 self.apply_prompt,
                 current_state=current_step.expression,
+                transformation_type=transformation.type,
                 transformation_description=transformation.description,
-                transformation_type=transformation.type
+                transformation_expression=transformation.expression
             )
             
+            logger.debug("Отправка запроса к GPT для применения преобразования")
             # Запрос к GPT
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -219,32 +266,49 @@ class TransformationEngine:
                 max_tokens=500
             )
             
+            # Логируем токены
+            usage = response.usage
+            logger.info(
+                "Использование токенов: промпт=%d, ответ=%d, всего=%d",
+                usage.prompt_tokens,
+                usage.completion_tokens,
+                usage.total_tokens
+            )
+            
             # Парсим ответ
             content = response.choices[0].message.content
+            logger.debug("Получен ответ от GPT: %s", content)
             result_data = json.loads(content)
             
+            logger.info(
+                "Результат применения: успех=%s, объяснение='%s'",
+                result_data["is_valid"],
+                result_data["explanation"]
+            )
+            
             return ApplyResult(
-                result=result_data.get("result", ""),
-                is_valid=result_data.get("is_valid", False),
-                explanation=result_data.get("explanation", ""),
-                errors=result_data.get("errors")
+                result=result_data["result"],
+                is_valid=result_data["is_valid"],
+                explanation=result_data["explanation"],
+                errors=result_data.get("errors", [])
             )
             
         except Exception as e:
-            # В случае ошибки возвращаем ошибку
-            print(f"Ошибка применения преобразования: {e}")
+            logger.error("Ошибка при применении преобразования: %s", str(e), exc_info=True)
             return ApplyResult(
-                result="",
+                result=current_step.expression,
                 is_valid=False,
-                explanation=f"Ошибка при применении преобразования: {e}",
-                errors=[str(e)]
+                explanation=f"Ошибка при применении преобразования: {str(e)}",
+                errors=["internal_error"]
             )
 
     def check_solution_completeness(self, current_step: SolutionStep, original_task: str) -> CheckResult:
         """
-        Проверяет, завершено ли решение задачи.
+        Проверяет, является ли текущий шаг завершающим для решения задачи.
         """
         try:
+            logger.info("Проверка завершённости решения для выражения: %s", current_step.expression)
+            
             # Форматируем промпт
             formatted_prompt = self.prompt_manager.format_prompt(
                 self.check_prompt,
@@ -252,6 +316,7 @@ class TransformationEngine:
                 original_task=original_task
             )
             
+            logger.debug("Отправка запроса к GPT для проверки завершённости")
             # Запрос к GPT
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -263,27 +328,42 @@ class TransformationEngine:
                 max_tokens=500
             )
             
+            # Логируем токены
+            usage = response.usage
+            logger.info(
+                "Использование токенов: промпт=%d, ответ=%d, всего=%d",
+                usage.prompt_tokens,
+                usage.completion_tokens,
+                usage.total_tokens
+            )
+            
             # Парсим ответ
             content = response.choices[0].message.content
-            result_data = json.loads(content)
+            logger.debug("Получен ответ от GPT: %s", content)
+            check_data = json.loads(content)
+            
+            logger.info(
+                "Результат проверки: решено=%s, уверенность=%.2f, тип='%s'",
+                check_data["is_solved"],
+                check_data["confidence"],
+                check_data["solution_type"]
+            )
             
             return CheckResult(
-                is_solved=result_data.get("is_solved", False),
-                confidence=result_data.get("confidence", 0.0),
-                explanation=result_data.get("explanation", ""),
-                solution_type=result_data.get("solution_type", "partial"),
-                next_steps=result_data.get("next_steps", [])
+                is_solved=check_data["is_solved"],
+                confidence=check_data["confidence"],
+                explanation=check_data["explanation"],
+                solution_type=check_data["solution_type"],
+                next_steps=check_data.get("next_steps", [])
             )
             
         except Exception as e:
-            # В случае ошибки возвращаем неопределённый результат
-            print(f"Ошибка проверки завершённости: {e}")
+            logger.error("Ошибка при проверке завершённости: %s", str(e), exc_info=True)
             return CheckResult(
                 is_solved=False,
                 confidence=0.0,
-                explanation=f"Ошибка при проверке завершённости: {e}",
-                solution_type="partial",
-                next_steps=["Проверить подключение к API"]
+                explanation=f"Ошибка при проверке завершённости: {str(e)}",
+                solution_type="error"
             )
 
 
