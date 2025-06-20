@@ -168,15 +168,9 @@ class TransformationEngine:
             return GenerationResult(transformations=top5)
             
         except Exception as e:
-            # В случае ошибки возвращаем заглушку
+            # В случае ошибки возвращаем пустой список преобразований
             print(f"Ошибка генерации преобразований: {e}")
-            dummy_transformation = Transformation(
-                description="Раскрыть скобки в левой части",
-                expression="2x + 2 = 4",
-                type=BaseTransformationType.EXPAND.value,
-                metadata={"difficulty": "elementary school", "reasoning": "Заглушка при ошибке API"}
-            )
-            return GenerationResult(transformations=[dummy_transformation])
+            return GenerationResult(transformations=[])
 
     def apply_transformation(self, current_step: SolutionStep, transformation: Transformation) -> ApplyResult:
         """
