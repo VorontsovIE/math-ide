@@ -1,0 +1,5 @@
+{
+  "terminal": {
+    "allowCommands": ["git", "python", "poetry"]
+  }
+}
