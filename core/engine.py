@@ -23,6 +23,23 @@ class BaseTransformationType(Enum):
     SUBSTITUTE = "substitute"
     EXPAND_CASES = "expand_cases"  # Для разбора случаев, например, с модулем |x|
     SIMPLIFY = "simplify"
+    CUSTOM = "custom"
+
+    @classmethod
+    def descriptions(cls):
+        return {
+            cls.ADD.value: "добавление к обеим частям",
+            cls.SUBTRACT.value: "вычитание из обеих частей",
+            cls.MULTIPLY.value: "умножение обеих частей",
+            cls.DIVIDE.value: "деление обеих частей",
+            cls.FACTOR.value: "разложение на множители",
+            cls.EXPAND.value: "раскрытие скобок",
+            cls.COLLECT_TERMS.value: "приведение подобных слагаемых",
+            cls.SUBSTITUTE.value: "подстановка",
+            cls.EXPAND_CASES.value: "разбор случаев (например, с модулем)",
+            cls.SIMPLIFY.value: "упрощение выражения",
+            cls.CUSTOM.value: "любое другое преобразование"
+        }
 
 
 @dataclass
@@ -97,6 +114,11 @@ class PromptManager:
         return prompt.format(**kwargs)
 
 
+def get_transformation_types_markdown() -> str:
+    desc = BaseTransformationType.descriptions()
+    return "\n".join([f"- `{k}` — {v}" for k, v in desc.items()])
+
+
 class TransformationEngine:
     """
     Ядро для генерации допустимых математических преобразований.
@@ -122,7 +144,8 @@ class TransformationEngine:
             formatted_prompt = self.prompt_manager.format_prompt(
                 self.generation_prompt,
                 current_state=step.expression,
-                transformation_types=", ".join(transformation_types)
+                transformation_types=", ".join(transformation_types),
+                transformation_types_list=get_transformation_types_markdown()
             )
             
             # Запрос к GPT
