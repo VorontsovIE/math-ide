@@ -298,3 +298,19 @@ def run_bot(token: str) -> None:
     except Exception as e:
         logger.critical(f"Критическая ошибка при запуске бота: {e}")
         raise
+
+if __name__ == "__main__":
+    import os
+    from dotenv import load_dotenv
+    
+    # Загружаем переменные окружения
+    load_dotenv()
+    
+    # Получаем токен бота
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    if not token:
+        logger.critical("TELEGRAM_BOT_TOKEN не найден в переменных окружения")
+        exit(1)
+    
+    logger.info("Запуск Telegram-бота...")
+    run_bot(token)
