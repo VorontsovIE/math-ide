@@ -231,7 +231,7 @@ if __name__ == "__main__":
             "description": "Разделить обе части на 2",
             "type": "divide",
             "expression": "x + 1 = 2"
-        }
+        },
         result_expression="x + 1 = 2"
     )
     
