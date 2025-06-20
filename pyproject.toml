@@ -35,6 +35,10 @@ mkdocs-material = "^9.0.0"
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
 
+[virtualenvs]
+in-project = true
+path = ".venv"
+
 [tool.black]
 line-length = 88
 target-version = ['py310']
