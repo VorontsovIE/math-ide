@@ -174,7 +174,7 @@ class TransformationEngine:
                 description="Раскрыть скобки в левой части",
                 expression="2x + 2 = 4",
                 type=BaseTransformationType.EXPAND.value,
-                metadata={"difficulty": "easy", "reasoning": "Заглушка при ошибке API"}
+                metadata={"difficulty": "elementary school", "reasoning": "Заглушка при ошибке API"}
             )
             return GenerationResult(transformations=[dummy_transformation])
 

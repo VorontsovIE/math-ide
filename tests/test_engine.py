@@ -36,7 +36,7 @@ class TestTransformationEngine:
                 "description": "Раскрыть скобки",
                 "expression": "2x + 2 = 4",
                 "type": "expand",
-                "metadata": {"difficulty": "easy"}
+                "metadata": {"difficulty": "elementary school"}
             }
         ]'''
         mock_openai.return_value.chat.completions.create.return_value = mock_response
