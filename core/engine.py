@@ -159,18 +159,17 @@ class TransformationEngine:
 
     def generate_transformations(self, step: SolutionStep) -> GenerationResult:
         """
-        Генерирует список допустимых преобразований для текущего шага решения.
+        Генерирует список возможных математических преобразований для текущего шага.
         """
         try:
             logger.info("Генерация преобразований для выражения: %s", step.expression)
             
             # Форматируем промпт
-            transformation_types = [t.value for t in BaseTransformationType]
             formatted_prompt = self.prompt_manager.format_prompt(
                 self.generation_prompt,
                 current_state=step.expression,
-                transformation_types=", ".join(transformation_types),
-                transformation_types_list=get_transformation_types_markdown()
+                transformation_types=get_transformation_types_markdown(),
+                transformation_types_list=self.prompt_manager.load_prompt("transformation_types.md")
             )
             
             logger.debug("Отправка запроса к GPT для генерации преобразований")
@@ -195,20 +194,65 @@ class TransformationEngine:
             )
             
             # Парсим ответ
-            content = response.choices[0].message.content
+            content = response.choices[0].message.content.strip()
             logger.debug("Получен ответ от GPT: %s", content)
-            transformations_data = json.loads(content)
+            
+            # Проверяем, что ответ не пустой
+            if not content:
+                logger.error("Получен пустой ответ от GPT")
+                return GenerationResult(transformations=[])
+            
+            # Пытаемся найти JSON в ответе (на случай, если GPT добавил лишний текст)
+            json_start = content.find('[')
+            json_end = content.rfind(']') + 1
+            
+            if json_start == -1 or json_end == 0:
+                logger.error("Не найден JSON-массив в ответе GPT. Полный ответ: %s", content)
+                return GenerationResult(transformations=[])
+            
+            json_content = content[json_start:json_end]
+            logger.debug("Извлеченный JSON: %s", json_content)
+            
+            try:
+                transformations_data = json.loads(json_content)
+            except json.JSONDecodeError as e:
+                logger.error("Ошибка парсинга JSON: %s", str(e))
+                logger.error("Проблемный JSON: %s", json_content)
+                logger.error("Полный ответ GPT: %s", content)
+                return GenerationResult(transformations=[])
+            
+            # Проверяем, что это список
+            if not isinstance(transformations_data, list):
+                logger.error("Ожидался список преобразований, получен: %s", type(transformations_data))
+                return GenerationResult(transformations=[])
             
             # Преобразуем в объекты Transformation
             transformations = []
-            for data in transformations_data:
-                transformation = Transformation(
-                    description=data["description"],
-                    expression=data["expression"],
-                    type=data["type"],
-                    metadata=data.get("metadata", {})
-                )
-                transformations.append(transformation)
+            for i, data in enumerate(transformations_data):
+                try:
+                    if not isinstance(data, dict):
+                        logger.warning("Пропускаем элемент %d: не является словарем", i)
+                        continue
+                    
+                    # Проверяем обязательные поля
+                    required_fields = ["description", "expression", "type"]
+                    missing_fields = [field for field in required_fields if field not in data]
+                    if missing_fields:
+                        logger.warning("Пропускаем элемент %d: отсутствуют поля %s", i, missing_fields)
+                        continue
+                    
+                    transformation = Transformation(
+                        description=data["description"],
+                        expression=data["expression"],
+                        type=data["type"],
+                        metadata=data.get("metadata", {})
+                    )
+                    transformations.append(transformation)
+                    logger.debug("Добавлено преобразование %d: %s", i, transformation.description)
+                    
+                except Exception as e:
+                    logger.warning("Ошибка при обработке преобразования %d: %s", i, str(e))
+                    continue
             
             logger.info("Сгенерировано %d преобразований", len(transformations))
             
@@ -276,9 +320,60 @@ class TransformationEngine:
             )
             
             # Парсим ответ
-            content = response.choices[0].message.content
+            content = response.choices[0].message.content.strip()
             logger.debug("Получен ответ от GPT: %s", content)
-            result_data = json.loads(content)
+            
+            # Проверяем, что ответ не пустой
+            if not content:
+                logger.error("Получен пустой ответ от GPT")
+                return ApplyResult(
+                    result=current_step.expression,
+                    is_valid=False,
+                    explanation="Получен пустой ответ от GPT",
+                    errors=["empty_response"]
+                )
+            
+            # Пытаемся найти JSON в ответе (на случай, если GPT добавил лишний текст)
+            json_start = content.find('{')
+            json_end = content.rfind('}') + 1
+            
+            if json_start == -1 or json_end == 0:
+                logger.error("Не найден JSON-объект в ответе GPT. Полный ответ: %s", content)
+                return ApplyResult(
+                    result=current_step.expression,
+                    is_valid=False,
+                    explanation="Не найден JSON-объект в ответе GPT",
+                    errors=["no_json_found"]
+                )
+            
+            json_content = content[json_start:json_end]
+            logger.debug("Извлеченный JSON: %s", json_content)
+            
+            try:
+                result_data = json.loads(json_content)
+            except json.JSONDecodeError as e:
+                logger.error("Ошибка парсинга JSON: %s", str(e))
+                logger.error("Проблемный JSON: %s", json_content)
+                logger.error("Полный ответ GPT: %s", content)
+                return ApplyResult(
+                    result=current_step.expression,
+                    is_valid=False,
+                    explanation=f"Ошибка парсинга JSON: {str(e)}",
+                    errors=["json_parse_error"]
+                )
+            
+            # Проверяем обязательные поля
+            required_fields = ["result_expression", "is_valid", "explanation"]
+            missing_fields = [field for field in required_fields if field not in result_data]
+            if missing_fields:
+                logger.error("Отсутствуют обязательные поля в ответе: %s", missing_fields)
+                logger.error("Полученные поля: %s", list(result_data.keys()))
+                return ApplyResult(
+                    result=current_step.expression,
+                    is_valid=False,
+                    explanation=f"Отсутствуют обязательные поля: {missing_fields}",
+                    errors=["missing_fields"]
+                )
             
             logger.info(
                 "Результат применения: успех=%s, объяснение='%s'",
@@ -287,7 +382,7 @@ class TransformationEngine:
             )
             
             return ApplyResult(
-                result=result_data["result"],
+                result=result_data["result_expression"],
                 is_valid=result_data["is_valid"],
                 explanation=result_data["explanation"],
                 errors=result_data.get("errors", [])
@@ -338,9 +433,60 @@ class TransformationEngine:
             )
             
             # Парсим ответ
-            content = response.choices[0].message.content
+            content = response.choices[0].message.content.strip()
             logger.debug("Получен ответ от GPT: %s", content)
-            check_data = json.loads(content)
+            
+            # Проверяем, что ответ не пустой
+            if not content:
+                logger.error("Получен пустой ответ от GPT")
+                return CheckResult(
+                    is_solved=False,
+                    confidence=0.0,
+                    explanation="Получен пустой ответ от GPT",
+                    solution_type="error"
+                )
+            
+            # Пытаемся найти JSON в ответе (на случай, если GPT добавил лишний текст)
+            json_start = content.find('{')
+            json_end = content.rfind('}') + 1
+            
+            if json_start == -1 or json_end == 0:
+                logger.error("Не найден JSON-объект в ответе GPT. Полный ответ: %s", content)
+                return CheckResult(
+                    is_solved=False,
+                    confidence=0.0,
+                    explanation="Не найден JSON-объект в ответе GPT",
+                    solution_type="error"
+                )
+            
+            json_content = content[json_start:json_end]
+            logger.debug("Извлеченный JSON: %s", json_content)
+            
+            try:
+                check_data = json.loads(json_content)
+            except json.JSONDecodeError as e:
+                logger.error("Ошибка парсинга JSON: %s", str(e))
+                logger.error("Проблемный JSON: %s", json_content)
+                logger.error("Полный ответ GPT: %s", content)
+                return CheckResult(
+                    is_solved=False,
+                    confidence=0.0,
+                    explanation=f"Ошибка парсинга JSON: {str(e)}",
+                    solution_type="error"
+                )
+            
+            # Проверяем обязательные поля
+            required_fields = ["is_solved", "confidence", "explanation", "solution_type"]
+            missing_fields = [field for field in required_fields if field not in check_data]
+            if missing_fields:
+                logger.error("Отсутствуют обязательные поля в ответе: %s", missing_fields)
+                logger.error("Полученные поля: %s", list(check_data.keys()))
+                return CheckResult(
+                    is_solved=False,
+                    confidence=0.0,
+                    explanation=f"Отсутствуют обязательные поля: {missing_fields}",
+                    solution_type="error"
+                )
             
             logger.info(
                 "Результат проверки: решено=%s, уверенность=%.2f, тип='%s'",
