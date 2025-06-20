@@ -4,11 +4,74 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.markdown import Markdown
+from rich.text import Text
 
 from core.engine import TransformationEngine, SolutionStep, Transformation
 from core.history import SolutionHistory
 
 console = Console()
+
+def render_latex(latex: str) -> Text:
+    """
+    Рендерит LaTeX-выражение в формате, подходящем для терминала.
+    Использует Unicode-символы для базовых математических операций.
+    """
+    # Заменяем базовые LaTeX-команды на Unicode-символы
+    replacements = {
+        r'\times': '×',
+        r'\div': '÷',
+        r'\pm': '±',
+        r'\mp': '∓',
+        r'\leq': '≤',
+        r'\geq': '≥',
+        r'\neq': '≠',
+        r'\approx': '≈',
+        r'\equiv': '≡',
+        r'\sum': '∑',
+        r'\prod': '∏',
+        r'\int': '∫',
+        r'\infty': '∞',
+        r'\alpha': 'α',
+        r'\beta': 'β',
+        r'\gamma': 'γ',
+        r'\delta': 'δ',
+        r'\epsilon': 'ε',
+        r'\theta': 'θ',
+        r'\lambda': 'λ',
+        r'\mu': 'μ',
+        r'\pi': 'π',
+        r'\sigma': 'σ',
+        r'\omega': 'ω',
+        r'\sqrt': '√',
+        r'\frac': '/',  # Упрощённое представление дроби
+        r'\left': '',   # Игнорируем команды для скобок
+        r'\right': '',
+        r'\cdot': '·',
+        r'\partial': '∂',
+        r'\nabla': '∇',
+        r'\in': '∈',
+        r'\notin': '∉',
+        r'\subset': '⊂',
+        r'\supset': '⊃',
+        r'\cup': '∪',
+        r'\cap': '∩',
+        r'\forall': '∀',
+        r'\exists': '∃',
+        r'\neg': '¬',
+        r'\wedge': '∧',
+        r'\vee': '∨',
+    }
+    
+    result = latex
+    for tex, unicode in replacements.items():
+        result = result.replace(tex, unicode)
+    
+    # Удаляем оставшиеся LaTeX-команды и фигурные скобки
+    result = result.replace('{', '').replace('}', '')
+    
+    # Создаём стилизованный текст
+    return Text(result, style="bold blue")
+
 
 class MathIDECLI:
     def __init__(self, api_key: Optional[str] = None, model: str = "gpt-3.5-turbo"):
@@ -28,7 +91,7 @@ class MathIDECLI:
                 str(idx),
                 tr.description,
                 tr.type,
-                tr.expression
+                render_latex(tr.expression)
             )
         
         console.print(table)
@@ -55,9 +118,9 @@ class MathIDECLI:
             
             table.add_row(
                 str(step["step_number"]),
-                step["expression"],
+                render_latex(step["expression"]),
                 transformation,
-                result
+                render_latex(result) if result != "-" else result
             )
         
         console.print(table)
@@ -78,7 +141,11 @@ class MathIDECLI:
             generation_result = self.engine.generate_transformations(current_step)
             
             # Отображаем текущее состояние
-            console.print(Panel(f"Текущее выражение: {current_step.expression}"))
+            console.print(Panel.fit(
+                render_latex(current_step.expression),
+                title="Текущее выражение",
+                border_style="green"
+            ))
             
             # Отображаем доступные преобразования
             self.display_transformations(generation_result.transformations)
@@ -113,15 +180,24 @@ class MathIDECLI:
                         )
                         
                         current_step = SolutionStep(expression=apply_result.result)
-                        console.print(Panel(f"[green]Применено успешно![/green]\n{apply_result.explanation}"))
+                        console.print(Panel.fit(
+                            f"[green]Применено успешно![/green]\n{apply_result.explanation}\n\nРезультат:\n{render_latex(apply_result.result)}",
+                            border_style="green"
+                        ))
                         
                         # Проверяем завершённость
                         check_result = self.engine.check_solution_completeness(current_step, self.history.original_task)
                         if check_result.is_solved:
-                            console.print(Panel(f"[green]Задача решена![/green]\n{check_result.explanation}"))
+                            console.print(Panel.fit(
+                                f"[green]Задача решена![/green]\n{check_result.explanation}\n\nИтоговый результат:\n{render_latex(current_step.expression)}",
+                                border_style="green"
+                            ))
                             break
                     else:
-                        console.print(Panel(f"[red]Ошибка:[/red] {apply_result.explanation}"))
+                        console.print(Panel.fit(
+                            f"[red]Ошибка:[/red] {apply_result.explanation}",
+                            border_style="red"
+                        ))
                 else:
                     console.print("[red]Неверный номер преобразования[/red]")
             except ValueError:
