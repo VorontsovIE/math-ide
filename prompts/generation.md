@@ -11,15 +11,15 @@
 1. **Формат ответа**: JSON-массив объектов с полями:
    ```json
    [
-     {
+     {{
        "description": "Человекочитаемое описание преобразования на русском языке",
        "expression": "Результат применения преобразования в формате LaTeX",
        "type": "Тип преобразования из списка доступных",
-       "metadata": {
+       "metadata": {{
          "usefullness": "good|neutral|bad",
          "reasoning": "Краткое объяснение, почему это преобразование полезно, бесполезно или вредно"
-       }
-     }
+       }}
+     }}
    ]
    ```
 
@@ -47,46 +47,46 @@
 **Для уравнения 2(x + 1) = 4:**
 ```json
 [
-  {
+  {{
     "description": "Раскрыть скобки в левой части",
     "expression": "2x + 2 = 4",
     "type": "expand",
-    "metadata": {
+    "metadata": {{
       "difficulty": "elementary school",
       "usefullness": "good",
       "reasoning": "Слагаемые окажутся на едином уровне."
-    }
-  },
-  {
+    }}
+  }},
+  {{
     "description": "Вычесть из обеих частей 4",
     "expression": "2(x + 1) - 4 = 4 - 4",
     "type": "subtract",
-    "metadata": {
+    "metadata": {{
       "difficulty": "elementary school",
       "usefullness": "good", 
       "reasoning": "Такое вычитание занулит правую часть уравнения."
-    }
-  },
-  {
+    }}
+  }},
+  {{
     "description": "Заменить 1 на sin^2(x) + cos^2(x)",
     "expression": "2(x + sin^2(x) + cos^2(x)) = 4",
     "type": "custom",
-    "metadata": {
+    "metadata": {{
       "difficulty": "middle school",
       "usefullness": "bad", 
       "reasoning": "Слагаемые усложняются и становятся менее похожими."
-    }
-  },
-  {
+    }}
+  }},
+  {{
     "description": "Умножить обе части на 3",
     "expression": "6(x + 1) = 12",
     "type": "multiply",
-    "metadata": {
+    "metadata": {{
       "difficulty": "elementary school",
       "usefullness": "neutral", 
       "reasoning": "Структура уравнения не поменялась, но коэффициенты стали больше"
-    }
-  }
+    }}
+  }}
 ]
 ```
 
