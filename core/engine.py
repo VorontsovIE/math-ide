@@ -151,13 +151,21 @@ class TransformationEngine:
                 )
                 transformations.append(transformation)
             
-            # Перемешиваем топ-5 предложений (как требуется в плане)
-            if len(transformations) > 5:
-                transformations = random.sample(transformations, 5)
-            elif len(transformations) > 1:
-                random.shuffle(transformations)
-            
-            return GenerationResult(transformations=transformations)
+            # Сортировка по полезности (good > neutral > bad)
+            def usefulness_key(tr: Transformation):
+                value = tr.metadata.get("usefullness", "neutral")
+                if value == "good":
+                    return 0
+                elif value == "neutral":
+                    return 1
+                else:
+                    return 2
+            transformations.sort(key=usefulness_key)
+            # Выбор и перемешивание топ-5
+            top5 = transformations[:5]
+            if len(top5) > 1:
+                random.shuffle(top5)
+            return GenerationResult(transformations=top5)
             
         except Exception as e:
             # В случае ошибки возвращаем заглушку
