@@ -41,7 +41,7 @@ class UserState:
     """Состояние пользователя в боте."""
     history: Optional[SolutionHistory] = None
     current_step: Optional[SolutionStep] = None
-    available_transformations: List[Transformation] = None
+    available_transformations: Optional[List[Transformation]] = None
 
 # Хранилище состояний пользователей
 user_states: Dict[int, UserState] = {}
@@ -168,6 +168,23 @@ async def handle_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         generation_result = engine.generate_transformations(current_step)
         logger.info(f"Сгенерировано {len(generation_result.transformations)} преобразований")
         
+        # Проверяем, есть ли доступные преобразования
+        if not generation_result.transformations:
+            logger.warning(f"Не найдено ни одного варианта действия для задачи: {task}")
+            await update.message.reply_text(
+                f"😕 К сожалению, я не смог найти подходящих преобразований для вашей задачи:\n\n"
+                f"`{task}`\n\n"
+                f"Возможные причины:\n"
+                f"• Задача уже решена или слишком простая\n"
+                f"• Нестандартный формат выражения\n"
+                f"• Ошибка в LaTeX-синтаксисе\n\n"
+                f"Попробуйте:\n"
+                f"• Переформулировать задачу\n"
+                f"• Проверить корректность LaTeX\n"
+                f"• Отправить более сложное выражение"
+            )
+            return
+        
         # Обновляем состояние пользователя
         user_states[user_id] = UserState(
             history=history,
@@ -229,21 +246,23 @@ async def handle_transformation_choice(update: Update, context: ContextTypes.DEF
         if apply_result.is_valid:
             logger.info("Преобразование успешно применено")
             # Обновляем историю
-            state.history.add_step(
-                expression=state.current_step.expression,
-                available_transformations=[tr.__dict__ for tr in state.available_transformations],
-                chosen_transformation=chosen.__dict__,
-                result_expression=apply_result.result
-            )
+            if state.history:
+                state.history.add_step(
+                    expression=state.current_step.expression,
+                    available_transformations=[tr.__dict__ for tr in state.available_transformations] if state.available_transformations else [],
+                    chosen_transformation=chosen.__dict__,
+                    result_expression=apply_result.result
+                )
             
             # Обновляем текущий шаг
             state.current_step = SolutionStep(expression=apply_result.result)
             
             # Проверяем завершённость
             logger.info("Проверка завершённости решения...")
+            original_task = state.history.original_task if state.history else "Неизвестная задача"
             check_result = engine.check_solution_completeness(
                 state.current_step,
-                state.history.original_task
+                original_task
             )
             
             # Отправляем результат
@@ -260,6 +279,23 @@ async def handle_transformation_choice(update: Update, context: ContextTypes.DEF
                 generation_result = engine.generate_transformations(state.current_step)
                 state.available_transformations = generation_result.transformations
                 logger.info(f"Сгенерировано {len(generation_result.transformations)} новых преобразований")
+                
+                # Проверяем, есть ли доступные преобразования
+                if not generation_result.transformations:
+                    logger.warning(f"Не найдено ни одного варианта действия для выражения: {state.current_step.expression}")
+                    await query.message.reply_text(
+                        f"😕 К сожалению, я не смог найти подходящих преобразований для текущего выражения:\n\n"
+                        f"`{state.current_step.expression}`\n\n"
+                        f"Возможные причины:\n"
+                        f"• Задача уже решена или близка к решению\n"
+                        f"• Нестандартный формат выражения\n"
+                        f"• Требуется другой подход к решению\n\n"
+                        f"Попробуйте:\n"
+                        f"• Начать новое решение с другой формулировки\n"
+                        f"• Использовать команду /history для просмотра прогресса\n"
+                        f"• Отправить более детальное описание задачи"
+                    )
+                    return
                 
                 await query.message.reply_photo(
                     photo=img,
