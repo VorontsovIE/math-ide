@@ -258,9 +258,11 @@ async def show_history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             img = render_latex_to_image(step["expression"])
             
             # Формируем описание шага
-            description = f"Шаг {step['step_number']}"
+            description = f"Шаг {step['step_number']}: {step['expression']}"
             if step["has_chosen_transformation"]:
-                description += f": {step['chosen_transformation']['description']}"
+                description += f"\n🔄 Применено: {step['chosen_transformation']['description']}"
+            if step["has_result"]:
+                description += f"\n➡️ Результат: {step['result_expression']}"
             
             await update.message.reply_photo(
                 photo=img,
@@ -271,12 +273,28 @@ async def show_history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         logger.error(f"Ошибка при показе истории: {e}")
         await update.message.reply_text("Ошибка при получении истории решения.")
 
+def fix_latex_expression(latex_expr: str) -> str:
+    """Исправляет распространенные проблемы в LaTeX-выражениях."""
+    # Удаляем лишние пробелы и переводы строк
+    latex_expr = ' '.join(latex_expr.split())
+    
+    # Исправляем проблему с неполными командами \frac
+    latex_expr = latex_expr.replace('\\rac{', '\\frac{')
+    
+    # Исправляем другие распространенные проблемы
+    latex_expr = latex_expr.replace('\\sin{', '\\sin(').replace('\\cos{', '\\cos(').replace('\\tan{', '\\tan(')
+    
+    return latex_expr
+
 def render_latex_to_image(latex_expression: str) -> io.BytesIO:
     """Рендерит LaTeX-выражение в изображение."""
     try:
+        # Исправляем проблемы с LaTeX
+        cleaned_expression = fix_latex_expression(latex_expression)
+        
         # Создаём фигуру matplotlib
         fig, ax = plt.subplots(figsize=(10, 2))
-        ax.text(0.5, 0.5, f"${latex_expression}$", 
+        ax.text(0.5, 0.5, f"${cleaned_expression}$", 
                 horizontalalignment='center', verticalalignment='center',
                 fontsize=16, transform=ax.transAxes)
         ax.axis('off')
@@ -304,6 +322,92 @@ def render_latex_to_image(latex_expression: str) -> io.BytesIO:
         
         return img_buffer
 
+def render_transformations_image(current_expression: str, transformations: List[Transformation]) -> io.BytesIO:
+    """Рендерит изображение с текущим выражением и всеми доступными преобразованиями."""
+    try:
+        # Вычисляем размер изображения на основе количества преобразований
+        num_transformations = len(transformations)
+        fig_height = 2 + num_transformations * 0.8  # Базовая высота + высота для каждого преобразования
+        
+        fig, ax = plt.subplots(figsize=(12, fig_height))
+        ax.axis('off')
+        
+        # Исправляем LaTeX в текущем выражении
+        cleaned_current = fix_latex_expression(current_expression)
+        
+        # Отображаем текущее выражение вверху
+        ax.text(0.5, 0.95, "Текущее выражение:", 
+                horizontalalignment='center', verticalalignment='top',
+                fontsize=14, fontweight='bold', transform=ax.transAxes)
+        
+        ax.text(0.5, 0.88, f"${cleaned_current}$", 
+                horizontalalignment='center', verticalalignment='top',
+                fontsize=16, transform=ax.transAxes)
+        
+        # Добавляем разделительную линию
+        ax.axhline(y=0.82, xmin=0.1, xmax=0.9, color='gray', linestyle='-', alpha=0.5, transform=ax.transAxes)
+        
+        # Отображаем доступные преобразования
+        ax.text(0.5, 0.78, "Доступные действия:", 
+                horizontalalignment='center', verticalalignment='top',
+                fontsize=14, fontweight='bold', transform=ax.transAxes)
+        
+        # Отображаем каждое преобразование
+        start_y = 0.72
+        for idx, tr in enumerate(transformations):
+            y_pos = start_y - idx * 0.12
+            
+            # Номер и описание преобразования
+            ax.text(0.05, y_pos, f"{idx + 1}.", 
+                    horizontalalignment='left', verticalalignment='center',
+                    fontsize=12, fontweight='bold', transform=ax.transAxes)
+            
+            ax.text(0.1, y_pos, tr.description, 
+                    horizontalalignment='left', verticalalignment='center',
+                    fontsize=12, transform=ax.transAxes)
+            
+            # Стрелка
+            ax.text(0.75, y_pos, "→", 
+                    horizontalalignment='center', verticalalignment='center',
+                    fontsize=14, fontweight='bold', transform=ax.transAxes)
+            
+            # Предварительный результат
+            if tr.preview_result:
+                cleaned_preview = fix_latex_expression(tr.preview_result)
+                try:
+                    ax.text(0.8, y_pos, f"${cleaned_preview}$", 
+                            horizontalalignment='left', verticalalignment='center',
+                            fontsize=11, transform=ax.transAxes)
+                except:
+                    # Если LaTeX не рендерится, показываем как текст
+                    ax.text(0.8, y_pos, cleaned_preview, 
+                            horizontalalignment='left', verticalalignment='center',
+                            fontsize=11, transform=ax.transAxes)
+        
+        # Сохраняем в BytesIO
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png', bbox_inches='tight', dpi=150, facecolor='white')
+        img_buffer.seek(0)
+        plt.close(fig)
+        
+        return img_buffer
+        
+    except Exception as e:
+        logger.error(f"Ошибка при рендеринге изображения с преобразованиями: {e}")
+        # Возвращаем простое изображение с текстом
+        fig, ax = plt.subplots(figsize=(10, 6))
+        ax.text(0.5, 0.5, f"Текущее выражение:\n{current_expression}\n\nДоступно {len(transformations)} преобразований", 
+                horizontalalignment='center', verticalalignment='center',
+                fontsize=12, transform=ax.transAxes)
+        ax.axis('off')
+        
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png', bbox_inches='tight', dpi=150, facecolor='white')
+        img_buffer.seek(0)
+        plt.close(fig)
+        
+        return img_buffer
+
 async def handle_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик новой задачи с улучшенной системой статусов."""
     user_id = update.effective_user.id
@@ -319,7 +423,7 @@ async def handle_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     try:
         # Инициализируем движок и историю
         if status_message:
-            await edit_status_message(status_message, "🔧 Инициализирую движок решения...", user_id)
+            await edit_status_message(status_message, "🧠 Генерирую возможные преобразования...", user_id)
         
         engine = TransformationEngine(preview_mode=True)
         history = SolutionHistory(task)
@@ -333,9 +437,6 @@ async def handle_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         logger.debug("Создана новая история решения")
         
         # Генерируем возможные преобразования
-        if status_message:
-            await edit_status_message(status_message, "🧠 Генерирую возможные преобразования...", user_id)
-        
         logger.info("Генерация возможных преобразований...")
         generation_result = engine.generate_transformations(current_step)
         logger.info(f"Сгенерировано {len(generation_result.transformations)} преобразований")
@@ -368,7 +469,7 @@ async def handle_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         if status_message:
             await edit_status_message(status_message, "📊 Подготавливаю визуализацию...", user_id)
         
-        img = render_latex_to_image(task)
+        img = render_transformations_image(task, generation_result.transformations)
         
         # Удаляем статус и отправляем результат
         if status_message:
@@ -376,7 +477,7 @@ async def handle_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         
         await update.message.reply_photo(
             photo=img,
-            caption="Начинаем решение. Выберите преобразование:\n\n💡 Показан предварительный результат каждого действия (→)",
+            caption="Начинаем решение. Выберите преобразование:",
             reply_markup=get_transformations_keyboard(generation_result.transformations)
         )
         logger.info("Задача успешно инициализирована")
@@ -395,17 +496,11 @@ async def handle_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             await update.message.reply_text(error_message)
 
 def get_transformations_keyboard(transformations: List[Transformation]) -> InlineKeyboardMarkup:
-    """Создаёт клавиатуру с доступными преобразованиями и предварительными результатами."""
+    """Создаёт клавиатуру с доступными преобразованиями без предварительных результатов."""
     keyboard = []
     for idx, tr in enumerate(transformations):
-        # Формируем текст кнопки с предварительным результатом
+        # Формируем текст кнопки только с описанием действия
         button_text = f"{idx + 1}. {tr.description}"
-        if tr.preview_result:
-            # Ограничиваем длину предварительного результата для удобства отображения
-            preview = tr.preview_result
-            if len(preview) > 30:
-                preview = preview[:27] + "..."
-            button_text += f" → {preview}"
         
         keyboard.append([
             InlineKeyboardButton(
@@ -468,13 +563,22 @@ async def handle_transformation_choice(update: Update, context: ContextTypes.DEF
                 original_task
             )
             
-            # Отправляем результат
-            img = render_latex_to_image(apply_result.result)
+            # Отправляем результат с информацией о выбранном действии
             if check_result.is_solved:
                 logger.info("Задача решена!")
+                # Добавляем финальный шаг в историю
+                if state.history:
+                    state.history.add_step(
+                        expression=apply_result.result,
+                        available_transformations=[],
+                        chosen_transformation=None,
+                        result_expression=apply_result.result
+                    )
+                
+                img = render_latex_to_image(apply_result.result)
                 await query.message.reply_photo(
                     photo=img,
-                    caption=f"✅ Задача решена!\n{check_result.explanation}"
+                    caption=f"✅ Выбрано действие: {chosen.description}\n\n✅ Задача решена!\n{check_result.explanation}"
                 )
             else:
                 # Генерируем новые преобразования
@@ -489,6 +593,7 @@ async def handle_transformation_choice(update: Update, context: ContextTypes.DEF
                 if not generation_result.transformations:
                     logger.warning(f"Не найдено ни одного варианта действия для выражения: {state.current_step.expression}")
                     await query.message.reply_text(
+                        f"✅ Выбрано действие: {chosen.description}\n\n"
                         f"😕 К сожалению, я не смог найти подходящих преобразований для текущего выражения:\n\n"
                         f"`{state.current_step.expression}`\n\n"
                         f"Возможные причины:\n"
@@ -502,9 +607,10 @@ async def handle_transformation_choice(update: Update, context: ContextTypes.DEF
                     )
                     return
                 
+                img = render_transformations_image(apply_result.result, generation_result.transformations)
                 await query.message.reply_photo(
                     photo=img,
-                    caption=f"Выберите следующее преобразование:\n\n💡 Показан предварительный результат каждого действия (→)",
+                    caption=f"✅ Выбрано действие: {chosen.description}\n\nВыберите следующее преобразование:",
                     reply_markup=get_transformations_keyboard(generation_result.transformations)
                 )
         else:
