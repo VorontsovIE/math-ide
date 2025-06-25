@@ -104,6 +104,7 @@ class ApplyResult:
     is_valid: bool
     explanation: str
     errors: Optional[List[str]] = None
+    mathematical_verification: Optional[str] = None  # Математическая проверка корректности
 
 
 @dataclass
@@ -114,6 +115,7 @@ class CheckResult:
     explanation: str
     solution_type: str  # exact, approximate, partial
     next_steps: List[str] = field(default_factory=list)
+    mathematical_verification: Optional[str] = None  # Математическая проверка корректности
 
 
 class PromptManager:
@@ -399,7 +401,8 @@ class TransformationEngine:
                 result=result_data["result_expression"],
                 is_valid=result_data["is_valid"],
                 explanation=result_data["explanation"],
-                errors=result_data.get("errors", [])
+                errors=result_data.get("errors", []),
+                mathematical_verification=result_data.get("mathematical_verification")
             )
             
         except Exception as e:
@@ -515,7 +518,8 @@ class TransformationEngine:
                 confidence=check_data["confidence"],
                 explanation=check_data["explanation"],
                 solution_type=check_data["solution_type"],
-                next_steps=check_data.get("next_steps", [])
+                next_steps=check_data.get("next_steps", []),
+                mathematical_verification=check_data.get("mathematical_verification")
             )
             
         except Exception as e:
