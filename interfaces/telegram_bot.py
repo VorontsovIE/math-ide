@@ -5,7 +5,7 @@ import asyncio
 from dataclasses import dataclass, field
 
 import matplotlib.pyplot as plt
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, Message
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -144,14 +144,35 @@ async def show_history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         logger.error(f"Ошибка при отображении истории: {e}")
         await update.message.reply_text("Произошла ошибка при отображении истории.")
 
+async def send_status_message(update: Update, message: str) -> Optional[Message]:
+    """Отправляет сообщение со статусом и возвращает объект сообщения для последующего редактирования."""
+    try:
+        return await update.message.reply_text(message)
+    except Exception as e:
+        logger.error(f"Ошибка при отправке статуса: {e}")
+        return None
+
+async def edit_status_message(message: Message, new_text: str) -> bool:
+    """Редактирует сообщение со статусом."""
+    try:
+        await message.edit_text(new_text)
+        return True
+    except Exception as e:
+        logger.error(f"Ошибка при редактировании статуса: {e}")
+        return False
+
 async def handle_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик новой задачи."""
     user_id = update.effective_user.id
     task = update.message.text
     logger.info(f"Пользователь {user_id} отправил задачу: {task}")
     
+    # Отправляем начальный статус
+    status_message = await send_status_message(update, "🔄 Анализирую задачу...")
+    
     try:
         # Инициализируем движок и историю
+        await edit_status_message(status_message, "🔧 Инициализирую движок решения...")
         engine = TransformationEngine()
         history = SolutionHistory(task)
         current_step = SolutionStep(expression=task)
@@ -164,6 +185,7 @@ async def handle_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         logger.debug("Создана новая история решения")
         
         # Генерируем возможные преобразования
+        await edit_status_message(status_message, "🧠 Генерирую возможные преобразования...")
         logger.info("Генерация возможных преобразований...")
         generation_result = engine.generate_transformations(current_step)
         logger.info(f"Сгенерировано {len(generation_result.transformations)} преобразований")
@@ -171,7 +193,7 @@ async def handle_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         # Проверяем, есть ли доступные преобразования
         if not generation_result.transformations:
             logger.warning(f"Не найдено ни одного варианта действия для задачи: {task}")
-            await update.message.reply_text(
+            await edit_status_message(status_message, 
                 f"😕 К сожалению, я не смог найти подходящих преобразований для вашей задачи:\n\n"
                 f"`{task}`\n\n"
                 f"Возможные причины:\n"
@@ -192,20 +214,33 @@ async def handle_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             available_transformations=generation_result.transformations
         )
         
-        # Отправляем текущее выражение
+        # Подготавливаем изображение
+        await edit_status_message(status_message, "📊 Подготавливаю визуализацию...")
         img = render_latex_to_image(task)
+        
+        # Удаляем статус и отправляем результат
+        if status_message:
+            await status_message.delete()
+        
         await update.message.reply_photo(
             photo=img,
             caption="Начинаем решение. Выберите преобразование:",
             reply_markup=get_transformations_keyboard(generation_result.transformations)
         )
         logger.info("Задача успешно инициализирована")
+        
     except Exception as e:
         logger.error(f"Ошибка при обработке задачи: {e}")
-        await update.message.reply_text(
-            "Произошла ошибка при обработке задачи. "
-            "Пожалуйста, проверьте корректность LaTeX-синтаксиса и попробуйте снова."
+        error_message = (
+            "❌ Произошла ошибка при обработке задачи.\n\n"
+            "Пожалуйста, проверьте корректность LaTeX-синтаксиса и попробуйте снова.\n\n"
+            f"Детали ошибки: {str(e)}"
         )
+        
+        if status_message:
+            await edit_status_message(status_message, error_message)
+        else:
+            await update.message.reply_text(error_message)
 
 def get_transformations_keyboard(transformations: List[Transformation]) -> InlineKeyboardMarkup:
     """Создаёт клавиатуру с доступными преобразованиями."""
@@ -238,6 +273,9 @@ async def handle_transformation_choice(update: Update, context: ContextTypes.DEF
         chosen = state.available_transformations[idx]
         logger.info(f"Выбрано преобразование: {chosen.description}")
         
+        # Отправляем статус о применении преобразования
+        await query.answer("🔄 Применяю преобразование...")
+        
         # Применяем преобразование
         engine = TransformationEngine()
         logger.info("Применение преобразования...")
@@ -258,6 +296,7 @@ async def handle_transformation_choice(update: Update, context: ContextTypes.DEF
             state.current_step = SolutionStep(expression=apply_result.result)
             
             # Проверяем завершённость
+            await query.answer("🔍 Проверяю завершённость решения...")
             logger.info("Проверка завершённости решения...")
             original_task = state.history.original_task if state.history else "Неизвестная задача"
             check_result = engine.check_solution_completeness(
@@ -271,10 +310,11 @@ async def handle_transformation_choice(update: Update, context: ContextTypes.DEF
                 logger.info("Задача решена!")
                 await query.message.reply_photo(
                     photo=img,
-                    caption=f"Задача решена!\n{check_result.explanation}"
+                    caption=f"✅ Задача решена!\n{check_result.explanation}"
                 )
             else:
                 # Генерируем новые преобразования
+                await query.answer("🧠 Генерирую новые преобразования...")
                 logger.info("Генерация новых преобразований...")
                 generation_result = engine.generate_transformations(state.current_step)
                 state.available_transformations = generation_result.transformations
@@ -304,10 +344,10 @@ async def handle_transformation_choice(update: Update, context: ContextTypes.DEF
                 )
         else:
             logger.error(f"Ошибка при применении преобразования: {apply_result.explanation}")
-            await query.answer(f"Ошибка: {apply_result.explanation}")
+            await query.answer(f"❌ Ошибка: {apply_result.explanation}")
     except Exception as e:
         logger.error(f"Ошибка при обработке выбора преобразования: {e}")
-        await query.answer("Произошла ошибка при обработке преобразования")
+        await query.answer("❌ Произошла ошибка при обработке преобразования")
     
     await query.answer()
 
