@@ -253,20 +253,28 @@ async def show_history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         logger.info(f"Получена история решения: {len(summary['steps'])} шагов")
         
         # Отправляем каждый шаг отдельным сообщением
-        for step in summary["steps"]:
+        for step_data in state.history.get_all_steps():
             # Рендерим выражение
-            img = render_latex_to_image(step["expression"])
+            img = render_latex_to_image(step_data.expression)
             
             # Формируем описание шага
-            description = f"Шаг {step['step_number']}: {step['expression']}"
-            if step["has_chosen_transformation"]:
-                description += f"\n🔄 Применено: {step['chosen_transformation']['description']}"
-            if step["has_result"]:
-                description += f"\n➡️ Результат: {step['result_expression']}"
+            description = f"Шаг {step_data.step_number}: {step_data.expression}"
+            if step_data.chosen_transformation:
+                description += f"\n🔄 Применено: {step_data.chosen_transformation.get('description', 'Неизвестное действие')}"
+            if step_data.result_expression:
+                description += f"\n➡️ Результат: {step_data.result_expression}"
+            
+            # Создаем кнопки для доступных преобразований этого шага (если есть)
+            keyboard = None
+            if step_data.available_transformations:
+                transformations = [Transformation(**tr) for tr in step_data.available_transformations]
+                if transformations:
+                    keyboard = get_transformations_keyboard(transformations, step_data.id)
             
             await update.message.reply_photo(
                 photo=img,
-                caption=description
+                caption=description,
+                reply_markup=keyboard
             )
             
     except Exception as e:
@@ -430,7 +438,7 @@ async def handle_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         current_step = SolutionStep(expression=task)
         
         # Сохраняем начальное состояние
-        history.add_step(
+        initial_step_id = history.add_step(
             expression=task,
             available_transformations=[]
         )
@@ -440,6 +448,10 @@ async def handle_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         logger.info("Генерация возможных преобразований...")
         generation_result = engine.generate_transformations(current_step)
         logger.info(f"Сгенерировано {len(generation_result.transformations)} преобразований")
+        
+        # Обновляем начальный шаг с доступными преобразованиями
+        if history.steps:
+            history.steps[0].available_transformations = [tr.__dict__ for tr in generation_result.transformations]
         
         # Проверяем, есть ли доступные преобразования
         if not generation_result.transformations:
@@ -478,7 +490,7 @@ async def handle_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await update.message.reply_photo(
             photo=img,
             caption="Начинаем решение. Выберите преобразование:",
-            reply_markup=get_transformations_keyboard(generation_result.transformations)
+            reply_markup=get_transformations_keyboard(generation_result.transformations, initial_step_id)
         )
         logger.info("Задача успешно инициализирована")
         
@@ -495,75 +507,123 @@ async def handle_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         else:
             await update.message.reply_text(error_message)
 
-def get_transformations_keyboard(transformations: List[Transformation]) -> InlineKeyboardMarkup:
-    """Создаёт клавиатуру с доступными преобразованиями без предварительных результатов."""
+def get_transformations_keyboard(transformations: List[Transformation], step_id: Optional[str] = None) -> InlineKeyboardMarkup:
+    """Создаёт клавиатуру с доступными преобразованиями."""
     keyboard = []
     for idx, tr in enumerate(transformations):
         # Формируем текст кнопки только с описанием действия
         button_text = f"{idx + 1}. {tr.description}"
         
+        # Включаем step_id в callback_data если он предоставлен
+        callback_data = f"transform_{idx}"
+        if step_id:
+            callback_data = f"transform_{idx}_{step_id}"
+        
         keyboard.append([
             InlineKeyboardButton(
                 button_text,
-                callback_data=f"transform_{idx}"
+                callback_data=callback_data
             )
         ])
     return InlineKeyboardMarkup(keyboard)
 
 async def handle_transformation_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик выбора преобразования с улучшенной системой статусов."""
+    """Обработчик выбора преобразования с поддержкой применения к конкретному шагу."""
     query = update.callback_query
     user_id = query.from_user.id
     logger.info(f"Пользователь {user_id} выбрал преобразование")
     
     state = user_states.get(user_id)
     
-    if not state or not state.current_step or not state.available_transformations:
+    if not state or not state.history:
         logger.warning(f"Нет активного состояния для пользователя {user_id}")
         await query.answer("Ошибка: начните новое решение")
         return
     
     try:
-        # Получаем индекс выбранного преобразования
-        idx = int(query.data.split("_")[1])
-        chosen = state.available_transformations[idx]
-        logger.info(f"Выбрано преобразование: {chosen.description}")
+        # Парсим callback_data: transform_idx или transform_idx_step_id
+        callback_parts = query.data.split("_")
+        idx = int(callback_parts[1])
+        target_step_id = callback_parts[2] if len(callback_parts) > 2 else None
+        
+        # Определяем целевой шаг для применения преобразования
+        if target_step_id:
+            # Применяем к конкретному шагу из истории
+            target_step_data = state.history.get_step_by_id(target_step_id)
+            if not target_step_data:
+                await query.answer("❌ Ошибка: шаг не найден в истории")
+                return
+            target_step = SolutionStep(expression=target_step_data.expression)
+            target_expression = target_step_data.expression
+            # Получаем преобразования для этого шага
+            transformations = [Transformation(**tr) for tr in target_step_data.available_transformations]
+            is_historical_step = True
+        else:
+            # Применяем к текущему шагу (старое поведение)
+            if not state.current_step or not state.available_transformations:
+                await query.answer("Ошибка: нет текущего шага")
+                return
+            target_step = state.current_step
+            target_expression = state.current_step.expression
+            transformations = state.available_transformations
+            is_historical_step = False
+        
+        if idx >= len(transformations):
+            await query.answer("❌ Ошибка: неверный индекс преобразования")
+            return
+            
+        chosen = transformations[idx]
+        logger.info(f"Выбрано преобразование: {chosen.description} для выражения: {target_expression}")
         
         # Отмечаем начало операции
         rate_limiter.start_operation(user_id)
         
         # Отправляем статус о применении преобразования
-        await query.answer("🔄 Применяю преобразование...")
+        if is_historical_step:
+            await query.answer("🔄 Применяю преобразование к историческому шагу...")
+        else:
+            await query.answer("🔄 Применяю преобразование...")
         
         # Применяем преобразование
         engine = TransformationEngine(preview_mode=True)
         logger.info("Применение преобразования...")
-        apply_result = engine.apply_transformation(state.current_step, chosen)
+        apply_result = engine.apply_transformation(target_step, chosen)
         
         if apply_result.is_valid:
             logger.info("Преобразование успешно применено")
+            
+            # Формируем сообщение с результатом
+            if is_historical_step:
+                caption = (f"✅ Выбрано действие: {chosen.description}\n"
+                          f"📋 Применено к выражению: `{target_expression}`\n\n"
+                          f"Результат:")
+            else:
+                caption = f"✅ Выбрано действие: {chosen.description}\n\nРезультат:"
+            
             # Обновляем историю
             if state.history:
-                state.history.add_step(
-                    expression=state.current_step.expression,
-                    available_transformations=[tr.__dict__ for tr in state.available_transformations],
+                new_step_id = state.history.add_step(
+                    expression=target_expression,
+                    available_transformations=[tr.__dict__ for tr in transformations],
                     chosen_transformation=chosen.__dict__,
                     result_expression=apply_result.result
                 )
             
-            # Обновляем текущий шаг
-            state.current_step = SolutionStep(expression=apply_result.result)
+            # Если применяли к текущему шагу, обновляем current_step
+            if not is_historical_step:
+                state.current_step = SolutionStep(expression=apply_result.result)
             
             # Проверяем завершённость
             await query.answer("🔍 Проверяю завершённость решения...")
             logger.info("Проверка завершённости решения...")
             original_task = state.history.original_task if state.history else "Неизвестная задача"
+            result_step = SolutionStep(expression=apply_result.result)
             check_result = engine.check_solution_completeness(
-                state.current_step,
+                result_step,
                 original_task
             )
             
-            # Отправляем результат с информацией о выбранном действии
+            # Отправляем результат
             if check_result.is_solved:
                 logger.info("Задача решена!")
                 # Добавляем финальный шаг в историю
@@ -578,41 +638,49 @@ async def handle_transformation_choice(update: Update, context: ContextTypes.DEF
                 img = render_latex_to_image(apply_result.result)
                 await query.message.reply_photo(
                     photo=img,
-                    caption=f"✅ Выбрано действие: {chosen.description}\n\n✅ Задача решена!\n{check_result.explanation}"
+                    caption=f"{caption}\n\n✅ Задача решена!\n{check_result.explanation}"
                 )
             else:
-                # Генерируем новые преобразования
-                await query.answer("🧠 Генерирую новые преобразования...")
+                # Генерируем новые преобразования для результата
+                await query.answer("🧠 Генерирю новые преобразования...")
                 logger.info("Генерация новых преобразований...")
-                # Используем тот же engine с preview_mode=True
-                generation_result = engine.generate_transformations(state.current_step)
-                state.available_transformations = generation_result.transformations
-                logger.info(f"Сгенерировано {len(generation_result.transformations)} новых преобразований")
+                generation_result = engine.generate_transformations(result_step)
                 
                 # Проверяем, есть ли доступные преобразования
                 if not generation_result.transformations:
-                    logger.warning(f"Не найдено ни одного варианта действия для выражения: {state.current_step.expression}")
-                    await query.message.reply_text(
-                        f"✅ Выбрано действие: {chosen.description}\n\n"
-                        f"😕 К сожалению, я не смог найти подходящих преобразований для текущего выражения:\n\n"
-                        f"`{state.current_step.expression}`\n\n"
-                        f"Возможные причины:\n"
-                        f"• Задача уже решена или близка к решению\n"
-                        f"• Нестандартный формат выражения\n"
-                        f"• Требуется другой подход к решению\n\n"
-                        f"Попробуйте:\n"
-                        f"• Начать новое решение с другой формулировки\n"
-                        f"• Использовать команду /history для просмотра прогресса\n"
-                        f"• Отправить более детальное описание задачи"
+                    logger.warning(f"Не найдено ни одного варианта действия для выражения: {apply_result.result}")
+                    img = render_latex_to_image(apply_result.result)
+                    await query.message.reply_photo(
+                        photo=img,
+                        caption=(f"{caption}\n\n"
+                               f"😕 К сожалению, я не смог найти подходящих преобразований для полученного выражения.\n\n"
+                               f"Возможные причины:\n"
+                               f"• Задача уже решена или близка к решению\n"
+                               f"• Нестандартный формат выражения\n"
+                               f"• Требуется другой подход к решению\n\n"
+                               f"Попробуйте:\n"
+                               f"• Начать новое решение с другой формулировки\n"
+                               f"• Использовать команду /history для просмотра прогресса")
                     )
                     return
+                
+                # Если применили к не-текущему шагу, обновляем available_transformations только если это стало новым текущим шагом
+                if not is_historical_step:
+                    state.available_transformations = generation_result.transformations
+                
+                # Получаем step_id для новых преобразований (если есть)
+                new_step_id = None
+                if state.history and state.history.steps:
+                    new_step_id = state.history.steps[-1].id
                 
                 img = render_transformations_image(apply_result.result, generation_result.transformations)
                 await query.message.reply_photo(
                     photo=img,
-                    caption=f"✅ Выбрано действие: {chosen.description}\n\nВыберите следующее преобразование:",
-                    reply_markup=get_transformations_keyboard(generation_result.transformations)
+                    caption=f"{caption}\n\nВыберите следующее преобразование:",
+                    reply_markup=get_transformations_keyboard(generation_result.transformations, new_step_id)
                 )
+                
+                logger.info(f"Сгенерировано {len(generation_result.transformations)} новых преобразований")
         else:
             logger.error(f"Ошибка при применении преобразования: {apply_result.explanation}")
             await query.answer(f"❌ Ошибка: {apply_result.explanation}")
