@@ -278,55 +278,18 @@ class TransformationEngine:
             
             logger.info("Отобрано %d лучших преобразований", len(top5))
             
-            # Генерируем предварительные результаты, если включен режим предпоказа
+            # Заполняем предварительные результаты, если включен режим предпоказа
             if self.preview_mode:
-                logger.info("Генерация предварительных результатов преобразований")
-                top5 = self._generate_previews(step, top5)
+                logger.info("Заполнение предварительных результатов из поля expression")
+                for transformation in top5:
+                    # Используем уже имеющееся поле expression как предварительный результат
+                    transformation.preview_result = transformation.expression
             
             return GenerationResult(transformations=top5)
             
         except Exception as e:
             logger.error("Ошибка при генерации преобразований: %s", str(e), exc_info=True)
             return GenerationResult(transformations=[])
-
-    def _generate_previews(self, step: SolutionStep, transformations: List[Transformation]) -> List[Transformation]:
-        """
-        Генерирует предварительные результаты для списка преобразований.
-        """
-        updated_transformations = []
-        
-        for transformation in transformations:
-            try:
-                # Применяем преобразование для получения предварительного результата
-                apply_result = self.apply_transformation(step, transformation)
-                
-                # Создаем копию преобразования с предварительным результатом
-                updated_transformation = Transformation(
-                    description=transformation.description,
-                    expression=transformation.expression,
-                    type=transformation.type,
-                    parameters=transformation.parameters,
-                    metadata=transformation.metadata,
-                    preview_result=apply_result.result if apply_result.is_valid else None
-                )
-                updated_transformations.append(updated_transformation)
-                
-                logger.debug(
-                    "Сгенерирован предварительный результат для '%s': %s",
-                    transformation.description,
-                    apply_result.result if apply_result.is_valid else "Ошибка"
-                )
-                
-            except Exception as e:
-                logger.warning(
-                    "Ошибка при генерации предварительного результата для '%s': %s",
-                    transformation.description,
-                    str(e)
-                )
-                # Добавляем преобразование без предварительного результата
-                updated_transformations.append(transformation)
-        
-        return updated_transformations
 
     def apply_transformation(self, current_step: SolutionStep, transformation: Transformation) -> ApplyResult:
         """
