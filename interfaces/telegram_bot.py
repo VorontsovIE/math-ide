@@ -2,7 +2,7 @@ import io
 import logging
 from typing import Dict, Optional, List
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import matplotlib.pyplot as plt
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -41,7 +41,7 @@ class UserState:
     """Состояние пользователя в боте."""
     history: Optional[SolutionHistory] = None
     current_step: Optional[SolutionStep] = None
-    available_transformations: Optional[List[Transformation]] = None
+    available_transformations: List[Transformation] = field(default_factory=list)
 
 # Хранилище состояний пользователей
 user_states: Dict[int, UserState] = {}
@@ -249,7 +249,7 @@ async def handle_transformation_choice(update: Update, context: ContextTypes.DEF
             if state.history:
                 state.history.add_step(
                     expression=state.current_step.expression,
-                    available_transformations=[tr.__dict__ for tr in state.available_transformations] if state.available_transformations else [],
+                    available_transformations=[tr.__dict__ for tr in state.available_transformations],
                     chosen_transformation=chosen.__dict__,
                     result_expression=apply_result.result
                 )
