@@ -195,6 +195,115 @@ async def update_status_with_progress(message: Message, base_text: str, user_id:
     
     return await edit_status_message(message, progress_text, user_id)
 
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик команды /start."""
+    user_id = update.effective_user.id
+    logger.info(f"Пользователь {user_id} запустил бота")
+    
+    # Инициализируем состояние пользователя
+    user_states[user_id] = UserState()
+    
+    await update.message.reply_text(
+        "Привет! Я помогу вам решить математическую задачу пошагово. "
+        "Отправьте мне задачу в LaTeX-формате, например:\n"
+        "2(x + 1) = 4"
+    )
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик команды /help."""
+    user_id = update.effective_user.id
+    logger.info(f"Пользователь {user_id} запросил помощь")
+    
+    await update.message.reply_text(
+        "Я помогаю решать математические задачи пошагово.\n\n"
+        "Доступные команды:\n"
+        "/start - Начать новое решение\n"
+        "/help - Показать эту справку\n"
+        "/history - Показать историю решения\n"
+        "/cancel - Отменить текущее решение\n\n"
+        "Чтобы начать, просто отправьте мне математическую задачу."
+    )
+
+async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик команды /cancel."""
+    user_id = update.effective_user.id
+    logger.info(f"Пользователь {user_id} отменил текущее решение")
+    
+    user_states[user_id] = UserState()
+    
+    await update.message.reply_text(
+        "Текущее решение отменено. Отправьте новую задачу."
+    )
+
+async def show_history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик команды /history."""
+    user_id = update.effective_user.id
+    logger.info(f"Пользователь {user_id} запросил историю")
+    
+    state = user_states.get(user_id)
+    
+    if not state or not state.history:
+        logger.warning(f"История пуста для пользователя {user_id}")
+        await update.message.reply_text("История пуста. Начните решение задачи.")
+        return
+    
+    try:
+        # Получаем сводку истории
+        summary = state.history.get_full_history_summary()
+        logger.info(f"Получена история решения: {len(summary['steps'])} шагов")
+        
+        # Отправляем каждый шаг отдельным сообщением
+        for step in summary["steps"]:
+            # Рендерим выражение
+            img = render_latex_to_image(step["expression"])
+            
+            # Формируем описание шага
+            description = f"Шаг {step['step_number']}"
+            if step["has_chosen_transformation"]:
+                description += f": {step['chosen_transformation']['description']}"
+            
+            await update.message.reply_photo(
+                photo=img,
+                caption=description
+            )
+            
+    except Exception as e:
+        logger.error(f"Ошибка при показе истории: {e}")
+        await update.message.reply_text("Ошибка при получении истории решения.")
+
+def render_latex_to_image(latex_expression: str) -> io.BytesIO:
+    """Рендерит LaTeX-выражение в изображение."""
+    try:
+        # Создаём фигуру matplotlib
+        fig, ax = plt.subplots(figsize=(10, 2))
+        ax.text(0.5, 0.5, f"${latex_expression}$", 
+                horizontalalignment='center', verticalalignment='center',
+                fontsize=16, transform=ax.transAxes)
+        ax.axis('off')
+        
+        # Сохраняем в BytesIO
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png', bbox_inches='tight', dpi=150)
+        img_buffer.seek(0)
+        plt.close(fig)
+        
+        return img_buffer
+    except Exception as e:
+        logger.error(f"Ошибка при рендеринге LaTeX: {e}")
+        # Возвращаем простое текстовое изображение в случае ошибки
+        fig, ax = plt.subplots(figsize=(10, 2))
+        ax.text(0.5, 0.5, latex_expression, 
+                horizontalalignment='center', verticalalignment='center',
+                fontsize=14, transform=ax.transAxes)
+        ax.axis('off')
+        
+        img_buffer = io.BytesIO()
+        plt.savefig(img_buffer, format='png', bbox_inches='tight', dpi=150)
+        img_buffer.seek(0)
+        plt.close(fig)
+        
+        return img_buffer
+
 async def handle_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик новой задачи с улучшенной системой статусов."""
     user_id = update.effective_user.id
