@@ -1,7 +1,7 @@
 ---
 description: 
 globs: 
-alwaysApply: false
+alwaysApply: true
 ---
 {alwaysApply: true, globs: ["**/*"]}
 
@@ -105,7 +105,120 @@ class HistoryStep:
 ```
 **Назначение:** Полная информация о шаге для возможности отката и ветвления
 
-### 2. Управление промптами
+#### TransformationParameter
+```python
+@dataclass
+class TransformationParameter:
+    name: str
+    value: Any
+    options: Optional[List[Any]] = None
+```
+**Назначение:** Параметр преобразования для будущей параметризации операций
+
+#### GenerationResult
+```python
+@dataclass
+class GenerationResult:
+    transformations: List[Transformation]
+```
+**Назначение:** Результат генерации списка возможных преобразований
+
+#### ApplyResult
+```python
+@dataclass
+class ApplyResult:
+    result: str
+    is_valid: bool
+    explanation: str
+    errors: Optional[List[str]] = None
+```
+**Назначение:** Результат применения преобразования с валидацией и объяснением
+
+#### CheckResult
+```python
+@dataclass
+class CheckResult:
+    is_solved: bool
+    confidence: float
+    explanation: str
+    solution_type: str
+    next_steps: List[str] = field(default_factory=list)
+```
+**Назначение:** Результат проверки завершённости решения задачи
+
+#### BaseTransformationType
+```python
+class BaseTransformationType(Enum):
+    ADD = "add"
+    SUBTRACT = "subtract"
+    MULTIPLY = "multiply"
+    # ... другие типы
+```
+**Назначение:** Перечисление базовых типов математических преобразований
+
+### 2. Основные классы системы
+
+#### TransformationEngine
+```python
+class TransformationEngine:
+    def __init__(self, api_key: Optional[str] = None, model: str = "gpt-3.5-turbo")
+    def generate_transformations(self, step: SolutionStep) -> GenerationResult
+    def apply_transformation(self, current_step: SolutionStep, transformation: Transformation) -> ApplyResult
+    def check_solution_completeness(self, current_step: SolutionStep, original_task: str) -> CheckResult
+```
+**Назначение:** Главный движок системы, отвечающий за генерацию, применение преобразований и проверку завершённости
+
+#### SolutionHistory
+```python
+class SolutionHistory:
+    def __init__(self, original_task: str)
+    def add_step(self, expression: str, available_transformations: List[Dict], ...) -> str
+    def get_current_step(self) -> Optional[HistoryStep]
+    def export_history(self) -> Dict[str, Any]
+    def import_history(self, history_data: Dict[str, Any]) -> None
+```
+**Назначение:** Управление историей решения с поддержкой экспорта/импорта и навигации
+
+#### PromptManager
+```python
+class PromptManager:
+    def __init__(self, prompts_dir: str = "prompts")
+    def load_prompt(self, filename: str) -> str
+    def format_prompt(self, prompt: str, **kwargs) -> str
+```
+**Назначение:** Загрузка и форматирование промптов из файлов с подстановкой переменных
+
+#### MathIDECLI
+```python
+class MathIDECLI:
+    def __init__(self, api_key: Optional[str] = None, model: str = "gpt-3.5-turbo")
+    def solve_task(self, task: str) -> None
+    def display_transformations(self, transformations: List[Transformation]) -> None
+    def display_history(self) -> None
+```
+**Назначение:** Интерфейс командной строки для взаимодействия с пользователем
+
+#### UserState (Telegram Bot)
+```python
+@dataclass
+class UserState:
+    current_expression: Optional[str] = None
+    history: Optional[SolutionHistory] = None
+    available_transformations: List[Transformation] = field(default_factory=list)
+    last_activity: datetime = field(default_factory=datetime.now)
+```
+**Назначение:** Состояние пользователя в Telegram-боте
+
+#### RateLimiter (Telegram Bot)
+```python
+class RateLimiter:
+    def __init__(self, max_requests: int = 10, time_window: int = 60)
+    def is_allowed(self, user_id: int) -> bool
+    def cleanup_old_requests(self) -> None
+```
+**Назначение:** Ограничение частоты запросов в Telegram-боте
+
+### 3. Управление промптами
 
 **Решение:** Вынесение промптов в отдельные `.md` файлы с поддержкой подстановки переменных
 
@@ -114,7 +227,7 @@ class HistoryStep:
 - Версионирование промптов в git
 - Возможность A/B тестирования разных промптов
 
-### 3. Обработка ошибок
+### 4. Обработка ошибок
 
 **Стратегия:** Многоуровневая обработка ошибок с fallback-механизмами
 
@@ -124,14 +237,14 @@ class HistoryStep:
 3. Парсинг и валидация JSON-ответов
 4. Fallback-логика для некорректных ответов
 
-### 4. Расширяемость моделей
+### 5. Расширяемость моделей
 
 **Подход:** Абстракция провайдера GPT через единый интерфейс
 
 **Текущая реализация:** OpenAI GPT
 **Планируется:** Поддержка Qwen, локальных моделей
 
-### 5. История и ветвление
+### 6. История и ветвление
 
 **Архитектура:** Древовидная структура с поддержкой parent_id
 
@@ -321,6 +434,18 @@ class HistoryObserver:
 #### Параметризация (Parameterization)
 **Синонимы:** параметры преобразования, настраиваемые параметры
 **Определение:** Возможность настройки преобразования через параметры
+
+#### Движок (Engine)
+**Синонимы:** ядро системы, TransformationEngine
+**Определение:** Центральный компонент системы, отвечающий за генерацию и применение преобразований
+
+#### Менеджер промптов (Prompt Manager)
+**Синонимы:** управление промптами, PromptManager
+**Определение:** Компонент для загрузки и форматирования промптов из файлов
+
+#### Ограничитель запросов (Rate Limiter)
+**Синонимы:** лимитер, RateLimiter
+**Определение:** Компонент для ограничения частоты запросов пользователей
 
 ### Состояния и статусы
 
