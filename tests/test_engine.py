@@ -148,6 +148,85 @@ class TestTransformationEngine:
         assert result.solution_type == "partial"
         assert len(result.next_steps) > 0
 
+    def test_preview_mode_enabled(self):
+        """Тест режима предпоказа - должен генерировать предварительные результаты."""
+        engine = TransformationEngine(api_key="test-key", preview_mode=True)
+        step = SolutionStep(expression="2x + 4 = 10")
+        
+        # Мокаем ответы GPT
+        with patch.object(engine.client.chat.completions, 'create') as mock_create:
+            # Мокаем ответ для генерации преобразований
+            mock_response_gen = Mock()
+            mock_response_gen.choices = [Mock()]
+            mock_response_gen.choices[0].message.content = '''
+            [
+                {
+                    "description": "Вычесть 4 из обеих частей",
+                    "expression": "2x = 6",
+                    "type": "subtract"
+                }
+            ]
+            '''
+            mock_response_gen.usage = Mock(prompt_tokens=100, completion_tokens=50, total_tokens=150)
+            
+            # Мокаем ответ для применения преобразования (предпоказ)
+            mock_response_apply = Mock()
+            mock_response_apply.choices = [Mock()]
+            mock_response_apply.choices[0].message.content = '''
+            {
+                "result_expression": "2x = 6",
+                "is_valid": true,
+                "explanation": "Вычитаем 4 из обеих частей уравнения"
+            }
+            '''
+            mock_response_apply.usage = Mock(prompt_tokens=80, completion_tokens=30, total_tokens=110)
+            
+            # Настраиваем последовательность ответов
+            mock_create.side_effect = [mock_response_gen, mock_response_apply]
+            
+            result = engine.generate_transformations(step)
+            
+            # Проверяем, что результат содержит преобразования с предварительными результатами
+            self.assertEqual(len(result.transformations), 1)
+            transformation = result.transformations[0]
+            self.assertEqual(transformation.description, "Вычесть 4 из обеих частей")
+            self.assertEqual(transformation.preview_result, "2x = 6")
+            
+            # Проверяем, что было сделано 2 вызова: генерация + применение для предпоказа
+            self.assertEqual(mock_create.call_count, 2)
+
+    def test_preview_mode_disabled(self):
+        """Тест обычного режима - не должен генерировать предварительные результаты."""
+        engine = TransformationEngine(api_key="test-key", preview_mode=False)
+        step = SolutionStep(expression="2x + 4 = 10")
+        
+        # Мокаем ответ GPT для генерации преобразований
+        with patch.object(engine.client.chat.completions, 'create') as mock_create:
+            mock_response = Mock()
+            mock_response.choices = [Mock()]
+            mock_response.choices[0].message.content = '''
+            [
+                {
+                    "description": "Вычесть 4 из обеих частей",
+                    "expression": "2x = 6",
+                    "type": "subtract"
+                }
+            ]
+            '''
+            mock_response.usage = Mock(prompt_tokens=100, completion_tokens=50, total_tokens=150)
+            mock_create.return_value = mock_response
+            
+            result = engine.generate_transformations(step)
+            
+            # Проверяем, что результат содержит преобразования без предварительных результатов
+            self.assertEqual(len(result.transformations), 1)
+            transformation = result.transformations[0]
+            self.assertEqual(transformation.description, "Вычесть 4 из обеих частей")
+            self.assertIsNone(transformation.preview_result)
+            
+            # Проверяем, что был сделан только 1 вызов для генерации
+            self.assertEqual(mock_create.call_count, 1)
+
 
 class TestSolutionHistory:
     """Тесты для управления историей решения."""

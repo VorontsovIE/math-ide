@@ -74,8 +74,8 @@ def render_latex(latex: str) -> Text:
 
 
 class MathIDECLI:
-    def __init__(self, api_key: Optional[str] = None, model: str = "gpt-3.5-turbo"):
-        self.engine = TransformationEngine(api_key=api_key, model=model)
+    def __init__(self, api_key: Optional[str] = None, model: str = "gpt-3.5-turbo", preview_mode: bool = False):
+        self.engine = TransformationEngine(api_key=api_key, model=model, preview_mode=preview_mode)
         self.history: Optional[SolutionHistory] = None
         
     def display_transformations(self, transformations: list[Transformation]) -> None:
@@ -86,13 +86,27 @@ class MathIDECLI:
         table.add_column("Тип", style="blue")
         table.add_column("Выражение", style="magenta")
         
+        # Добавляем колонку для предварительного результата, если он есть у хотя бы одного преобразования
+        has_previews = any(tr.preview_result is not None for tr in transformations)
+        if has_previews:
+            table.add_column("Результат", style="yellow")
+        
         for idx, tr in enumerate(transformations, 1):
-            table.add_row(
+            row = [
                 str(idx),
                 tr.description,
                 tr.type,
                 render_latex(tr.expression)
-            )
+            ]
+            
+            # Добавляем предварительный результат, если он есть
+            if has_previews:
+                if tr.preview_result:
+                    row.append(render_latex(tr.preview_result))
+                else:
+                    row.append("-")
+            
+            table.add_row(*row)
         
         console.print(table)
     
@@ -207,9 +221,13 @@ class MathIDECLI:
 @click.command()
 @click.option('--api-key', envvar='OPENAI_API_KEY', help='OpenAI API ключ')
 @click.option('--model', default='gpt-3.5-turbo', help='Модель GPT для использования')
-def main(api_key: Optional[str], model: str):
+@click.option('--preview/--no-preview', default=False, help='Включить режим предпоказа результатов')
+def main(api_key: Optional[str], model: str, preview: bool):
     """Интерактивная математическая IDE с поддержкой пошагового решения задач."""
-    cli = MathIDECLI(api_key=api_key, model=model)
+    cli = MathIDECLI(api_key=api_key, model=model, preview_mode=preview)
+    
+    if preview:
+        console.print("[yellow]Режим предпоказа включен - будут показаны результаты преобразований[/yellow]")
     
     task = click.prompt("Введите математическую задачу", type=str)
     cli.solve_task(task)
