@@ -321,7 +321,7 @@ async def handle_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         if status_message:
             await edit_status_message(status_message, "🔧 Инициализирую движок решения...", user_id)
         
-        engine = TransformationEngine()
+        engine = TransformationEngine(preview_mode=True)
         history = SolutionHistory(task)
         current_step = SolutionStep(expression=task)
         
@@ -376,7 +376,7 @@ async def handle_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         
         await update.message.reply_photo(
             photo=img,
-            caption="Начинаем решение. Выберите преобразование:",
+            caption="Начинаем решение. Выберите преобразование:\n\n💡 Показан предварительный результат каждого действия (→)",
             reply_markup=get_transformations_keyboard(generation_result.transformations)
         )
         logger.info("Задача успешно инициализирована")
@@ -395,12 +395,21 @@ async def handle_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             await update.message.reply_text(error_message)
 
 def get_transformations_keyboard(transformations: List[Transformation]) -> InlineKeyboardMarkup:
-    """Создаёт клавиатуру с доступными преобразованиями."""
+    """Создаёт клавиатуру с доступными преобразованиями и предварительными результатами."""
     keyboard = []
     for idx, tr in enumerate(transformations):
+        # Формируем текст кнопки с предварительным результатом
+        button_text = f"{idx + 1}. {tr.description}"
+        if tr.preview_result:
+            # Ограничиваем длину предварительного результата для удобства отображения
+            preview = tr.preview_result
+            if len(preview) > 30:
+                preview = preview[:27] + "..."
+            button_text += f" → {preview}"
+        
         keyboard.append([
             InlineKeyboardButton(
-                f"{idx + 1}. {tr.description}",
+                button_text,
                 callback_data=f"transform_{idx}"
             )
         ])
@@ -432,7 +441,7 @@ async def handle_transformation_choice(update: Update, context: ContextTypes.DEF
         await query.answer("🔄 Применяю преобразование...")
         
         # Применяем преобразование
-        engine = TransformationEngine()
+        engine = TransformationEngine(preview_mode=True)
         logger.info("Применение преобразования...")
         apply_result = engine.apply_transformation(state.current_step, chosen)
         
@@ -471,6 +480,7 @@ async def handle_transformation_choice(update: Update, context: ContextTypes.DEF
                 # Генерируем новые преобразования
                 await query.answer("🧠 Генерирую новые преобразования...")
                 logger.info("Генерация новых преобразований...")
+                # Используем тот же engine с preview_mode=True
                 generation_result = engine.generate_transformations(state.current_step)
                 state.available_transformations = generation_result.transformations
                 logger.info(f"Сгенерировано {len(generation_result.transformations)} новых преобразований")
@@ -494,7 +504,7 @@ async def handle_transformation_choice(update: Update, context: ContextTypes.DEF
                 
                 await query.message.reply_photo(
                     photo=img,
-                    caption=f"Выберите следующее преобразование:",
+                    caption=f"Выберите следующее преобразование:\n\n💡 Показан предварительный результат каждого действия (→)",
                     reply_markup=get_transformations_keyboard(generation_result.transformations)
                 )
         else:
