@@ -1,12 +1,14 @@
 import json
 import random
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import List, Optional, Any, Dict
 from enum import Enum
 from pathlib import Path
 import openai
 from openai import OpenAI
+import io
 
 # Настройка логирования
 logging.basicConfig(
@@ -214,7 +216,8 @@ class TransformationEngine:
             logger.debug("Извлеченный JSON: %s", json_content)
             
             try:
-                transformations_data = json.loads(json_content)
+                # Используем безопасный парсинг JSON с автоматическим исправлением
+                transformations_data = safe_json_parse(json_content)
             except json.JSONDecodeError as e:
                 logger.error("Ошибка парсинга JSON: %s", str(e))
                 logger.error("Проблемный JSON: %s", json_content)
@@ -350,7 +353,8 @@ class TransformationEngine:
             logger.debug("Извлеченный JSON: %s", json_content)
             
             try:
-                result_data = json.loads(json_content)
+                # Используем безопасный парсинг JSON с автоматическим исправлением
+                result_data = safe_json_parse(json_content)
             except json.JSONDecodeError as e:
                 logger.error("Ошибка парсинга JSON: %s", str(e))
                 logger.error("Проблемный JSON: %s", json_content)
@@ -463,7 +467,8 @@ class TransformationEngine:
             logger.debug("Извлеченный JSON: %s", json_content)
             
             try:
-                check_data = json.loads(json_content)
+                # Используем безопасный парсинг JSON с автоматическим исправлением
+                check_data = safe_json_parse(json_content)
             except json.JSONDecodeError as e:
                 logger.error("Ошибка парсинга JSON: %s", str(e))
                 logger.error("Проблемный JSON: %s", json_content)
@@ -511,6 +516,158 @@ class TransformationEngine:
                 explanation=f"Ошибка при проверке завершённости: {str(e)}",
                 solution_type="error"
             )
+
+
+def fix_latex_escapes_in_json(json_content: str) -> str:
+    """
+    Исправляет экранирование обратных слэшей в LaTeX-выражениях в JSON.
+    
+    Проблема: GPT возвращает \sin, \cos и т.д., но в JSON это должно быть \\sin, \\cos
+    """
+    # Список известных LaTeX-команд
+    latex_commands = [
+        'sin', 'cos', 'tan', 'cot', 'sec', 'csc',
+        'arcsin', 'arccos', 'arctan', 'arccot', 'arcsec', 'arccsc',
+        'sinh', 'cosh', 'tanh', 'coth', 'sech', 'csch',
+        'log', 'ln', 'exp', 'lim', 'inf', 'infty',
+        'alpha', 'beta', 'gamma', 'delta', 'epsilon', 'zeta', 'eta', 'theta',
+        'iota', 'kappa', 'lambda', 'mu', 'nu', 'xi', 'pi', 'rho', 'sigma',
+        'tau', 'upsilon', 'phi', 'chi', 'psi', 'omega',
+        'Alpha', 'Beta', 'Gamma', 'Delta', 'Epsilon', 'Zeta', 'Eta', 'Theta',
+        'Iota', 'Kappa', 'Lambda', 'Mu', 'Nu', 'Xi', 'Pi', 'Rho', 'Sigma',
+        'Tau', 'Upsilon', 'Phi', 'Chi', 'Psi', 'Omega',
+        'partial', 'nabla', 'forall', 'exists', 'nexists', 'emptyset',
+        'in', 'notin', 'subset', 'supset', 'subseteq', 'supseteq',
+        'cup', 'cap', 'bigcup', 'bigcap', 'oplus', 'otimes',
+        'leq', 'geq', 'neq', 'approx', 'equiv', 'propto',
+        'rightarrow', 'leftarrow', 'leftrightarrow', 'Rightarrow', 'Leftarrow', 'Leftrightarrow',
+        'sum', 'prod', 'int', 'oint', 'iint', 'iiint',
+        'sqrt', 'cbrt', 'frac', 'over', 'binom', 'choose',
+        'text', 'mathrm', 'mathbf', 'mathit', 'mathcal', 'mathfrak',
+        'overline', 'underline', 'widehat', 'widetilde', 'vec', 'dot', 'ddot',
+        'prime', 'doubleprime', 'dagger', 'ddagger', 'bullet', 'circ',
+        'pm', 'mp', 'times', 'div', 'cdot', 'ast',
+        'star', 'diamond', 'triangle', 'square', 'circle', 'ellipse'
+    ]
+    
+    def fix_latex_in_string(content: str) -> str:
+        """Исправляет LaTeX-команды в строке"""
+        # Сначала обрабатываем уже экранированные команды (\\\\command)
+        # Заменяем их на временные маркеры
+        temp_markers = {}
+        marker_counter = 0
+        
+        def create_marker():
+            nonlocal marker_counter
+            marker = f"__TEMP_MARKER_{marker_counter}__"
+            marker_counter += 1
+            return marker
+        
+        # Сохраняем уже правильно экранированные команды
+        for cmd in latex_commands:
+            pattern = rf'\\\\{cmd}'
+            if pattern in content:
+                marker = create_marker()
+                temp_markers[marker] = f'\\\\{cmd}'
+                content = content.replace(pattern, marker)
+        
+        # Теперь обрабатываем неправильно экранированные команды
+        for cmd in latex_commands:
+            # Ищем \command (не экранированный)
+            pattern = rf'(?<!\\)\\{cmd}(?![a-zA-Z])'
+            content = re.sub(pattern, rf'\\\\{cmd}', content)
+        
+        # Восстанавливаем сохраненные команды
+        for marker, replacement in temp_markers.items():
+            content = content.replace(marker, replacement)
+        
+        return content
+    
+    # Обрабатываем JSON по частям, чтобы не затронуть структуру
+    result = ""
+    in_string = False
+    string_start = 0
+    i = 0
+    
+    while i < len(json_content):
+        char = json_content[i]
+        
+        if char == '"' and (i == 0 or json_content[i-1] != '\\'):
+            if not in_string:
+                # Начало строки
+                in_string = True
+                string_start = i
+            else:
+                # Конец строки
+                in_string = False
+                string_content = json_content[string_start+1:i]
+                fixed_string = fix_latex_in_string(string_content)
+                result += f'"{fixed_string}"'
+        
+        elif not in_string:
+            result += char
+        
+        i += 1
+    
+    # Добавляем оставшиеся символы, если мы не в строке
+    if not in_string and i < len(json_content):
+        result += json_content[i:]
+    
+    return result
+
+
+def safe_json_parse(json_content: str, fallback_attempts: int = 3) -> dict:
+    """
+    Безопасно парсит JSON с несколькими попытками исправления.
+    
+    Args:
+        json_content: JSON строка для парсинга
+        fallback_attempts: Количество попыток исправления
+    
+    Returns:
+        Распарсенный JSON как словарь
+        
+    Raises:
+        json.JSONDecodeError: Если не удалось распарсить JSON после всех попыток
+    """
+    attempts = []
+    
+    # Попытка 1: Прямой парсинг
+    try:
+        return json.loads(json_content)
+    except json.JSONDecodeError as e:
+        attempts.append(f"Прямой парсинг: {str(e)}")
+    
+    # Попытка 2: Исправление LaTeX-экранирования
+    try:
+        fixed_content = fix_latex_escapes_in_json(json_content)
+        return json.loads(fixed_content)
+    except json.JSONDecodeError as e:
+        attempts.append(f"После исправления LaTeX: {str(e)}")
+    
+    # Попытка 3: Агрессивное исправление обратных слэшей
+    try:
+        # Заменяем все одиночные обратные слэши на двойные (кроме уже экранированных)
+        aggressive_fixed = re.sub(r'(?<!\\)\\(?!\\)', r'\\\\', json_content)
+        return json.loads(aggressive_fixed)
+    except json.JSONDecodeError as e:
+        attempts.append(f"Агрессивное исправление: {str(e)}")
+    
+    # Попытка 4: Удаление проблемных символов
+    try:
+        # Удаляем все обратные слэши, которые не являются частью экранированных последовательностей
+        cleaned_content = re.sub(r'(?<!\\)\\(?!["\\/bfnrt])', '', json_content)
+        return json.loads(cleaned_content)
+    except json.JSONDecodeError as e:
+        attempts.append(f"Очистка слэшей: {str(e)}")
+    
+    # Если все попытки не удались, логируем все ошибки и выбрасываем исключение
+    error_msg = f"Не удалось распарсить JSON после {len(attempts)} попыток:\n"
+    for i, attempt in enumerate(attempts, 1):
+        error_msg += f"{i}. {attempt}\n"
+    error_msg += f"Исходный JSON: {json_content}"
+    
+    raise json.JSONDecodeError(error_msg, json_content, 0)
 
 
 # Пример использования для демонстрации и отладки
