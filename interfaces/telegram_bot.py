@@ -30,23 +30,23 @@ def run_bot(token: str) -> None:
     logger.info("Запуск модульного Telegram бота")
     
     # Создаем приложение
-        application = Application.builder().token(token).build()
-        
+    application = Application.builder().token(token).build()
+    
     # Регистрируем обработчики команд
-        application.add_handler(CommandHandler("start", start))
-        application.add_handler(CommandHandler("help", help_command))
-        application.add_handler(CommandHandler("cancel", cancel))
-        application.add_handler(CommandHandler("history", show_history))
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("cancel", cancel))
+    application.add_handler(CommandHandler("history", show_history))
     
     # Обработчик callback-запросов (кнопки)
-        application.add_handler(CallbackQueryHandler(handle_transformation_choice))
-        
+    application.add_handler(CallbackQueryHandler(handle_transformation_choice))
+    
     # Обработчик текстовых сообщений (задачи)
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_task))
     
     logger.info("Все обработчики зарегистрированы")
-        
-        # Запускаем бота
+    
+    # Запускаем бота
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
