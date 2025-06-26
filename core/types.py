@@ -44,12 +44,33 @@ class BaseTransformationType(Enum):
         }
 
 
+class ParameterType(Enum):
+    """Типы параметров преобразований."""
+    NUMBER = "number"           # Числовое значение
+    EXPRESSION = "expression"   # Математическое выражение
+    CHOICE = "choice"          # Выбор из предложенных вариантов
+    TEXT = "text"              # Произвольный текст
+
+
+@dataclass
+class ParameterDefinition:
+    """Определение параметра для запроса у пользователя."""
+    name: str                   # Имя параметра (например, "FACTOR")
+    prompt: str                 # Текст для запроса у пользователя
+    param_type: ParameterType   # Тип параметра
+    options: Optional[List[Any]] = None      # Варианты выбора (для CHOICE)
+    default_value: Optional[Any] = None      # Значение по умолчанию
+    validation_rule: Optional[str] = None    # Правило валидации
+    suggested_values: Optional[List[Any]] = None  # Предлагаемые значения
+
+
 @dataclass
 class TransformationParameter:
-    """Параметр, который может быть использован в преобразовании."""
+    """Параметр с выбранным значением для использования в преобразовании."""
     name: str
     value: Any
-    options: Optional[List[Any]] = None  # Возможные значения (для будущей параметризации)
+    param_type: ParameterType = ParameterType.TEXT
+    original_definition: Optional[ParameterDefinition] = None
 
 
 @dataclass
@@ -59,8 +80,10 @@ class Transformation:
     expression: str  # Было latex
     type: str  # Тип преобразования (желательно из BaseTransformationType)
     parameters: Optional[List[TransformationParameter]] = None
+    parameter_definitions: Optional[List[ParameterDefinition]] = None  # Определения параметров для запроса
     metadata: Dict[str, Any] = field(default_factory=dict)
     preview_result: Optional[str] = None  # Предварительный результат применения преобразования
+    requires_user_input: bool = False  # Требует ли преобразование ввода от пользователя
 
 
 class SolutionType(Enum):

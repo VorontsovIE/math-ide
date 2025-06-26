@@ -1,33 +1,32 @@
-import json
-import random
+# New refactored engine
+
 import logging
-import re
 from typing import List, Optional, Any, Dict
-from pathlib import Path
-import io
 
 # Импортируем типы данных из отдельного модуля
 from .types import (
-    BaseTransformationType,
     TransformationParameter,
+    ParameterDefinition,
     Transformation,
     SolutionStep,
-    SolutionType,
-    SolutionBranch,
     GenerationResult,
     ApplyResult,
     CheckResult,
     ProgressAnalysisResult,
     VerificationResult,
-    get_transformation_types_markdown,
-    create_solution_step,
-    create_system_step,
-    create_cases_step,
-    create_alternatives_step,
 )
-from .parsers import safe_json_parse, fix_latex_escapes_in_json
 from .prompts import PromptManager
 from .gpt_client import GPTClient
+
+# Импортируем новые компоненты
+from .engines import (
+    TransformationGenerator,
+    TransformationApplier,
+    SolutionChecker,
+    ProgressAnalyzer,
+    TransformationVerifier,
+    BranchingAnalyzer
+)
 
 # Настройка логирования
 logging.basicConfig(
@@ -48,15 +47,10 @@ except ImportError:
     logger.info("coloredlogs не установлен. Используется стандартное логирование.")
 
 
-
-
-
-
-
-
 class TransformationEngine:
     """
     Ядро для генерации допустимых математических преобразований.
+    Координирует работу специализированных компонентов.
     """
 
     def __init__(self, api_key: Optional[str] = None, model: str = "gpt-3.5-turbo", preview_mode: bool = False):
@@ -67,770 +61,139 @@ class TransformationEngine:
         
         logger.info(f"Инициализация TransformationEngine с моделью {model}")
         
-        # Загружаем промпты
-        logger.debug("Загрузка промптов...")
-        self.generation_prompt = self.prompt_manager.load_prompt("generation.md")
-        self.apply_prompt = self.prompt_manager.load_prompt("apply.md")
-        self.check_prompt = self.prompt_manager.load_prompt("check.md")
-        self.progress_analysis_prompt = self.prompt_manager.load_prompt("progress_analysis.md")
-        self.verification_prompt = self.prompt_manager.load_prompt("verification.md")
-        self.branching_prompt = self.prompt_manager.load_prompt("branching.md")
-        logger.debug("Промпты успешно загружены")
+        # Инициализируем компоненты
+        logger.debug("Инициализация компонентов...")
+        self.generator = TransformationGenerator(self.client, self.prompt_manager, preview_mode)
+        self.applier = TransformationApplier(self.client, self.prompt_manager)
+        self.checker = SolutionChecker(self.client, self.prompt_manager)
+        self.progress_analyzer = ProgressAnalyzer(self.client, self.prompt_manager)
+        self.verifier = TransformationVerifier(self.client, self.prompt_manager)
+        self.branching_analyzer = BranchingAnalyzer(self.client, self.prompt_manager)
+        
+        logger.debug("Все компоненты успешно инициализированы")
 
     def generate_transformations(self, step: SolutionStep) -> GenerationResult:
         """
         Генерирует список возможных математических преобразований для текущего шага.
+        Делегирует работу TransformationGenerator.
         """
-        try:
-            logger.info("Генерация преобразований для выражения: %s", step.expression)
-            
-            # Форматируем промпт
-            formatted_prompt = self.prompt_manager.format_prompt(
-                self.generation_prompt,
-                current_state=step.expression,
-                transformation_types=get_transformation_types_markdown(),
-                transformation_types_list=self.prompt_manager.load_prompt("transformation_types.md")
-            )
-            
-            logger.debug("Отправка запроса к GPT для генерации преобразований")
-            # Запрос к GPT через GPTClient
-            gpt_response = self.client.chat_completion(
-                messages=[
-                    {"role": "system", "content": "Ты - эксперт по математике. Отвечай только в JSON-формате."},
-                    {"role": "user", "content": formatted_prompt}
-                ],
-                temperature=0.7
-            )
-            
-            # Логируем токены
-            logger.info(
-                "Использование токенов: промпт=%d, ответ=%d, всего=%d",
-                gpt_response.usage.prompt_tokens,
-                gpt_response.usage.completion_tokens,
-                gpt_response.usage.total_tokens
-            )
-            
-            # Парсим ответ
-            content = gpt_response.content
-            logger.debug("Получен ответ от GPT: %s", content)
-            
-            # Проверяем, что ответ не пустой
-            if not content:
-                logger.error("Получен пустой ответ от GPT")
-                return GenerationResult(transformations=[])
-            
-            # Пытаемся найти JSON в ответе (на случай, если GPT добавил лишний текст)
-            json_start = content.find('[')
-            json_end = content.rfind(']') + 1
-            
-            if json_start == -1 or json_end == 0:
-                logger.error("Не найден JSON-массив в ответе GPT. Полный ответ: %s", content)
-                return GenerationResult(transformations=[])
-            
-            json_content = content[json_start:json_end]
-            logger.debug("Извлеченный JSON: %s", json_content)
-            
-            try:
-                # Используем безопасный парсинг JSON с автоматическим исправлением
-                transformations_data = safe_json_parse(json_content)
-            except json.JSONDecodeError as e:
-                logger.error("Ошибка парсинга JSON: %s", str(e))
-                logger.error("Проблемный JSON: %s", json_content)
-                logger.error("Полный ответ GPT: %s", content)
-                return GenerationResult(transformations=[])
-            
-            # Проверяем, что это список
-            if not isinstance(transformations_data, list):
-                logger.error("Ожидался список преобразований, получен: %s", type(transformations_data))
-                return GenerationResult(transformations=[])
-            
-            # Преобразуем в объекты Transformation
-            transformations = []
-            for i, data in enumerate(transformations_data):
-                try:
-                    if not isinstance(data, dict):
-                        logger.warning("Пропускаем элемент %d: не является словарем", i)
-                        continue
-                    
-                    # Проверяем обязательные поля
-                    required_fields = ["description", "expression", "type"]
-                    missing_fields = [field for field in required_fields if field not in data]
-                    if missing_fields:
-                        logger.warning("Пропускаем элемент %d: отсутствуют поля %s", i, missing_fields)
-                        continue
-                    
-                    transformation = Transformation(
-                        description=data["description"],
-                        expression=data["expression"],
-                        type=data["type"],
-                        metadata=data.get("metadata", {})
-                    )
-                    transformations.append(transformation)
-                    logger.debug("Добавлено преобразование %d: %s", i, transformation.description)
-                    
-                except Exception as e:
-                    logger.warning("Ошибка при обработке преобразования %d: %s", i, str(e))
-                    continue
-            
-            logger.info("Сгенерировано %d преобразований", len(transformations))
-            
-            # Сортировка по полезности (good > neutral > bad)
-            def usefulness_key(tr: Transformation):
-                value = tr.metadata.get("usefullness", "neutral")
-                if value == "good":
-                    return 0
-                elif value == "neutral":
-                    return 1
-                else:
-                    return 2
-            transformations.sort(key=usefulness_key)
-            # Выбор и перемешивание топ-5
-            top5 = transformations[:5]
-            if len(top5) > 1:
-                random.shuffle(top5)
-            
-            logger.info("Отобрано %d лучших преобразований", len(top5))
-            
-            # Заполняем предварительные результаты, если включен режим предпоказа
-            if self.preview_mode:
-                logger.info("Заполнение предварительных результатов из поля expression")
-                for transformation in top5:
-                    # Используем уже имеющееся поле expression как предварительный результат
-                    transformation.preview_result = transformation.expression
-            
-            return GenerationResult(transformations=top5)
-            
-        except Exception as e:
-            logger.error("Ошибка при генерации преобразований: %s", str(e), exc_info=True)
-            return GenerationResult(transformations=[])
+        return self.generator.generate_transformations(step)
 
     def apply_transformation(self, current_step: SolutionStep, transformation: Transformation) -> ApplyResult:
         """
         Применяет выбранное преобразование к текущему шагу решения.
+        Делегирует работу TransformationApplier.
         """
-        try:
-            logger.info(
-                "Применение преобразования типа '%s' к выражению: %s",
-                transformation.type,
-                current_step.expression
-            )
-            
-            # Форматируем промпт
-            formatted_prompt = self.prompt_manager.format_prompt(
-                self.apply_prompt,
-                current_state=current_step.expression,
-                transformation_type=transformation.type,
-                transformation_description=transformation.description,
-                transformation_expression=transformation.expression
-            )
-            
-            logger.debug("Отправка запроса к GPT для применения преобразования")
-            # Запрос к GPT
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "Ты - эксперт по математике. Отвечай только в JSON-формате."},
-                    {"role": "user", "content": formatted_prompt}
-                ],
-                temperature=0.3,
-                max_tokens=500
-            )
-            
-            # Логируем токены
-            usage = response.usage
-            logger.info(
-                "Использование токенов: промпт=%d, ответ=%d, всего=%d",
-                usage.prompt_tokens,
-                usage.completion_tokens,
-                usage.total_tokens
-            )
-            
-            # Парсим ответ
-            content = response.choices[0].message.content.strip()
-            logger.debug("Получен ответ от GPT: %s", content)
-            
-            # Проверяем, что ответ не пустой
-            if not content:
-                logger.error("Получен пустой ответ от GPT")
-                return ApplyResult(
-                    result=current_step.expression,
-                    is_valid=False,
-                    explanation="Получен пустой ответ от GPT",
-                    errors=["empty_response"]
-                )
-            
-            # Пытаемся найти JSON в ответе (на случай, если GPT добавил лишний текст)
-            json_start = content.find('{')
-            json_end = content.rfind('}') + 1
-            
-            if json_start == -1 or json_end == 0:
-                logger.error("Не найден JSON-объект в ответе GPT. Полный ответ: %s", content)
-                return ApplyResult(
-                    result=current_step.expression,
-                    is_valid=False,
-                    explanation="Не найден JSON-объект в ответе GPT",
-                    errors=["no_json_found"]
-                )
-            
-            json_content = content[json_start:json_end]
-            logger.debug("Извлеченный JSON: %s", json_content)
-            
-            try:
-                # Используем безопасный парсинг JSON с автоматическим исправлением
-                result_data = safe_json_parse(json_content)
-            except json.JSONDecodeError as e:
-                logger.error("Ошибка парсинга JSON: %s", str(e))
-                logger.error("Проблемный JSON: %s", json_content)
-                logger.error("Полный ответ GPT: %s", content)
-                return ApplyResult(
-                    result=current_step.expression,
-                    is_valid=False,
-                    explanation=f"Ошибка парсинга JSON: {str(e)}",
-                    errors=["json_parse_error"]
-                )
-            
-            # Проверяем обязательные поля
-            required_fields = ["result_expression", "is_valid", "explanation"]
-            missing_fields = [field for field in required_fields if field not in result_data]
-            if missing_fields:
-                logger.error("Отсутствуют обязательные поля в ответе: %s", missing_fields)
-                logger.error("Полученные поля: %s", list(result_data.keys()))
-                return ApplyResult(
-                    result=current_step.expression,
-                    is_valid=False,
-                    explanation=f"Отсутствуют обязательные поля: {missing_fields}",
-                    errors=["missing_fields"]
-                )
-            
-            logger.info(
-                "Результат применения: успех=%s, объяснение='%s'",
-                result_data["is_valid"],
-                result_data["explanation"]
-            )
-            
-            return ApplyResult(
-                result=result_data["result_expression"],
-                is_valid=result_data["is_valid"],
-                explanation=result_data["explanation"],
-                errors=result_data.get("errors", []),
-                mathematical_verification=result_data.get("mathematical_verification")
-            )
-            
-        except Exception as e:
-            logger.error("Ошибка при применении преобразования: %s", str(e), exc_info=True)
-            return ApplyResult(
-                result=current_step.expression,
-                is_valid=False,
-                explanation=f"Ошибка при применении преобразования: {str(e)}",
-                errors=["internal_error"]
-            )
+        return self.applier.apply_transformation(current_step, transformation)
 
     def check_solution_completeness(self, current_step: SolutionStep, original_task: str) -> CheckResult:
         """
-        Проверяет, является ли текущий шаг завершающим для решения задачи.
+        Проверяет, завершено ли решение задачи.
+        Делегирует работу SolutionChecker.
         """
-        try:
-            logger.info("Проверка завершённости решения для выражения: %s", current_step.expression)
-            
-            # Форматируем промпт
-            formatted_prompt = self.prompt_manager.format_prompt(
-                self.check_prompt,
-                current_state=current_step.expression,
-                original_task=original_task
-            )
-            
-            logger.debug("Отправка запроса к GPT для проверки завершённости")
-            # Запрос к GPT
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "Ты - эксперт по математике. Отвечай только в JSON-формате."},
-                    {"role": "user", "content": formatted_prompt}
-                ],
-                temperature=0.3,
-                max_tokens=500
-            )
-            
-            # Логируем токены
-            usage = response.usage
-            logger.info(
-                "Использование токенов: промпт=%d, ответ=%d, всего=%d",
-                usage.prompt_tokens,
-                usage.completion_tokens,
-                usage.total_tokens
-            )
-            
-            # Парсим ответ
-            content = response.choices[0].message.content.strip()
-            logger.debug("Получен ответ от GPT: %s", content)
-            
-            # Проверяем, что ответ не пустой
-            if not content:
-                logger.error("Получен пустой ответ от GPT")
-                return CheckResult(
-                    is_solved=False,
-                    confidence=0.0,
-                    explanation="Получен пустой ответ от GPT",
-                    solution_type="error"
-                )
-            
-            # Пытаемся найти JSON в ответе (на случай, если GPT добавил лишний текст)
-            json_start = content.find('{')
-            json_end = content.rfind('}') + 1
-            
-            if json_start == -1 or json_end == 0:
-                logger.error("Не найден JSON-объект в ответе GPT. Полный ответ: %s", content)
-                return CheckResult(
-                    is_solved=False,
-                    confidence=0.0,
-                    explanation="Не найден JSON-объект в ответе GPT",
-                    solution_type="error"
-                )
-            
-            json_content = content[json_start:json_end]
-            logger.debug("Извлеченный JSON: %s", json_content)
-            
-            try:
-                # Используем безопасный парсинг JSON с автоматическим исправлением
-                check_data = safe_json_parse(json_content)
-            except json.JSONDecodeError as e:
-                logger.error("Ошибка парсинга JSON: %s", str(e))
-                logger.error("Проблемный JSON: %s", json_content)
-                logger.error("Полный ответ GPT: %s", content)
-                return CheckResult(
-                    is_solved=False,
-                    confidence=0.0,
-                    explanation=f"Ошибка парсинга JSON: {str(e)}",
-                    solution_type="error"
-                )
-            
-            # Проверяем обязательные поля
-            required_fields = ["is_solved", "confidence", "explanation", "solution_type"]
-            missing_fields = [field for field in required_fields if field not in check_data]
-            if missing_fields:
-                logger.error("Отсутствуют обязательные поля в ответе: %s", missing_fields)
-                logger.error("Полученные поля: %s", list(check_data.keys()))
-                return CheckResult(
-                    is_solved=False,
-                    confidence=0.0,
-                    explanation=f"Отсутствуют обязательные поля: {missing_fields}",
-                    solution_type="error"
-                )
-            
-            logger.info(
-                "Результат проверки: решено=%s, уверенность=%.2f, тип='%s'",
-                check_data["is_solved"],
-                check_data["confidence"],
-                check_data["solution_type"]
-            )
-            
-            return CheckResult(
-                is_solved=check_data["is_solved"],
-                confidence=check_data["confidence"],
-                explanation=check_data["explanation"],
-                solution_type=check_data["solution_type"],
-                next_steps=check_data.get("next_steps", []),
-                mathematical_verification=check_data.get("mathematical_verification")
-            )
-            
-        except Exception as e:
-            logger.error("Ошибка при проверке завершённости: %s", str(e), exc_info=True)
-            return CheckResult(
-                is_solved=False,
-                confidence=0.0,
-                explanation=f"Ошибка при проверке завершённости: {str(e)}",
-                solution_type="error"
-            )
+        return self.checker.check_solution_completeness(current_step, original_task)
 
     def analyze_progress(self, original_task: str, history_steps: List[Dict[str, Any]], 
                         current_step: str, steps_count: int) -> ProgressAnalysisResult:
         """
-        Анализирует прогресс решения задачи и определяет, стоит ли рекомендовать откат.
-        
-        Args:
-            original_task: Исходная задача
-            history_steps: История шагов решения 
-            current_step: Текущее состояние
-            steps_count: Количество шагов
-            
-        Returns:
-            ProgressAnalysisResult с рекомендациями
+        Анализирует прогресс решения задачи и даёт рекомендации.
+        Делегирует работу ProgressAnalyzer.
         """
-        try:
-            logger.info("Анализ прогресса решения для задачи: %s", original_task)
-            
-            # Форматируем историю шагов в читаемый вид
-            history_text = ""
-            for i, step in enumerate(history_steps):
-                history_text += f"- Шаг {i}: \"{step.get('expression', '')}\""
-                if step.get('chosen_transformation'):
-                    history_text += f" ({step['chosen_transformation'].get('description', '')})"
-                history_text += "\n"
-            
-            # Форматируем промпт
-            formatted_prompt = self.prompt_manager.format_prompt(
-                self.progress_analysis_prompt,
-                original_task=original_task,
-                history_steps=history_text,
-                current_step=current_step,
-                steps_count=steps_count
-            )
-            
-            logger.debug("Отправка запроса к GPT для анализа прогресса")
-            # Запрос к GPT
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "Ты - эксперт по математике. Отвечай только в JSON-формате."},
-                    {"role": "user", "content": formatted_prompt}
-                ],
-                temperature=0.3,
-                max_tokens=800
-            )
-            
-            # Логируем токены
-            usage = response.usage
-            logger.info(
-                "Использование токенов: промпт=%d, ответ=%d, всего=%d",
-                usage.prompt_tokens,
-                usage.completion_tokens,
-                usage.total_tokens
-            )
-            
-            # Парсим ответ
-            content = response.choices[0].message.content.strip()
-            logger.debug("Получен ответ от GPT: %s", content)
-            
-            # Проверяем, что ответ не пустой
-            if not content:
-                logger.error("Получен пустой ответ от GPT")
-                return ProgressAnalysisResult(
-                    progress_assessment="neutral",
-                    confidence=0.0,
-                    analysis="Не удалось получить анализ прогресса",
-                    recommend_rollback=False
-                )
-            
-            # Пытаемся найти JSON в ответе
-            json_start = content.find('{')
-            json_end = content.rfind('}') + 1
-            
-            if json_start == -1 or json_end == 0:
-                logger.error("Не найден JSON-объект в ответе GPT. Полный ответ: %s", content)
-                return ProgressAnalysisResult(
-                    progress_assessment="neutral",
-                    confidence=0.0,
-                    analysis="Ошибка парсинга ответа GPT",
-                    recommend_rollback=False
-                )
-            
-            json_content = content[json_start:json_end]
-            logger.debug("Извлеченный JSON: %s", json_content)
-            
-            try:
-                # Используем безопасный парсинг JSON
-                analysis_data = safe_json_parse(json_content)
-            except json.JSONDecodeError as e:
-                logger.error("Ошибка парсинга JSON: %s", str(e))
-                logger.error("Проблемный JSON: %s", json_content)
-                return ProgressAnalysisResult(
-                    progress_assessment="neutral",
-                    confidence=0.0,
-                    analysis=f"Ошибка парсинга JSON: {str(e)}",
-                    recommend_rollback=False
-                )
-            
-            # Проверяем обязательные поля
-            required_fields = ["progress_assessment", "confidence", "analysis", "recommend_rollback"]
-            missing_fields = [field for field in required_fields if field not in analysis_data]
-            if missing_fields:
-                logger.error("Отсутствуют обязательные поля в ответе: %s", missing_fields)
-                return ProgressAnalysisResult(
-                    progress_assessment="neutral",
-                    confidence=0.0,
-                    analysis=f"Отсутствуют обязательные поля: {missing_fields}",
-                    recommend_rollback=False
-                )
-            
-            logger.info(
-                "Результат анализа прогресса: оценка=%s, рекомендация отката=%s",
-                analysis_data["progress_assessment"],
-                analysis_data["recommend_rollback"]
-            )
-            
-            return ProgressAnalysisResult(
-                progress_assessment=analysis_data["progress_assessment"],
-                confidence=analysis_data["confidence"],
-                analysis=analysis_data["analysis"],
-                recommend_rollback=analysis_data["recommend_rollback"],
-                recommended_step=analysis_data.get("recommended_step"),
-                rollback_reason=analysis_data.get("rollback_reason"),
-                suggestion_message=analysis_data.get("suggestion_message")
-            )
-            
-        except Exception as e:
-            logger.error("Ошибка при анализе прогресса: %s", str(e), exc_info=True)
-            return ProgressAnalysisResult(
-                progress_assessment="neutral",
-                confidence=0.0,
-                analysis=f"Ошибка при анализе прогресса: {str(e)}",
-                recommend_rollback=False
-            )
+        return self.progress_analyzer.analyze_progress(original_task, history_steps, current_step, steps_count)
 
     def verify_transformation(self, original_expression: str, transformation_description: str,
                              current_result: str, verification_type: str,
                              user_suggested_result: Optional[str] = None) -> VerificationResult:
         """
-        Проверяет корректность математического преобразования и при необходимости исправляет ошибки.
-        
-        Args:
-            original_expression: Исходное выражение
-            transformation_description: Описание применённого преобразования
-            current_result: Полученный результат
-            verification_type: Тип проверки (recalculate, verify_user_suggestion, verify_user_transformation)
-            user_suggested_result: Предложенный пользователем результат (опционально)
-            
-        Returns:
-            VerificationResult с результатом проверки
+        Проверяет корректность математического преобразования.
+        Делегирует работу TransformationVerifier.
         """
-        try:
-            logger.info("Проверка преобразования: %s -> %s", original_expression, current_result)
-            
-            # Форматируем промпт
-            formatted_prompt = self.prompt_manager.format_prompt(
-                self.verification_prompt,
-                original_expression=original_expression,
-                transformation_description=transformation_description,
-                current_result=current_result,
-                verification_type=verification_type,
-                user_suggested_result=user_suggested_result or ""
-            )
-            
-            logger.debug("Отправка запроса к GPT для проверки преобразования")
-            # Запрос к GPT
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "Ты - эксперт по математике. Отвечай только в JSON-формате."},
-                    {"role": "user", "content": formatted_prompt}
-                ],
-                temperature=0.1,  # Низкая температура для точности
-                max_tokens=1000
-            )
-            
-            # Логируем токены
-            usage = response.usage
-            logger.info(
-                "Использование токенов: промпт=%d, ответ=%d, всего=%d",
-                usage.prompt_tokens,
-                usage.completion_tokens,
-                usage.total_tokens
-            )
-            
-            # Парсим ответ
-            content = response.choices[0].message.content.strip()
-            logger.debug("Получен ответ от GPT: %s", content)
-            
-            # Проверяем, что ответ не пустой
-            if not content:
-                logger.error("Получен пустой ответ от GPT")
-                return VerificationResult(
-                    is_correct=False,
-                    corrected_result=current_result,
-                    verification_explanation="Не удалось получить результат проверки",
-                    errors_found=["Ошибка при обращении к GPT"]
-                )
-            
-            # Пытаемся найти JSON в ответе
-            json_start = content.find('{')
-            json_end = content.rfind('}') + 1
-            
-            if json_start == -1 or json_end == 0:
-                logger.error("Не найден JSON-объект в ответе GPT. Полный ответ: %s", content)
-                return VerificationResult(
-                    is_correct=False,
-                    corrected_result=current_result,
-                    verification_explanation="Ошибка парсинга ответа GPT",
-                    errors_found=["Некорректный формат ответа"]
-                )
-            
-            json_content = content[json_start:json_end]
-            logger.debug("Извлеченный JSON: %s", json_content)
-            
-            try:
-                # Используем безопасный парсинг JSON
-                verification_data = safe_json_parse(json_content)
-            except json.JSONDecodeError as e:
-                logger.error("Ошибка парсинга JSON: %s", str(e))
-                logger.error("Проблемный JSON: %s", json_content)
-                return VerificationResult(
-                    is_correct=False,
-                    corrected_result=current_result,
-                    verification_explanation=f"Ошибка парсинга JSON: {str(e)}",
-                    errors_found=["Ошибка парсинга ответа"]
-                )
-            
-            # Проверяем обязательные поля
-            required_fields = ["is_correct", "corrected_result", "verification_explanation"]
-            missing_fields = [field for field in required_fields if field not in verification_data]
-            if missing_fields:
-                logger.error("Отсутствуют обязательные поля в ответе: %s", missing_fields)
-                return VerificationResult(
-                    is_correct=False,
-                    corrected_result=current_result,
-                    verification_explanation=f"Отсутствуют обязательные поля: {missing_fields}",
-                    errors_found=["Неполный ответ от GPT"]
-                )
-            
-            logger.info(
-                "Результат проверки: корректно=%s, исправленный результат=%s",
-                verification_data["is_correct"],
-                verification_data["corrected_result"]
-            )
-            
-            return VerificationResult(
-                is_correct=verification_data["is_correct"],
-                corrected_result=verification_data["corrected_result"],
-                verification_explanation=verification_data["verification_explanation"],
-                errors_found=verification_data.get("errors_found", []),
-                step_by_step_check=verification_data.get("step_by_step_check", ""),
-                user_result_assessment=verification_data.get("user_result_assessment")
-            )
-            
-        except Exception as e:
-            logger.error("Ошибка при проверке преобразования: %s", str(e), exc_info=True)
-            return VerificationResult(
-                is_correct=False,
-                corrected_result=current_result,
-                verification_explanation=f"Ошибка при проверке преобразования: {str(e)}",
-                errors_found=[f"Системная ошибка: {str(e)}"]
-            )
+        return self.verifier.verify_transformation(
+            original_expression, transformation_description, current_result, 
+            verification_type, user_suggested_result
+        )
 
     def analyze_branching_solution(self, step: SolutionStep) -> SolutionStep:
         """
-        Анализирует математическое выражение на предмет необходимости ветвящегося решения.
+        Анализирует, требует ли решение ветвления.
+        Делегирует работу BranchingAnalyzer.
+        """
+        return self.branching_analyzer.analyze_branching_solution(step)
+
+    def request_parameters(self, transformation: Transformation, user_input_callback) -> Transformation:
+        """
+        Запрашивает параметры у пользователя для параметризованного преобразования.
         
         Args:
-            step: Текущий шаг решения
+            transformation: Преобразование с определениями параметров
+            user_input_callback: Функция для запроса ввода у пользователя
             
         Returns:
-            SolutionStep - либо исходный шаг (если ветвление не нужно), 
-                          либо новый шаг с ветвящейся структурой
+            Преобразование с заполненными параметрами
         """
-        try:
-            logger.info("Анализ ветвящегося решения для выражения: %s", step.expression)
-            
-            # Форматируем промпт
-            formatted_prompt = self.prompt_manager.format_prompt(
-                self.branching_prompt,
-                current_state=step.expression
-            )
-            
-            logger.debug("Отправка запроса к GPT для анализа ветвления")
-            # Запрос к GPT через GPTClient
-            gpt_response = self.client.chat_completion(
-                messages=[
-                    {"role": "system", "content": "Ты - эксперт по математике. Отвечай только в JSON-формате."},
-                    {"role": "user", "content": formatted_prompt}
-                ],
-                temperature=0.3  # Средняя температура для баланса точности и креативности
-            )
-            
-            # Логируем токены
-            logger.info(
-                "Использование токенов: промпт=%d, ответ=%d, всего=%d",
-                gpt_response.usage.prompt_tokens,
-                gpt_response.usage.completion_tokens,
-                gpt_response.usage.total_tokens
-            )
-            
-            # Парсим ответ
-            content = gpt_response.content
-            logger.debug("Получен ответ от GPT: %s", content)
-            
-            # Проверяем, что ответ не пустой
-            if not content:
-                logger.error("Получен пустой ответ от GPT")
-                return step  # Возвращаем исходный шаг
-            
-            # Пытаемся найти JSON в ответе
-            json_start = content.find('{')
-            json_end = content.rfind('}') + 1
-            
-            if json_start == -1 or json_end == 0:
-                logger.error("Не найден JSON-объект в ответе GPT. Полный ответ: %s", content)
-                return step
-            
-            json_content = content[json_start:json_end]
-            logger.debug("Извлеченный JSON: %s", json_content)
-            
+        if not transformation.parameter_definitions:
+            return transformation
+        
+        logger.info(f"Запрос параметров для преобразования: {transformation.description}")
+        
+        parameters = []
+        for param_def in transformation.parameter_definitions:
             try:
-                # Используем безопасный парсинг JSON
-                branch_data = safe_json_parse(json_content)
-            except json.JSONDecodeError as e:
-                logger.error("Ошибка парсинга JSON: %s", str(e))
-                logger.error("Проблемный JSON: %s", json_content)
-                return step
-            
-            # Проверяем обязательные поля
-            required_fields = ["needs_branching", "solution_type", "description"]
-            missing_fields = [field for field in required_fields if field not in branch_data]
-            if missing_fields:
-                logger.error("Отсутствуют обязательные поля в ответе: %s", missing_fields)
-                return step
-            
-            # Если ветвление не требуется, возвращаем исходный шаг
-            if not branch_data["needs_branching"]:
-                logger.info("Ветвление не требуется для данного выражения")
-                return step
-            
-            # Создаем ветвящийся шаг
-            solution_type_str = branch_data["solution_type"]
-            description = branch_data["description"]
-            branches_data = branch_data.get("branches", [])
-            
-            # Преобразуем строку типа в enum
-            try:
-                solution_type = SolutionType(solution_type_str)
-            except ValueError:
-                logger.error("Неизвестный тип решения: %s", solution_type_str)
-                return step
-            
-            # Создаем ветви
-            branches = []
-            for branch_data_item in branches_data:
-                try:
-                    branch = SolutionBranch(
-                        id=branch_data_item["id"],
-                        name=branch_data_item["name"],
-                        expression=branch_data_item["expression"],
-                        condition=branch_data_item.get("condition"),
-                        is_valid=True
+                # Запрашиваем значение у пользователя
+                user_value = user_input_callback(param_def)
+                
+                # Создаём параметр с полученным значением
+                parameter = TransformationParameter(
+                    name=param_def.name,
+                    value=user_value,
+                    param_type=param_def.param_type,
+                    original_definition=param_def
+                )
+                parameters.append(parameter)
+                
+                logger.debug(f"Получен параметр {param_def.name}: {user_value}")
+                
+            except Exception as e:
+                logger.error(f"Ошибка при запросе параметра {param_def.name}: {str(e)}")
+                # В случае ошибки используем значение по умолчанию
+                if param_def.default_value is not None:
+                    parameter = TransformationParameter(
+                        name=param_def.name,
+                        value=param_def.default_value,
+                        param_type=param_def.param_type,
+                        original_definition=param_def
                     )
-                    branches.append(branch)
-                except KeyError as e:
-                    logger.warning("Пропускаем ветвь из-за отсутствующего поля: %s", str(e))
-                    continue
+                    parameters.append(parameter)
+                    logger.warning(f"Использовано значение по умолчанию для {param_def.name}: {param_def.default_value}")
+        
+        # Создаём новое преобразование с заполненными параметрами
+        updated_transformation = Transformation(
+            description=transformation.description,
+            expression=self._substitute_parameters_in_text(transformation.expression, parameters),
+            type=transformation.type,
+            parameters=parameters,
+            parameter_definitions=transformation.parameter_definitions,
+            metadata=transformation.metadata,
+            preview_result=transformation.preview_result,
+            requires_user_input=False  # После заполнения параметров больше не требуется ввод
+        )
+        
+        logger.info(f"Параметры успешно заполнены для преобразования: {transformation.description}")
+        return updated_transformation
+
+    def _substitute_parameters_in_text(self, text: str, parameters: List[TransformationParameter]) -> str:
+        """
+        Заменяет плейсхолдеры параметров в тексте на их значения.
+        
+        Args:
+            text: Текст с плейсхолдерами вида {param_name}
+            parameters: Список параметров с их значениями
             
-            if not branches:
-                logger.error("Не удалось создать ни одной ветви")
-                return step
-            
-            logger.info("Создано ветвящееся решение: тип=%s, ветвей=%d", solution_type_str, len(branches))
-            
-            # Создаем новый шаг с ветвящейся структурой
-            branched_step = SolutionStep(
-                expression=description,
-                solution_type=solution_type,
-                branches=branches,
-                metadata={
-                    "original_expression": step.expression,
-                    "branching_analysis": description
-                }
-            )
-            
-            return branched_step
-            
-        except Exception as e:
-            logger.error("Ошибка при анализе ветвящегося решения: %s", str(e), exc_info=True)
-            return step  # В случае ошибки возвращаем исходный шаг
+        Returns:
+            Текст с заменёнными плейсхолдерами
+        """
+        result = text
+        for param in parameters:
+            placeholder = f"{{{param.name}}}"
+            result = result.replace(placeholder, str(param.value))
+        return result
