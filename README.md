@@ -13,9 +13,9 @@
 
 ## 🚀 Установка
 
-1. Установите poetry:
+1. Установите uv:
    ```bash
-   curl -sSL https://install.python-poetry.org | python3 -
+   curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
 
 2. Клонируйте репозиторий:
@@ -26,7 +26,7 @@
 
 3. Установите зависимости:
    ```bash
-   poetry install
+   uv sync --dev
    ```
 
 4. Создайте файл `.env` на основе `docs/env.example`:
@@ -43,12 +43,12 @@
 
 ### Telegram-бот
 ```bash
-poetry run python -m interfaces
+uv run python -m interfaces
 ```
 
 ### CLI-интерфейс
 ```bash
-poetry run python -m interfaces.cli
+uv run python -m interfaces.cli
 ```
 
 ## 🏗️ Архитектура
@@ -78,7 +78,7 @@ MathIDE/
 ## 🔧 Разработка
 
 Проект использует:
-- **poetry** для управления зависимостями
+- **uv** для управления зависимостями
 - **black** для форматирования кода
 - **flake8** для линтинга
 - **mypy** для проверки типов
@@ -87,19 +87,19 @@ MathIDE/
 ### Команды для разработки
 ```bash
 # Тест архитектуры (проверка модульной структуры)
-python tests/test_architecture.py
+uv run python tests/test_architecture.py
 
 # Форматирование кода
-poetry run black .
+uv run black .
 
 # Линтинг
-poetry run flake8
+uv run flake8
 
 # Проверка типов
-poetry run mypy .
+uv run mypy .
 
 # Тесты
-poetry run pytest
+uv run pytest
 ```
 
 ## 📚 Документация
@@ -159,7 +159,7 @@ python tests/test_architecture.py
 | **Bot** | python-telegram-bot | Telegram интерфейс |
 | **Math** | matplotlib | Рендеринг LaTeX |
 | **Config** | python-dotenv | Управление настройками |
-| **Deps** | Poetry | Управление зависимостями |
+| **Deps** | uv | Управление зависимостями |
 
 ## 🚦 Статус компонентов
 
