@@ -1,5 +1,5 @@
 import click
-from typing import Optional
+from typing import Optional, Any
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -15,6 +15,10 @@ class InputHandler:
     Отвечает за интерактивный ввод данных от пользователя.
     """
     
+    def __init__(self, console: Optional[Console] = None):
+        """Initialize InputHandler with console."""
+        self.console = console or Console()
+    
     def request_parameter_value(self, param_def: ParameterDefinition) -> str:
         """
         Запрашивает значение параметра у пользователя.
@@ -26,7 +30,7 @@ class InputHandler:
             Введенное пользователем значение
         """
         # Формируем заголовок запроса
-        console.print(Panel.fit(
+        self.console.print(Panel.fit(
             f"[bold]Параметр: {param_def.name}[/bold]\n{param_def.prompt}",
             title="Ввод параметра",
             border_style="cyan"
@@ -47,7 +51,7 @@ class InputHandler:
             info_lines.append(f"Правило валидации: {param_def.validation_rule}")
         
         if info_lines:
-            console.print(Panel.fit(
+            self.console.print(Panel.fit(
                 "\n".join(info_lines),
                 title="Дополнительная информация",
                 border_style="yellow"
@@ -80,7 +84,7 @@ class InputHandler:
         for idx, option in enumerate(param_def.options, 1):
             table.add_row(str(idx), str(option))
         
-        console.print(table)
+        self.console.print(table)
         
         while True:
             try:
@@ -88,9 +92,9 @@ class InputHandler:
                 if 1 <= choice <= len(param_def.options):
                     return str(param_def.options[choice - 1])
                 else:
-                    console.print(f"[red]Выберите номер от 1 до {len(param_def.options)}[/red]")
+                    self.console.print(f"[red]Выберите номер от 1 до {len(param_def.options)}[/red]")
             except (ValueError, click.Abort):
-                console.print("[red]Введите корректный номер[/red]")
+                self.console.print("[red]Введите корректный номер[/red]")
     
     def _handle_text_parameter(self, param_def: ParameterDefinition) -> str:
         """
@@ -139,7 +143,7 @@ class InputHandler:
                     if choice == valid_choice.lower():
                         return choice
                 
-                console.print(f"[red]Допустимые варианты: {', '.join(choices)}[/red]")
+                self.console.print(f"[red]Допустимые варианты: {', '.join(choices)}[/red]")
                 
             except click.Abort:
                 return "q"  # По умолчанию выход при отмене
@@ -163,10 +167,10 @@ class InputHandler:
                 if min_value <= choice <= max_value:
                     return choice
                 else:
-                    console.print(f"[red]Введите число от {min_value} до {max_value}[/red]")
+                    self.console.print(f"[red]Введите число от {min_value} до {max_value}[/red]")
                     
             except (ValueError, click.Abort):
-                console.print("[red]Введите корректное число[/red]")
+                self.console.print("[red]Введите корректное число[/red]")
     
     def confirm_action(self, message: str) -> bool:
         """
@@ -261,5 +265,56 @@ class InputHandler:
                 self.console.print("[yellow]Задача не может быть пустой[/yellow]")
                 return None
             return problem
+        except KeyboardInterrupt:
+            return None
+    
+    def get_numeric_parameter(self, param_def: ParameterDefinition) -> Any:
+        """Get numeric parameter value from user."""
+        while True:
+            try:
+                value = self.console.input(f"{param_def.prompt} (число): ")
+                if param_def.param_type == ParameterType.NUMBER:
+                    return float(value) if '.' in value else int(value)
+                return value
+            except ValueError:
+                self.console.print("[red]Введите корректное число[/red]")
+            except KeyboardInterrupt:
+                return None
+    
+    def get_expression_parameter(self, param_def: ParameterDefinition) -> Any:
+        """Get expression parameter value from user."""
+        try:
+            value = self.console.input(f"{param_def.prompt} (выражение): ")
+            return value
+        except KeyboardInterrupt:
+            return None
+    
+    def get_choice_parameter(self, param_def: ParameterDefinition) -> Any:
+        """Get choice parameter value from user."""
+        if not param_def.options:
+            return self.get_text_parameter(param_def)
+        
+        self.console.print(f"\n{param_def.prompt}")
+        for i, option in enumerate(param_def.options, 1):
+            self.console.print(f"{i}. {option}")
+        
+        while True:
+            try:
+                choice = self.console.input(f"Выберите вариант (1-{len(param_def.options)}): ")
+                choice_num = int(choice) - 1
+                if 0 <= choice_num < len(param_def.options):
+                    return param_def.options[choice_num]
+                else:
+                    self.console.print(f"[red]Выберите число от 1 до {len(param_def.options)}[/red]")
+            except ValueError:
+                self.console.print("[red]Введите корректное число[/red]")
+            except KeyboardInterrupt:
+                return None
+    
+    def get_text_parameter(self, param_def: ParameterDefinition) -> Any:
+        """Get text parameter value from user."""
+        try:
+            value = self.console.input(f"{param_def.prompt}: ")
+            return value
         except KeyboardInterrupt:
             return None 

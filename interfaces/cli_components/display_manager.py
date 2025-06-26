@@ -12,8 +12,6 @@ from core.types import (
 from core.history import SolutionHistory
 from .latex_renderer import LatexRenderer
 
-console = Console()
-
 
 class DisplayManager:
     """
@@ -21,8 +19,9 @@ class DisplayManager:
     Управляет отображением преобразований, истории и состояния решения.
     """
     
-    def __init__(self):
-        self.latex_renderer = LatexRenderer()
+    def __init__(self, console: Optional[Console] = None, latex_renderer: Optional[LatexRenderer] = None):
+        self.console = console or Console()
+        self.latex_renderer = latex_renderer or LatexRenderer()
     
     def display_transformations(self, transformations: list[Transformation]) -> None:
         """Отображает список доступных преобразований."""
@@ -63,13 +62,13 @@ class DisplayManager:
             
             table.add_row(*row)
         
-        console.print(table)
+        self.console.print(table)
     
     def display_branching_step(self, step: SolutionStep) -> None:
         """Отображает ветвящийся шаг решения."""
         if step.solution_type == SolutionType.SINGLE:
             # Обычное отображение для одиночного шага
-            console.print(Panel.fit(
+            self.console.print(Panel.fit(
                 self.latex_renderer.render_latex(step.expression),
                 title="Текущее выражение",
                 border_style="green"
@@ -87,7 +86,7 @@ class DisplayManager:
         
         title = type_descriptions.get(step.solution_type, "Ветвящееся решение")
         
-        console.print(Panel.fit(
+        self.console.print(Panel.fit(
             step.expression,
             title=title,
             border_style="blue"
@@ -113,7 +112,7 @@ class DisplayManager:
             
             table.add_row(*row)
         
-        console.print(table)
+        self.console.print(table)
     
     def display_history(self, history: SolutionHistory) -> None:
         """Отображает историю решения."""
@@ -142,7 +141,7 @@ class DisplayManager:
                 self.latex_renderer.render_latex(result) if result != "-" else result
             )
         
-        console.print(table)
+        self.console.print(table)
     
     def display_interactive_history(self, history: SolutionHistory) -> Optional[int]:
         """
@@ -155,11 +154,11 @@ class DisplayManager:
             Номер шага для возврата или None если возврат не нужен
         """
         if not history or history.is_empty():
-            console.print("[yellow]История пуста[/yellow]")
+            self.console.print("[yellow]История пуста[/yellow]")
             return None
         
         if not history.can_rollback():
-            console.print("[yellow]Недостаточно шагов для возврата[/yellow]") 
+            self.console.print("[yellow]Недостаточно шагов для возврата[/yellow]") 
             return None
         
         summary = history.get_full_history_summary()
@@ -203,7 +202,7 @@ class DisplayManager:
                 status
             )
         
-        console.print(table)
+        self.console.print(table)
         return None  # Возвращаем None, так как сама логика обработки ввода вынесена отдельно
     
     def display_success_message(self, message: str, result: str = None) -> None:
@@ -212,29 +211,29 @@ class DisplayManager:
         if result:
             content += f"\n\nРезультат:\n{self.latex_renderer.render_latex(result)}"
         
-        console.print(Panel.fit(
+        self.console.print(Panel.fit(
             content,
             border_style="green"
         ))
     
     def display_error_message(self, message: str) -> None:
         """Отображает сообщение об ошибке."""
-        console.print(Panel.fit(
+        self.console.print(Panel.fit(
             f"[red]Ошибка:[/red] {message}",
             border_style="red"
         ))
     
     def display_warning_message(self, message: str) -> None:
         """Отображает предупреждение."""
-        console.print(f"[yellow]{message}[/yellow]")
+        self.console.print(f"[yellow]{message}[/yellow]")
     
     def display_info_message(self, message: str) -> None:
         """Отображает информационное сообщение."""
-        console.print(f"[cyan]{message}[/cyan]")
+        self.console.print(f"[cyan]{message}[/cyan]")
     
     def display_solution_complete(self, explanation: str, result: str) -> None:
         """Отображает сообщение о завершении решения."""
-        console.print(Panel.fit(
+        self.console.print(Panel.fit(
             f"[green]Задача решена![/green]\n{explanation}\n\nИтоговый результат:\n{self.latex_renderer.render_latex(result)}",
             border_style="green"
         ))

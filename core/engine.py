@@ -72,26 +72,57 @@ class TransformationEngine:
         
         logger.debug("Все компоненты успешно инициализированы")
 
-    def generate_transformations(self, step: SolutionStep) -> GenerationResult:
+    def generate_transformations(self, step_or_expression) -> GenerationResult:
         """
         Генерирует список возможных математических преобразований для текущего шага.
         Делегирует работу TransformationGenerator.
+        
+        Args:
+            step_or_expression: SolutionStep или строка с выражением
         """
+        if isinstance(step_or_expression, str):
+            # Создаем временный SolutionStep для строки
+            from .types import SolutionStep
+            step = SolutionStep(expression=step_or_expression)
+        else:
+            step = step_or_expression
+            
         return self.generator.generate_transformations(step)
 
-    def apply_transformation(self, current_step: SolutionStep, transformation: Transformation) -> ApplyResult:
+    def apply_transformation(self, current_step_or_expression, transformation: Transformation) -> ApplyResult:
         """
         Применяет выбранное преобразование к текущему шагу решения.
         Делегирует работу TransformationApplier.
+        
+        Args:
+            current_step_or_expression: SolutionStep или строка с выражением
+            transformation: Преобразование для применения
         """
-        return self.applier.apply_transformation(current_step, transformation)
+        if isinstance(current_step_or_expression, str):
+            # Создаем временный SolutionStep для строки
+            from .types import SolutionStep
+            step = SolutionStep(expression=current_step_or_expression)
+        else:
+            step = current_step_or_expression
+            
+        return self.applier.apply_transformation(step, transformation)
 
-    def check_solution_completeness(self, current_step: SolutionStep, original_task: str) -> CheckResult:
+    def check_solution_completeness(self, current_step_or_expression, original_task: str = "") -> CheckResult:
         """
         Проверяет, завершено ли решение задачи.
         Делегирует работу SolutionChecker.
+        
+        Args:
+            current_step_or_expression: SolutionStep или строка с выражением
+            original_task: Исходная задача
         """
-        return self.checker.check_solution_completeness(current_step, original_task)
+        if isinstance(current_step_or_expression, str):
+            # Создаем временный SolutionStep для строки
+            from .types import SolutionStep
+            step = SolutionStep(expression=current_step_or_expression)
+            return self.checker.check_solution_completeness(step, original_task or current_step_or_expression)
+        else:
+            return self.checker.check_solution_completeness(current_step_or_expression, original_task)
 
     def analyze_progress(self, original_task: str, history_steps: List[Dict[str, Any]], 
                         current_step: str, steps_count: int) -> ProgressAnalysisResult:
@@ -168,7 +199,7 @@ class TransformationEngine:
         
         # Создаём новое преобразование с заполненными параметрами
         updated_transformation = Transformation(
-            description=transformation.description,
+            description=self._substitute_parameters_in_text(transformation.description, parameters),
             expression=self._substitute_parameters_in_text(transformation.expression, parameters),
             type=transformation.type,
             parameters=parameters,
@@ -178,7 +209,7 @@ class TransformationEngine:
             requires_user_input=False  # После заполнения параметров больше не требуется ввод
         )
         
-        logger.info(f"Параметры успешно заполнены для преобразования: {transformation.description}")
+        logger.info(f"Параметры успешно заполнены для преобразования: {updated_transformation.description}")
         return updated_transformation
 
     def _substitute_parameters_in_text(self, text: str, parameters: List[TransformationParameter]) -> str:

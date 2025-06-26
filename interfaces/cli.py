@@ -9,9 +9,17 @@ from rich.text import Text
 from core.engine import TransformationEngine
 from core.history import HistoryManager
 from core.gpt_client import GPTClient
-from .cli_components import (
-    DisplayManager, InputHandler, LatexRenderer, SolutionProcessor
-)
+from core.types import SolutionStep
+
+try:
+    from .cli_components import (
+        DisplayManager, InputHandler, LatexRenderer, SolutionProcessor
+    )
+except ImportError:
+    # Fallback for direct execution
+    from cli_components import (
+        DisplayManager, InputHandler, LatexRenderer, SolutionProcessor
+    )
 
 
 console = Console()
