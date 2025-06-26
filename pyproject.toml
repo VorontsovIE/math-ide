@@ -101,8 +101,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --tb=short"
-asyncio_mode = "auto" 
+addopts = "-v --tb=short" 
 
 [dependency-groups]
 dev = [
