@@ -124,11 +124,11 @@ alwaysApply: false
 
 ### Ядро системы (core/)
 **TransformationEngine** в `engine.py` включает методы:
-- `generate_transformations()` - генерация преобразований
-- `apply_transformation()` - применение преобразований  
-- `check_solution_completeness()` - проверка завершённости
-- `analyze_progress()` - анализ прогресса решения
-- `verify_transformation()` - проверка корректности преобразований
+  - `generate_transformations()` - генерация преобразований
+  - `apply_transformation()` - применение преобразований
+  - `check_solution_completeness()` - проверка завершённости
+  - `analyze_progress()` - анализ прогресса решения
+  - `verify_transformation()` - проверка корректности преобразований
 
 **Вспомогательные модули:**
 - `GPTClient` - единая точка взаимодействия с AI
