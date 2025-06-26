@@ -87,7 +87,7 @@ MathIDE/
 ### Команды для разработки
 ```bash
 # Тест архитектуры (проверка модульной структуры)
-python test_architecture.py
+python tests/test_architecture.py
 
 # Форматирование кода
 poetry run black .
@@ -116,10 +116,10 @@ poetry run pytest
 
 ```bash
 # Запуск теста архитектуры
-python test_architecture.py
+python tests/test_architecture.py
 
 # Или как исполняемый файл
-./test_architecture.py
+./tests/test_architecture.py
 ```
 
 Скрипт проверяет:

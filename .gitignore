@@ -1,5 +1,6 @@
 # Python
 __pycache__/
+**/__pycache__/
 *.py[cod]
 *$py.class
 *.so
@@ -32,6 +33,10 @@ ENV/
 .vscode/
 *.swp
 *.swo
+
+# Logs
+*.log
+logs/
 
 # Project specific
 .env
