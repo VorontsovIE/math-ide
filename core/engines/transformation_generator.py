@@ -92,7 +92,6 @@ class TransformationGenerator:
             try:
                 # Используем безопасный парсинг JSON с автоматическим исправлением
                 parsed_data = safe_json_parse(json_content)
-                # Проверяем, что это список
                 if not isinstance(parsed_data, list):
                     logger.error("Ожидался список преобразований, получен: %s", type(parsed_data))
                     return GenerationResult(transformations=[])

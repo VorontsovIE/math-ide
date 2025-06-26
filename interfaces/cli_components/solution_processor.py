@@ -112,7 +112,7 @@ class SolutionProcessor:
                     self.display_manager.show_error(f"Неизвестный тип параметра: {param_def.param_type}")
                     return None
                 
-                if not value:  # User cancelled or empty value
+                if value == "":  # User cancelled or empty value
                     return None
                 
                 parameters.append(TransformationParameter(

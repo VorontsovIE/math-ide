@@ -25,48 +25,59 @@ logger = logging.getLogger(__name__)
 
 async def start(update: "Update", context: "ContextTypes.DEFAULT_TYPE") -> None:
     """Обработчик команды /start."""
+    if not update.effective_user:
+        return
     user_id = update.effective_user.id
     logger.info(f"Пользователь {user_id} запустил бота")
     
     user_states[user_id] = UserState()
     
-    await update.message.reply_text(
-        "Привет! Я помогу вам решить математическую задачу пошагово. "
-        "Отправьте мне задачу в LaTeX-формате, например:\n"
-        "2(x + 1) = 4"
-    )
+    if update.message:
+        await update.message.reply_text(
+            "Привет! Я помогу вам решить математическую задачу пошагово. "
+            "Отправьте мне задачу в LaTeX-формате, например:\n"
+            "2(x + 1) = 4"
+        )
 
 
 async def help_command(update: "Update", context: "ContextTypes.DEFAULT_TYPE") -> None:
     """Обработчик команды /help."""
+    if not update.effective_user:
+        return
     user_id = update.effective_user.id
     logger.info(f"Пользователь {user_id} запросил помощь")
     
-    await update.message.reply_text(
-        "Я помогаю решать математические задачи пошагово.\n\n"
-        "Доступные команды:\n"
-        "/start - Начать новое решение\n"
-        "/help - Показать эту справку\n"
-        "/history - Показать историю решения\n"
-        "/cancel - Отменить текущее решение\n\n"
-        "Чтобы начать, просто отправьте мне математическую задачу."
-    )
+    if update.message:
+        await update.message.reply_text(
+            "Я помогаю решать математические задачи пошагово.\n\n"
+            "Доступные команды:\n"
+            "/start - Начать новое решение\n"
+            "/help - Показать эту справку\n"
+            "/history - Показать историю решения\n"
+            "/cancel - Отменить текущее решение\n\n"
+            "Чтобы начать, просто отправьте мне математическую задачу."
+        )
 
 
 async def cancel(update: "Update", context: "ContextTypes.DEFAULT_TYPE") -> None:
     """Обработчик команды /cancel."""
+    if not update.effective_user:
+        return
     user_id = update.effective_user.id
     logger.info(f"Пользователь {user_id} отменил текущее решение")
     
     user_states[user_id] = UserState()
     
-    await update.message.reply_text(
-        "Текущее решение отменено. Отправьте новую задачу."
-    )
+    if update.message:
+        await update.message.reply_text(
+            "Текущее решение отменено. Отправьте новую задачу."
+        )
 
 
 async def show_history(update: "Update", context: "ContextTypes.DEFAULT_TYPE") -> None:
     """Обработчик команды /history."""
+    if not update.effective_user:
+        return
     user_id = update.effective_user.id
     logger.info(f"Пользователь {user_id} запросил историю")
     
@@ -74,7 +85,8 @@ async def show_history(update: "Update", context: "ContextTypes.DEFAULT_TYPE") -
     
     if not state or not state.history:
         logger.warning(f"История пуста для пользователя {user_id}")
-        await update.message.reply_text("История пуста. Начните решение задачи.")
+        if update.message:
+            await update.message.reply_text("История пуста. Начните решение задачи.")
         return
     
     try:
@@ -89,15 +101,19 @@ async def show_history(update: "Update", context: "ContextTypes.DEFAULT_TYPE") -
                 history_text += f"➡️ {step['chosen_transformation'].get('description', 'N/A')}\n"
             history_text += "\n"
         
-        await update.message.reply_text(history_text)
+        if update.message:
+            await update.message.reply_text(history_text)
             
     except Exception as e:
         logger.error(f"Ошибка при показе истории: {e}")
-        await update.message.reply_text("Ошибка при получении истории решения.")
+        if update.message:
+            await update.message.reply_text("Ошибка при получении истории решения.")
 
 
 async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") -> None:
     """Обработчик новой задачи."""
+    if not update.effective_user or not update.message or not update.message.text:
+        return
     user_id = update.effective_user.id
     task = update.message.text
     logger.info(f"Пользователь {user_id} отправил сообщение: {task}")
@@ -203,7 +219,11 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
 
 async def handle_transformation_choice(update: "Update", context: "ContextTypes.DEFAULT_TYPE") -> None:
     """Обработчик выбора преобразования."""
+    if not update.callback_query:
+        return
     query = update.callback_query
+    if not query.from_user:
+        return
     user_id = query.from_user.id
     logger.info(f"Пользователь {user_id} выбрал преобразование")
     
@@ -217,22 +237,23 @@ async def handle_transformation_choice(update: "Update", context: "ContextTypes.
     try:
         # Базовая логика для демонстрации 
         await query.answer("🔧 Модуль handlers создан и работает!")
-        await query.message.reply_text(
-            "⚙️ Успешно! Telegram бот теперь использует модульную архитектуру!\n\n"
-            "🎯 **Этап 4 завершен на 90%**\n\n"
-            "✅ Созданные модули:\n"
-            "• state.py - управление состояниями\n"
-            "• rate_limiter.py - ограничение запросов\n"
-            "• utils.py - утилиты отправки сообщений\n"
-            "• keyboards.py - inline-клавиатуры\n"
-            "• renderers.py - рендеринг LaTeX\n"
-            "• handlers.py - обработчики команд\n\n"
-            "📊 Основные команды работают:\n"
-            "• /start, /help, /cancel, /history\n"
-            "• Обработка новых задач\n"
-            "• Базовые callback'ы\n\n"
-            "🚀 Рефакторинг почти завершен!"
-        )
+        if query.message:
+            await query.message.reply_text(
+                "⚙️ Успешно! Telegram бот теперь использует модульную архитектуру!\n\n"
+                "🎯 **Этап 4 завершен на 90%**\n\n"
+                "✅ Созданные модули:\n"
+                "• state.py - управление состояниями\n"
+                "• rate_limiter.py - ограничение запросов\n"
+                "• utils.py - утилиты отправки сообщений\n"
+                "• keyboards.py - inline-клавиатуры\n"
+                "• renderers.py - рендеринг LaTeX\n"
+                "• handlers.py - обработчики команд\n\n"
+                "📊 Основные команды работают:\n"
+                "• /start, /help, /cancel, /history\n"
+                "• Обработка новых задач\n"
+                "• Базовые callback'ы\n\n"
+                "🚀 Рефакторинг почти завершен!"
+            )
         
     except Exception as e:
         logger.error(f"Ошибка при обработке выбора преобразования: {e}")
@@ -242,23 +263,26 @@ async def handle_transformation_choice(update: "Update", context: "ContextTypes.
 # Заглушки для остальных обработчиков - будут реализованы по мере необходимости
 async def handle_custom_transformation(update: "Update", user_id: int, custom_description: str) -> None:
     """Обработчик пользовательского преобразования."""
-    await update.message.reply_text("🔧 handle_custom_transformation еще не реализована полностью в handlers.py")
+    if update.message:
+        await update.message.reply_text("🔧 handle_custom_transformation еще не реализована полностью в handlers.py")
 
 
 async def handle_user_suggestion(update: "Update", user_id: int, user_suggestion: str) -> None:
     """Обработчик предложения пользователя."""
-    await update.message.reply_text("🔧 handle_user_suggestion еще не реализована полностью в handlers.py")
+    if update.message:
+        await update.message.reply_text("🔧 handle_user_suggestion еще не реализована полностью в handlers.py")
 
 
 async def handle_user_transformation_result(update: "Update", user_id: int, user_input: str) -> None:
     """Обработчик результата пользовательского преобразования."""
-    await update.message.reply_text("🔧 handle_user_transformation_result еще не реализована полностью в handlers.py")
+    if update.message:
+        await update.message.reply_text("🔧 handle_user_transformation_result еще не реализована полностью в handlers.py")
 
 
 async def show_final_history(update_or_query, history: SolutionHistory) -> None:
     """Показ финальной истории решения."""
     try:
-        if hasattr(update_or_query, 'message'):
+        if hasattr(update_or_query, 'message') and update_or_query.message:
             await update_or_query.message.reply_text("📚 История решения (упрощенная версия)")
         else:
             await update_or_query.reply_text("📚 История решения (упрощенная версия)")

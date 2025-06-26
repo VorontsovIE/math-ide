@@ -93,10 +93,10 @@ class InputHandler:
     def _handle_text_parameter(self, param_def: ParameterDefinition) -> str:
         """Обрабатывает параметр типа TEXT."""
         try:
-            value = self.console.input(f"{param_def.prompt}: ")
+            value = cast(str, self.console.input(f"{param_def.prompt}: "))
             return value
         except KeyboardInterrupt:
-            raise
+            return ""
     
     def get_user_choice(self, prompt: str, choices: Optional[List[str]] = None) -> str:
         """
@@ -293,7 +293,7 @@ class InputHandler:
     def get_text_parameter(self, param_def: ParameterDefinition) -> str:
         """Get text parameter value from user."""
         try:
-            value = self.console.input(f"{param_def.prompt}: ")
+            value = cast(str, self.console.input(f"{param_def.prompt}: "))
             return value
         except KeyboardInterrupt:
             return "" 
