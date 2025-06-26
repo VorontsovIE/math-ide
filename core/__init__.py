@@ -37,9 +37,9 @@ from .exceptions import (
     InvalidStepError,
 )
 
-# Основные классы импортируются отложенно для избежания зависимостей
-# from .engine import TransformationEngine
-# from .history import SolutionHistory, HistoryStep
+# Основные классы
+from .engine import TransformationEngine
+from .history import SolutionHistory, HistoryStep
 
 __all__ = [
     # Типы данных
@@ -73,8 +73,8 @@ __all__ = [
     "StepNotFoundError",
     "InvalidStepError",
     
-    # Основные классы (импортируются отдельно)
-    # "TransformationEngine",
-    # "SolutionHistory", 
-    # "HistoryStep",
+    # Основные классы
+    "TransformationEngine",
+    "SolutionHistory", 
+    "HistoryStep",
 ] 
