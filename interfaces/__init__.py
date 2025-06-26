@@ -1,7 +1,8 @@
 """
-Пакет interfaces содержит различные пользовательские интерфейсы для MathIDE.
+Интерфейсы для MathIDE.
 """
 
-from .cli import MathIDECLI
+# Убираем импорт CLI чтобы не блокировать другие модули
+# from .cli import MathIDECLI
 
-__all__ = ['MathIDECLI'] 
+__all__ = [] 

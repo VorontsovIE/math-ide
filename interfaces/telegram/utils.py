@@ -1,25 +1,34 @@
 """
-Утилиты для Telegram бота.
-Содержит вспомогательные функции для отправки сообщений и обновления статуса.
+Утилиты для отправки сообщений в Telegram боте.
+Содержит функции для управления статусными сообщениями с учетом лимитов API.
 """
 
-import time
 import logging
-from typing import Optional
+import time
+from typing import Optional, TYPE_CHECKING
 
-from typing import TYPE_CHECKING
+# Избегаем прямого импорта telegram для предотвращения ошибок
+# if TYPE_CHECKING:
+#     from telegram import Update, Message
 
-if TYPE_CHECKING:
-    from telegram import Update, Message
+from .rate_limiter import rate_limiter
 
-from .rate_limiter import rate_limiter, get_progress_indicator
-from .state import get_user_state
-
-# Получаем логгер
 logger = logging.getLogger(__name__)
 
 
-async def send_status_message(update: Update, message: str, force_update: bool = False) -> Optional[Message]:
+def get_progress_indicator(operation_time: float) -> str:
+    """Генерирует индикатор прогресса на основе времени операции."""
+    if operation_time < 5:
+        return "🔄"
+    elif operation_time < 10:
+        return "⏳"
+    elif operation_time < 15:
+        return "⏰"
+    else:
+        return "🐌"
+
+
+async def send_status_message(update, message: str, force_update: bool = False):
     """Отправляет сообщение со статусом с проверкой лимитов."""
     user_id = update.effective_user.id
     
