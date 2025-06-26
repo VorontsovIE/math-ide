@@ -9,7 +9,7 @@ from .rate_limiter import RateLimiter, rate_limiter, get_progress_indicator
 from .keyboards import get_transformations_keyboard, get_verification_keyboard, get_user_transformation_keyboard
 from .renderers import render_latex_to_image, render_transformations_image, fix_latex_expression, check_and_suggest_rollback
 from .utils import send_status_message, edit_status_message, update_status_with_progress
-# from .handlers import handle_task, handle_transformation_choice  # Еще не созданы
+from .handlers import start, help_command, cancel, show_history, handle_task, handle_transformation_choice
 
 __all__ = [
     # Состояние пользователей
@@ -22,4 +22,6 @@ __all__ = [
     "render_latex_to_image", "render_transformations_image", "fix_latex_expression", "check_and_suggest_rollback",
     # Утилиты
     "send_status_message", "edit_status_message", "update_status_with_progress",
+    # Обработчики
+    "start", "help_command", "cancel", "show_history", "handle_task", "handle_transformation_choice",
 ] 
