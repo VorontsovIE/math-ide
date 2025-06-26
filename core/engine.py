@@ -5,6 +5,7 @@ from typing import List, Optional, Any, Dict
 
 # Импортируем типы данных из отдельного модуля
 from .types import (
+    BaseTransformationType,
     TransformationParameter,
     ParameterDefinition,
     Transformation,
