@@ -31,7 +31,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "matplotlib>=3.7.0",
     "python-dotenv>=1.0.0",
-    "coloredlogs>=15.0.1"
+    "coloredlogs>=15.0.1",
 ]
 
 [project.optional-dependencies]
@@ -105,6 +105,7 @@ addopts = "-v --tb=short"
 
 [dependency-groups]
 dev = [
+    "coloredlogs>=15.0.1",
     "mypy>=1.16.1",
     "pytest>=8.4.1",
 ]

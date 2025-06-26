@@ -104,11 +104,15 @@ class GPTClient:
                 
                 logger.debug(f"GPT ответ получен. Токены: {usage.total_tokens}")
                 
+                finish_reason = response.choices[0].finish_reason
+                if finish_reason is None:
+                    finish_reason = "stop"
+                
                 return GPTResponse(
                     content=content,
                     usage=usage,
                     model=self.model,
-                    finish_reason=response.choices[0].finish_reason or "stop"
+                    finish_reason=finish_reason
                 )
                 
             except Exception as e:

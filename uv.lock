@@ -765,6 +765,7 @@ docs = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "coloredlogs" },
     { name = "mypy" },
     { name = "pytest" },
 ]
@@ -795,6 +796,7 @@ provides-extras = ["dev", "docs"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "coloredlogs", specifier = ">=15.0.1" },
     { name = "mypy", specifier = ">=1.16.1" },
     { name = "pytest", specifier = ">=8.4.1" },
 ]

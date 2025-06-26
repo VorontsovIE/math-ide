@@ -1,8 +1,12 @@
 # solution_checker.py
 
 import logging
+from typing import Dict, Any, cast
 
-from ..types import SolutionStep, CheckResult
+from ..types import (
+    SolutionStep,
+    CheckResult,
+)
 from ..parsers import safe_json_parse
 from ..prompts import PromptManager
 from ..gpt_client import GPTClient
@@ -14,10 +18,10 @@ logger = logging.getLogger(__name__)
 class SolutionChecker:
     """
     Компонент для проверки завершённости решения.
-    Определяет, достигнута ли цель задачи.
+    Отвечает за определение, решена ли задача полностью.
     """
 
-    def __init__(self, client: GPTClient, prompt_manager: PromptManager):
+    def __init__(self, client: GPTClient, prompt_manager: PromptManager) -> None:
         self.client = client
         self.prompt_manager = prompt_manager
         
@@ -30,7 +34,10 @@ class SolutionChecker:
         Проверяет, завершено ли решение задачи.
         """
         try:
-            logger.info("Проверка завершённости решения для: %s", current_step.expression)
+            logger.info(
+                "Проверка завершённости решения для выражения: %s",
+                current_step.expression
+            )
             
             # Форматируем промпт
             formatted_prompt = self.prompt_manager.format_prompt(
@@ -41,24 +48,25 @@ class SolutionChecker:
             
             logger.debug("Отправка запроса к GPT для проверки завершённости")
             # Запрос к GPT
-            gpt_response = self.client.chat_completion(
+            response = self.client.chat_completion(
                 messages=[
                     {"role": "system", "content": "Ты - эксперт по математике. Отвечай только в JSON-формате."},
                     {"role": "user", "content": formatted_prompt}
                 ],
-                temperature=0.2
+                temperature=0.3
             )
             
             # Логируем токены
+            usage = response.usage
             logger.info(
                 "Использование токенов: промпт=%d, ответ=%d, всего=%d",
-                gpt_response.usage.prompt_tokens,
-                gpt_response.usage.completion_tokens,
-                gpt_response.usage.total_tokens
+                usage.prompt_tokens,
+                usage.completion_tokens,
+                usage.total_tokens
             )
             
             # Парсим ответ
-            content = gpt_response.content
+            content = response.content.strip()
             logger.debug("Получен ответ от GPT: %s", content)
             
             # Проверяем, что ответ не пустой
@@ -66,12 +74,12 @@ class SolutionChecker:
                 logger.error("Получен пустой ответ от GPT")
                 return CheckResult(
                     is_solved=False,
-                    solution_type="unknown",
-                    explanation="Не удалось проверить решение",
-                    confidence=0.0
+                    confidence=0.0,
+                    explanation="Получен пустой ответ от GPT",
+                    solution_type="unknown"
                 )
             
-            # Пытаемся найти JSON в ответе
+            # Пытаемся найти JSON в ответе (на случай, если GPT добавил лишний текст)
             json_start = content.find('{')
             json_end = content.rfind('}') + 1
             
@@ -79,53 +87,72 @@ class SolutionChecker:
                 logger.error("Не найден JSON-объект в ответе GPT. Полный ответ: %s", content)
                 return CheckResult(
                     is_solved=False,
-                    solution_type="unknown",
-                    explanation="Не удалось распарсить ответ GPT",
-                    confidence=0.0
+                    confidence=0.0,
+                    explanation="Не найден JSON в ответе GPT",
+                    solution_type="unknown"
                 )
             
             json_content = content[json_start:json_end]
             logger.debug("Извлеченный JSON: %s", json_content)
             
             try:
-                result_data = safe_json_parse(json_content)
+                # Используем безопасный парсинг JSON с автоматическим исправлением
+                parsed_data = safe_json_parse(json_content)
+                # Проверяем, что это словарь
+                if not isinstance(parsed_data, dict):
+                    logger.error("Ожидался JSON-объект, получен: %s", type(parsed_data))
+                    return CheckResult(
+                        is_solved=False,
+                        confidence=0.0,
+                        explanation="Неверный формат ответа",
+                        solution_type="unknown"
+                    )
+                result_data = cast(Dict[str, Any], parsed_data)
             except Exception as e:
                 logger.error("Ошибка парсинга JSON: %s", str(e))
+                logger.error("Проблемный JSON: %s", json_content)
+                logger.error("Полный ответ GPT: %s", content)
                 return CheckResult(
                     is_solved=False,
-                    solution_type="unknown",
-                    explanation="Ошибка парсинга ответа",
-                    confidence=0.0
+                    confidence=0.0,
+                    explanation="Ошибка парсинга JSON ответа",
+                    solution_type="unknown"
                 )
             
             # Проверяем обязательные поля
-            if not isinstance(result_data, dict):
-                logger.error("Ожидался JSON-объект, получен: %s", type(result_data))
+            required_fields = ["is_solved", "confidence", "explanation", "solution_type"]
+            missing_fields = [field for field in required_fields if field not in result_data]
+            if missing_fields:
+                logger.warning("Отсутствуют поля в ответе: %s", missing_fields)
                 return CheckResult(
                     is_solved=False,
-                    solution_type="unknown",
-                    explanation="Неверный формат ответа",
-                    confidence=0.0
+                    confidence=0.0,
+                    explanation="Неполный ответ от GPT",
+                    solution_type="unknown"
                 )
             
             # Создаём результат
             result = CheckResult(
-                is_solved=result_data.get("is_solved", False),
-                solution_type=result_data.get("solution_type", "unknown"),
-                explanation=result_data.get("explanation", ""),
-                confidence=result_data.get("confidence", 0.0),
+                is_solved=result_data["is_solved"],
+                confidence=result_data["confidence"],
+                explanation=result_data["explanation"],
+                solution_type=result_data["solution_type"],
                 next_steps=result_data.get("next_steps", [])
             )
             
-            logger.info("Проверка завершена. Результат: решено=%s, тип=%s", 
-                       result.is_solved, result.solution_type)
+            logger.info(
+                "Проверка завершена. Решено: %s, уверенность: %.2f, тип: %s",
+                result.is_solved,
+                result.confidence,
+                result.solution_type
+            )
             return result
             
         except Exception as e:
             logger.error("Ошибка при проверке завершённости: %s", str(e), exc_info=True)
             return CheckResult(
                 is_solved=False,
-                solution_type="unknown",
+                confidence=0.0,
                 explanation=f"Внутренняя ошибка: {str(e)}",
-                confidence=0.0
+                solution_type="unknown"
             )

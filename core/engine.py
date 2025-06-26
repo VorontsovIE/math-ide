@@ -45,6 +45,7 @@ try:
         fmt="%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
     )
 except ImportError:
+    # Если coloredlogs не установлен, используем стандартное логирование
     logger.info("coloredlogs не установлен. Используется стандартное логирование.")
 
 

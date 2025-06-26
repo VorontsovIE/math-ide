@@ -1,7 +1,7 @@
 # transformation_applier.py
 
 import logging
-from typing import List
+from typing import List, Dict, Any, cast
 
 from ..types import (
     SolutionStep,
@@ -23,7 +23,7 @@ class TransformationApplier:
     Отвечает за выполнение выбранных преобразований и получение результата.
     """
 
-    def __init__(self, client: GPTClient, prompt_manager: PromptManager):
+    def __init__(self, client: GPTClient, prompt_manager: PromptManager) -> None:
         self.client = client
         self.prompt_manager = prompt_manager
         
@@ -102,7 +102,17 @@ class TransformationApplier:
             
             try:
                 # Используем безопасный парсинг JSON с автоматическим исправлением
-                result_data = safe_json_parse(json_content)
+                parsed_data = safe_json_parse(json_content)
+                # Проверяем, что это словарь
+                if not isinstance(parsed_data, dict):
+                    logger.error("Ожидался JSON-объект, получен: %s", type(parsed_data))
+                    return ApplyResult(
+                        result=current_step.expression,
+                        is_valid=False,
+                        explanation="Неверный формат ответа",
+                        errors=["invalid_response_format"]
+                    )
+                result_data = cast(Dict[str, Any], parsed_data)
             except Exception as e:
                 logger.error("Ошибка парсинга JSON: %s", str(e))
                 logger.error("Проблемный JSON: %s", json_content)
@@ -115,15 +125,6 @@ class TransformationApplier:
                 )
             
             # Проверяем обязательные поля
-            if not isinstance(result_data, dict):
-                logger.error("Ожидался JSON-объект, получен: %s", type(result_data))
-                return ApplyResult(
-                    result=current_step.expression,
-                    is_valid=False,
-                    explanation="Неверный формат ответа",
-                    errors=["invalid_response_format"]
-                )
-            
             required_fields = ["result", "is_valid"]
             missing_fields = [field for field in required_fields if field not in result_data]
             if missing_fields:

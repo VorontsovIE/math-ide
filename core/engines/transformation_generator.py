@@ -3,7 +3,7 @@
 import json
 import random
 import logging
-from typing import List
+from typing import List, Dict, Any, cast
 
 from ..types import (
     SolutionStep,
@@ -27,7 +27,7 @@ class TransformationGenerator:
     Отвечает за анализ текущего состояния и предложение возможных преобразований.
     """
 
-    def __init__(self, client: GPTClient, prompt_manager: PromptManager, preview_mode: bool = False):
+    def __init__(self, client: GPTClient, prompt_manager: PromptManager, preview_mode: bool = False) -> None:
         self.client = client
         self.prompt_manager = prompt_manager
         self.preview_mode = preview_mode
@@ -91,16 +91,16 @@ class TransformationGenerator:
             
             try:
                 # Используем безопасный парсинг JSON с автоматическим исправлением
-                transformations_data = safe_json_parse(json_content)
-            except json.JSONDecodeError as e:
+                parsed_data = safe_json_parse(json_content)
+                # Проверяем, что это список
+                if not isinstance(parsed_data, list):
+                    logger.error("Ожидался список преобразований, получен: %s", type(parsed_data))
+                    return GenerationResult(transformations=[])
+                transformations_data = cast(List[Dict[str, Any]], parsed_data)
+            except Exception as e:
                 logger.error("Ошибка парсинга JSON: %s", str(e))
                 logger.error("Проблемный JSON: %s", json_content)
                 logger.error("Полный ответ GPT: %s", content)
-                return GenerationResult(transformations=[])
-            
-            # Проверяем, что это список
-            if not isinstance(transformations_data, list):
-                logger.error("Ожидался список преобразований, получен: %s", type(transformations_data))
                 return GenerationResult(transformations=[])
             
             # Преобразуем в объекты Transformation
@@ -109,7 +109,7 @@ class TransformationGenerator:
             logger.info("Сгенерировано %d преобразований", len(transformations))
             
             # Сортировка по полезности (good > neutral > bad)
-            def usefulness_key(tr: Transformation):
+            def usefulness_key(tr: Transformation) -> int:
                 value = tr.metadata.get("usefullness", "neutral")
                 if value == "good":
                     return 0
@@ -139,7 +139,7 @@ class TransformationGenerator:
             logger.error("Ошибка при генерации преобразований: %s", str(e), exc_info=True)
             return GenerationResult(transformations=[])
 
-    def _parse_transformations(self, transformations_data: List[dict]) -> List[Transformation]:
+    def _parse_transformations(self, transformations_data: List[Dict[str, Any]]) -> List[Transformation]:
         """
         Парсит данные преобразований из JSON в объекты Transformation.
         """

@@ -6,7 +6,7 @@
 import json
 import re
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, cast
 
 from .exceptions import JSONParseError
 
@@ -92,25 +92,25 @@ def safe_json_parse(json_content: str, fallback_attempts: int = 3) -> Dict[str, 
     attempts = []
     
     try:
-        return json.loads(json_content)
+        return cast(Dict[str, Any], json.loads(json_content))
     except json.JSONDecodeError as e:
         attempts.append(f"Прямой парсинг: {str(e)}")
     
     try:
         fixed_content = fix_latex_escapes_in_json(json_content)
-        return json.loads(fixed_content)
+        return cast(Dict[str, Any], json.loads(fixed_content))
     except json.JSONDecodeError as e:
         attempts.append(f"После исправления LaTeX: {str(e)}")
     
     try:
         aggressive_fixed = re.sub(r'(?<!\\)\\(?!\\)', r'\\\\', json_content)
-        return json.loads(aggressive_fixed)
+        return cast(Dict[str, Any], json.loads(aggressive_fixed))
     except json.JSONDecodeError as e:
         attempts.append(f"Агрессивное исправление: {str(e)}")
     
     try:
         cleaned_content = re.sub(r'(?<!\\)\\(?!["\\/bfnrt])', '', json_content)
-        return json.loads(cleaned_content)
+        return cast(Dict[str, Any], json.loads(cleaned_content))
     except json.JSONDecodeError as e:
         attempts.append(f"Очистка слэшей: {str(e)}")
     
