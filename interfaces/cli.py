@@ -8,7 +8,14 @@ from rich.text import Text
 
 from core.engine import TransformationEngine
 from core.history import SolutionHistory
-from core.types import SolutionStep, Transformation, SolutionType, SolutionBranch
+from core.types import (
+    SolutionStep, 
+    Transformation, 
+    SolutionType, 
+    SolutionBranch,
+    ParameterDefinition,
+    ParameterType
+)
 
 console = Console()
 
@@ -86,6 +93,7 @@ class MathIDECLI:
         table.add_column("Описание", style="green")
         table.add_column("Тип", style="blue")
         table.add_column("Выражение", style="magenta")
+        table.add_column("Параметры", style="yellow")
         
         # Добавляем колонку для предварительного результата, если он есть у хотя бы одного преобразования
         has_previews = any(tr.preview_result is not None for tr in transformations)
@@ -93,11 +101,19 @@ class MathIDECLI:
             table.add_column("Результат", style="yellow")
         
         for idx, tr in enumerate(transformations, 1):
+            # Определяем статус параметров
+            params_status = "-"
+            if tr.requires_user_input and tr.parameter_definitions:
+                params_status = f"Требуется {len(tr.parameter_definitions)} параметр(ов)"
+            elif tr.parameters:
+                params_status = f"Заполнено {len(tr.parameters)} параметр(ов)"
+            
             row = [
                 str(idx),
                 tr.description,
                 tr.type,
-                render_latex(tr.expression)
+                render_latex(tr.expression),
+                params_status
             ]
             
             # Добавляем предварительный результат, если он есть
@@ -110,6 +126,83 @@ class MathIDECLI:
             table.add_row(*row)
         
         console.print(table)
+    
+    def request_parameter_value(self, param_def: ParameterDefinition) -> str:
+        """
+        Запрашивает значение параметра у пользователя.
+        
+        Args:
+            param_def: Определение параметра
+            
+        Returns:
+            Введенное пользователем значение
+        """
+        # Формируем заголовок запроса
+        console.print(Panel.fit(
+            f"[bold]Параметр: {param_def.name}[/bold]\n{param_def.prompt}",
+            title="Ввод параметра",
+            border_style="cyan"
+        ))
+        
+        # Показываем дополнительную информацию, если есть
+        info_lines = []
+        if param_def.param_type:
+            info_lines.append(f"Тип: {param_def.param_type.value}")
+        
+        if param_def.default_value is not None:
+            info_lines.append(f"По умолчанию: {param_def.default_value}")
+        
+        if param_def.suggested_values:
+            info_lines.append(f"Предлагаемые значения: {', '.join(map(str, param_def.suggested_values))}")
+        
+        if param_def.validation_rule:
+            info_lines.append(f"Правило валидации: {param_def.validation_rule}")
+        
+        if info_lines:
+            console.print(Panel.fit(
+                "\n".join(info_lines),
+                title="Дополнительная информация",
+                border_style="yellow"
+            ))
+        
+        # Обрабатываем разные типы параметров
+        if param_def.param_type == ParameterType.CHOICE and param_def.options:
+            # Для выбора из вариантов показываем пронумерованный список
+            table = Table(title="Выберите вариант")
+            table.add_column("№", justify="right", style="cyan")
+            table.add_column("Значение", style="green")
+            
+            for idx, option in enumerate(param_def.options, 1):
+                table.add_row(str(idx), str(option))
+            
+            console.print(table)
+            
+            while True:
+                try:
+                    choice = click.prompt("Выберите номер варианта", type=int)
+                    if 1 <= choice <= len(param_def.options):
+                        return str(param_def.options[choice - 1])
+                    else:
+                        console.print(f"[red]Выберите номер от 1 до {len(param_def.options)}[/red]")
+                except (ValueError, click.Abort):
+                    console.print("[red]Введите корректный номер[/red]")
+        
+        else:
+            # Для остальных типов - простой ввод текста
+            prompt_text = f"Введите значение для {param_def.name}"
+            if param_def.default_value is not None:
+                prompt_text += f" (по умолчанию: {param_def.default_value})"
+            
+            try:
+                value = click.prompt(prompt_text, default=param_def.default_value)
+                return str(value)
+            except click.Abort:
+                # Если пользователь отменил ввод, используем значение по умолчанию
+                if param_def.default_value is not None:
+                    console.print(f"[yellow]Используется значение по умолчанию: {param_def.default_value}[/yellow]")
+                    return str(param_def.default_value)
+                else:
+                    raise click.ClickException("Отменен ввод параметра без значения по умолчанию")
     
     def display_branching_step(self, step: SolutionStep) -> None:
         """Отображает ветвящийся шаг решения."""
@@ -273,6 +366,17 @@ class MathIDECLI:
                 idx = int(choice) - 1
                 if 0 <= idx < len(generation_result.transformations):
                     chosen = generation_result.transformations[idx]
+                    
+                    # Проверяем, требует ли преобразование параметры
+                    if chosen.requires_user_input and chosen.parameter_definitions:
+                        console.print("[cyan]Это преобразование требует дополнительных параметров.[/cyan]")
+                        try:
+                            # Запрашиваем параметры у пользователя
+                            chosen = self.engine.request_parameters(chosen, self.request_parameter_value)
+                            console.print("[green]Параметры успешно заполнены![/green]")
+                        except Exception as e:
+                            console.print(f"[red]Ошибка при заполнении параметров: {str(e)}[/red]")
+                            continue
                     
                     # Применяем преобразование
                     apply_result = self.engine.apply_transformation(current_step, chosen)
