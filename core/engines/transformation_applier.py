@@ -100,14 +100,8 @@ class TransformationApplier:
             json_content = content[json_start:json_end]
             logger.debug("Извлеченный JSON: %s", json_content)
             
-            try:
-                # Используем безопасный парсинг JSON с автоматическим исправлением
-                parsed_data = safe_json_parse(json_content)
-                result_data = parsed_data
-            except Exception as e:
-                logger.error("Ошибка парсинга JSON: %s", str(e))
-                logger.error("Проблемный JSON: %s", json_content)
-                logger.error("Полный ответ GPT: %s", content)
+            result_data = self._parse_json_apply_result(json_content)
+            if not result_data:
                 return ApplyResult(
                     result=current_step.expression,
                     is_valid=False,
@@ -146,6 +140,21 @@ class TransformationApplier:
                 explanation=f"Внутренняя ошибка: {str(e)}",
                 errors=["internal_error"]
             )
+
+    def _parse_json_apply_result(self, json_content: str) -> Dict[str, Any]:
+        """
+        Безопасно парсит JSON-объект результата применения. Возвращает dict или пустой dict.
+        """
+        try:
+            parsed_data = safe_json_parse(json_content)
+            if isinstance(parsed_data, dict):
+                return parsed_data
+            logger.error("Ожидался JSON-объект, получен: %s", type(parsed_data))
+            return {}
+        except Exception as e:
+            logger.error("Ошибка парсинга JSON: %s", str(e))
+            logger.error("Проблемный JSON: %s", json_content)
+            return {}
 
     def _substitute_parameters_in_text(self, text: str, parameters: List[TransformationParameter]) -> str:
         """

@@ -142,6 +142,7 @@ class GPTClient:
         # Если все попытки неудачны
         if last_error is not None:
             raise GPTError(f"Не удалось выполнить запрос после {self.max_retries} попыток: {str(last_error)}")
+        # Этот код недостижим, но оставляем для полноты
         raise GPTError(f"Не удалось выполнить запрос после {self.max_retries} попыток")
     
     def generate_completion(self, prompt: str, temperature: float = 0.3) -> GPTResponse:

@@ -95,14 +95,8 @@ class SolutionChecker:
             json_content = content[json_start:json_end]
             logger.debug("Извлеченный JSON: %s", json_content)
             
-            try:
-                # Используем безопасный парсинг JSON с автоматическим исправлением
-                parsed_data = safe_json_parse(json_content)
-                result_data = parsed_data
-            except Exception as e:
-                logger.error("Ошибка парсинга JSON: %s", str(e))
-                logger.error("Проблемный JSON: %s", json_content)
-                logger.error("Полный ответ GPT: %s", content)
+            result_data = self._parse_json_check_result(json_content)
+            if not result_data:
                 return CheckResult(
                     is_solved=False,
                     confidence=0.0,
@@ -147,3 +141,18 @@ class SolutionChecker:
                 explanation=f"Внутренняя ошибка: {str(e)}",
                 solution_type="unknown"
             )
+
+    def _parse_json_check_result(self, json_content: str) -> Dict[str, Any]:
+        """
+        Безопасно парсит JSON-объект результата проверки. Возвращает dict или пустой dict.
+        """
+        try:
+            parsed_data = safe_json_parse(json_content)
+            if isinstance(parsed_data, dict):
+                return parsed_data
+            logger.error("Ожидался JSON-объект, получен: %s", type(parsed_data))
+            return {}
+        except Exception as e:
+            logger.error("Ошибка парсинга JSON: %s", str(e))
+            logger.error("Проблемный JSON: %s", json_content)
+            return {}

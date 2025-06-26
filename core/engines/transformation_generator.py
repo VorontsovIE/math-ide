@@ -89,19 +89,7 @@ class TransformationGenerator:
             json_content = content[json_start:json_end]
             logger.debug("Извлеченный JSON: %s", json_content)
             
-            try:
-                # Используем безопасный парсинг JSON с автоматическим исправлением
-                parsed_data = safe_json_parse(json_content)
-                if not isinstance(parsed_data, list):
-                    logger.error("Ожидался список преобразований, получен: %s", type(parsed_data))
-                    return GenerationResult(transformations=[])
-                transformations_data = parsed_data
-            except Exception as e:
-                logger.error("Ошибка парсинга JSON: %s", str(e))
-                logger.error("Проблемный JSON: %s", json_content)
-                logger.error("Полный ответ GPT: %s", content)
-                return GenerationResult(transformations=[])
-            
+            transformations_data = self._parse_json_transformations(json_content)
             # Преобразуем в объекты Transformation
             transformations = self._parse_transformations(transformations_data)
             
@@ -137,6 +125,21 @@ class TransformationGenerator:
         except Exception as e:
             logger.error("Ошибка при генерации преобразований: %s", str(e), exc_info=True)
             return GenerationResult(transformations=[])
+
+    def _parse_json_transformations(self, json_content: str) -> List[Dict[str, Any]]:
+        """
+        Безопасно парсит JSON-массив преобразований. Всегда возвращает список.
+        """
+        try:
+            parsed_data = safe_json_parse(json_content)
+            if isinstance(parsed_data, list):
+                return parsed_data
+            logger.error("Ожидался список преобразований, получен: %s", type(parsed_data))
+            return []
+        except Exception as e:
+            logger.error("Ошибка парсинга JSON: %s", str(e))
+            logger.error("Проблемный JSON: %s", json_content)
+            return []
 
     def _parse_transformations(self, transformations_data: List[Dict[str, Any]]) -> List[Transformation]:
         """

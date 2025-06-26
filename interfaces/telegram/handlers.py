@@ -4,7 +4,7 @@
 """
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from telegram import Update
@@ -279,12 +279,20 @@ async def handle_user_transformation_result(update: "Update", user_id: int, user
         await update.message.reply_text("🔧 handle_user_transformation_result еще не реализована полностью в handlers.py")
 
 
-async def show_final_history(update_or_query, history: SolutionHistory) -> None:
+async def show_final_history(update_or_query: Any, history: SolutionHistory) -> None:
     """Показ финальной истории решения."""
     try:
         if hasattr(update_or_query, 'message') and update_or_query.message:
-            await update_or_query.message.reply_text("📚 История решения (упрощенная версия)")
+            # Проверяем, что message имеет метод reply_text
+            if hasattr(update_or_query.message, 'reply_text'):
+                await update_or_query.message.reply_text("📚 История решения (упрощенная версия)")
+            else:
+                logger.warning("Message не поддерживает reply_text")
         else:
-            await update_or_query.reply_text("📚 История решения (упрощенная версия)")
+            # Проверяем, что update_or_query имеет метод reply_text
+            if hasattr(update_or_query, 'reply_text'):
+                await update_or_query.reply_text("📚 История решения (упрощенная версия)")
+            else:
+                logger.warning("update_or_query не поддерживает reply_text")
     except Exception as e:
         logger.error(f"Ошибка в show_final_history: {e}")
