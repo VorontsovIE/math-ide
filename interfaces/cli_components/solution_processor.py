@@ -1,0 +1,189 @@
+"""Solution processing logic for CLI interface."""
+
+from typing import Dict, Any, List, Optional, Callable
+from core.types import (
+    SolutionStep, Transformation, TransformationParameter,
+    ParameterType, SolutionType
+)
+from core.engine import TransformationEngine
+from core.history import HistoryManager
+from .input_handler import InputHandler
+from .display_manager import DisplayManager
+
+
+class SolutionProcessor:
+    """Handles solution processing workflow."""
+    
+    def __init__(self, engine: TransformationEngine, history: HistoryManager,
+                 input_handler: InputHandler, display_manager: DisplayManager):
+        self.engine = engine
+        self.history = history
+        self.input_handler = input_handler
+        self.display_manager = display_manager
+    
+    def process_solution_step(self, problem: str) -> bool:
+        """Process a single solution step with parameterized transformations support.
+        
+        Returns True if solution should continue, False if complete or cancelled.
+        """
+        try:
+            # Check if problem is already solved
+            is_solved = self.engine.check_solution_completeness(problem)
+            if is_solved:
+                self.display_manager.show_completion_message()
+                return False
+            
+            # Analyze if branching is needed
+            branching_analysis = self.engine.analyze_branching_solution(problem)
+            if branching_analysis and branching_analysis.needs_branching:
+                return self._handle_branching_solution(problem, branching_analysis)
+            
+            # Generate transformations
+            transformations = self.engine.generate_transformations(problem)
+            if not transformations:
+                self.display_manager.show_error("Не удалось сгенерировать трансформации")
+                return False
+            
+            # Display transformations and get user choice
+            self.display_manager.show_transformations(transformations)
+            choice = self.input_handler.get_transformation_choice(len(transformations))
+            
+            if choice is None:  # User cancelled
+                return False
+            
+            selected_transformation = transformations[choice]
+            
+            # Handle parameterized transformations
+            if selected_transformation.requires_user_input:
+                parameters = self._collect_transformation_parameters(selected_transformation)
+                if parameters is None:  # User cancelled parameter input
+                    return False
+                selected_transformation.parameters = parameters
+            
+            # Apply transformation
+            result = self.engine.apply_transformation(problem, selected_transformation)
+            if not result:
+                self.display_manager.show_error("Не удалось применить трансформацию")
+                return False
+            
+            # Create and save solution step
+            step = SolutionStep(
+                step_number=len(self.history.steps) + 1,
+                description=selected_transformation.description,
+                original_expression=problem,
+                transformed_expression=result,
+                transformation=selected_transformation,
+                reasoning=selected_transformation.reasoning or ""
+            )
+            
+            self.history.add_step(step)
+            self.display_manager.show_step(step)
+            
+            return True
+            
+        except Exception as e:
+            self.display_manager.show_error(f"Ошибка при обработке шага: {e}")
+            return False
+    
+    def _collect_transformation_parameters(self, transformation: Transformation) -> Optional[Dict[str, Any]]:
+        """Collect parameters for parameterized transformation."""
+        if not transformation.parameter_definitions:
+            return {}
+        
+        parameters = {}
+        
+        self.display_manager.show_info(f"Трансформация '{transformation.description}' требует параметры:")
+        
+        for param_def in transformation.parameter_definitions:
+            try:
+                if param_def.type == ParameterType.NUMBER:
+                    value = self.input_handler.get_numeric_parameter(param_def)
+                elif param_def.type == ParameterType.EXPRESSION:
+                    value = self.input_handler.get_expression_parameter(param_def)
+                elif param_def.type == ParameterType.CHOICE:
+                    value = self.input_handler.get_choice_parameter(param_def)
+                elif param_def.type == ParameterType.TEXT:
+                    value = self.input_handler.get_text_parameter(param_def)
+                else:
+                    self.display_manager.show_error(f"Неизвестный тип параметра: {param_def.type}")
+                    return None
+                
+                if value is None:  # User cancelled
+                    return None
+                
+                parameters[param_def.name] = value
+                
+            except KeyboardInterrupt:
+                self.display_manager.show_info("Ввод параметров отменён")
+                return None
+            except Exception as e:
+                self.display_manager.show_error(f"Ошибка при вводе параметра {param_def.name}: {e}")
+                return None
+        
+        return parameters
+    
+    def _handle_branching_solution(self, problem: str, branching_analysis) -> bool:
+        """Handle branching solution workflow."""
+        self.display_manager.show_branching_analysis(branching_analysis)
+        
+        if not self.input_handler.confirm_branching():
+            return self.process_solution_step(problem)  # Continue with regular approach
+        
+        # Generate branching step
+        try:
+            branching_step = self.engine.generate_branching_step(problem, branching_analysis)
+            if not branching_step:
+                self.display_manager.show_error("Не удалось создать ветвящееся решение")
+                return False
+            
+            self.history.add_step(branching_step)
+            self.display_manager.show_branching_step(branching_step)
+            
+            # Let user select branch to continue
+            if branching_step.branches:
+                branch_choice = self.input_handler.get_branch_choice(branching_step.branches)
+                if branch_choice is not None:
+                    selected_branch = branching_step.branches[branch_choice]
+                    self.display_manager.show_info(f"Продолжаем с ветвью: {selected_branch.description}")
+                    # Continue solving with selected branch
+                    return True
+            
+            return True
+            
+        except Exception as e:
+            self.display_manager.show_error(f"Ошибка при обработке ветвящегося решения: {e}")
+            return False
+    
+    def show_solution_summary(self):
+        """Show complete solution summary."""
+        steps = self.history.get_steps()
+        if not steps:
+            self.display_manager.show_info("История решения пуста")
+            return
+        
+        self.display_manager.show_solution_summary(steps)
+    
+    def handle_rollback(self) -> bool:
+        """Handle solution rollback."""
+        if not self.history.can_rollback():
+            self.display_manager.show_info("Нет шагов для отката")
+            return False
+        
+        steps = self.history.get_steps()
+        if not steps:
+            return False
+        
+        # Show current steps for selection
+        self.display_manager.show_steps_for_rollback(steps)
+        step_choice = self.input_handler.get_rollback_choice(len(steps))
+        
+        if step_choice is None:
+            return False
+        
+        try:
+            self.history.rollback_to_step(step_choice + 1)  # Convert to 1-based
+            self.display_manager.show_info(f"Откат выполнен к шагу {step_choice + 1}")
+            return True
+        except Exception as e:
+            self.display_manager.show_error(f"Ошибка при откате: {e}")
+            return False
