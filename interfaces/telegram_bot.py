@@ -16,7 +16,7 @@ from telegram.ext import (
     filters,
 )
 
-from core.engine import TransformationEngine, SolutionStep, Transformation, ProgressAnalysisResult
+from core.engine import TransformationEngine, SolutionStep, Transformation, ProgressAnalysisResult, VerificationResult
 from core.history import SolutionHistory
 
 # Настройка логирования
@@ -54,6 +54,10 @@ class UserState:
     current_operation_start: float = 0.0  # Время начала текущей операции
     waiting_for_custom_transformation: bool = False  # Ожидание ввода пользовательского преобразования
     custom_transformation_target_step_id: Optional[str] = None  # ID шага для применения пользовательского преобразования
+    # Новые поля для проверки преобразований
+    waiting_for_user_suggestion: bool = False  # Ожидание предложения пользователя
+    waiting_for_user_result: bool = False  # Ожидание результата от пользователя
+    verification_context: Optional[Dict[str, Any]] = None  # Контекст для проверки
 
 # Хранилище состояний пользователей
 user_states: Dict[int, UserState] = {}
@@ -509,11 +513,18 @@ async def handle_task(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     task = update.message.text
     logger.info(f"Пользователь {user_id} отправил сообщение: {task}")
     
-    # Проверяем, ожидается ли пользовательское преобразование
+    # Проверяем состояние ожидания ввода от пользователя
     state = user_states.get(user_id)
-    if state and state.waiting_for_custom_transformation:
-        await handle_custom_transformation(update, user_id, task)
-        return
+    if state:
+        if state.waiting_for_custom_transformation:
+            await handle_custom_transformation(update, user_id, task)
+            return
+        elif state.waiting_for_user_suggestion:
+            await handle_user_suggestion(update, user_id, task)
+            return
+        elif state.waiting_for_user_result:
+            await handle_user_transformation_result(update, user_id, task)
+            return
     
     # Если есть активная задача, показываем историю и начинаем новую
     if state and state.history and not state.history.is_empty():
@@ -638,6 +649,34 @@ def get_transformations_keyboard(transformations: List[Transformation], step_id:
         )
     ])
     
+    # Добавляем кнопку для самостоятельного выполнения преобразования
+    user_done_callback_data = f"user_done_transform"
+    if step_id:
+        user_done_callback_data = f"user_done_transform_{step_id}"
+    
+    keyboard.append([
+        InlineKeyboardButton(
+            "🎯 Я сам выполнил преобразование",
+            callback_data=user_done_callback_data
+        )
+    ])
+    
+    return InlineKeyboardMarkup(keyboard)
+
+def get_verification_keyboard(verification_context: Dict[str, Any]) -> InlineKeyboardMarkup:
+    """Создает клавиатуру для проверки результата преобразования."""
+    keyboard = [
+        [InlineKeyboardButton("🔄 Пересчитать (есть ошибка)", callback_data="verify_recalculate")],
+        [InlineKeyboardButton("💡 Предложить свой результат", callback_data="verify_suggest")],
+        [InlineKeyboardButton("✅ Результат правильный", callback_data="verify_accept")]
+    ]
+    return InlineKeyboardMarkup(keyboard)
+
+def get_user_transformation_keyboard() -> InlineKeyboardMarkup:
+    """Создает клавиатуру для ввода собственного преобразования."""
+    keyboard = [
+        [InlineKeyboardButton("🎯 Я выполнил преобразование", callback_data="user_transformation")]
+    ]
     return InlineKeyboardMarkup(keyboard)
 
 async def handle_transformation_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -822,8 +861,14 @@ async def handle_transformation_choice(update: Update, context: ContextTypes.DEF
                 img = render_transformations_image(apply_result.result, generation_result.transformations)
                 await query.message.reply_photo(
                     photo=img,
-                    caption=f"{caption}\n\nВыберите следующее преобразование:",
+                    caption=f"{caption}\n\n🔍 Проверьте результат:\n\n• Если результат правильный, выберите следующее преобразование\n• Если есть ошибка, нажмите 'Пересчитать'\n• Можете предложить свой вариант",
                     reply_markup=get_transformations_keyboard(generation_result.transformations, new_step_id)
+                )
+                
+                # Добавляем дополнительные кнопки проверки
+                await query.message.reply_text(
+                    "🔧 Дополнительные действия:",
+                    reply_markup=get_verification_keyboard(state.verification_context)
                 )
                 
                 logger.info(f"Сгенерировано {len(generation_result.transformations)} новых преобразований")
@@ -1129,6 +1174,146 @@ async def show_final_history(update_or_query, history: SolutionHistory) -> None:
         except:
             logger.error("Не удалось отправить сообщение об ошибке")
 
+async def handle_verification_choice(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик проверки результатов преобразований."""
+    query = update.callback_query
+    user_id = query.from_user.id
+    
+    if user_id not in user_states:
+        await query.answer("❌ Сначала начните решение задачи")
+        return
+    
+    state = user_states[user_id]
+    
+    try:
+        callback_data = query.data
+        
+        if callback_data == "verify_accept":
+            # Пользователь подтвердил правильность результата
+            await query.answer("✅ Продолжаем с текущим результатом")
+            await query.message.delete()  # Удаляем сообщение с кнопками проверки
+            return
+        
+        if callback_data == "verify_recalculate":
+            # Пользователь сообщил об ошибке - пересчитываем
+            if not state.verification_context:
+                await query.answer("❌ Контекст проверки не найден")
+                return
+            
+            await query.answer("🔄 Пересчитываю преобразование...")
+            
+            # Получаем данные из контекста
+            context_data = state.verification_context
+            original_expr = context_data["original_expression"]
+            transformation_desc = context_data["transformation_description"]
+            current_result = context_data["current_result"]
+            
+            # Выполняем пересчёт
+            engine = TransformationEngine(preview_mode=True)
+            verification_result = engine.verify_transformation(
+                original_expression=original_expr,
+                transformation_description=transformation_desc,
+                current_result=current_result,
+                verification_type="recalculate"
+            )
+            
+            # Отправляем результат пересчёта
+            await handle_verification_result(query, state, verification_result, "Результат пересчёта:")
+        
+        elif callback_data == "verify_suggest":
+            # Пользователь хочет предложить свой результат
+            state.waiting_for_user_suggestion = True
+            
+            if not state.verification_context:
+                await query.answer("❌ Контекст проверки не найден")
+                return
+            
+            original_expr = state.verification_context["original_expression"]
+            await query.answer("💡 Ожидаю ваш вариант результата...")
+            await query.message.reply_text(
+                f"💡 Предложите ваш вариант правильного результата для:\n`{original_expr}`\n\n"
+                f"Введите математическое выражение в LaTeX-формате:"
+            )
+        
+    except Exception as e:
+        logger.error(f"Ошибка при обработке проверки: {e}")
+        await query.answer("❌ Произошла ошибка при обработке проверки")
+
+async def handle_user_suggestion(update: Update, user_id: int, user_suggestion: str) -> None:
+    """Обработчик предложения пользователя для правильного результата."""
+    try:
+        state = user_states[user_id]
+        
+        if not state.verification_context:
+            await update.message.reply_text("❌ Контекст проверки не найден")
+            return
+        
+        # Получаем данные из контекста
+        context_data = state.verification_context
+        original_expr = context_data["original_expression"]
+        transformation_desc = context_data["transformation_description"]
+        current_result = context_data["current_result"]
+        
+        await update.message.reply_text("🔍 Проверяю ваше предложение...")
+        
+        # Выполняем проверку с предложением пользователя
+        engine = TransformationEngine(preview_mode=True)
+        verification_result = engine.verify_transformation(
+            original_expression=original_expr,
+            transformation_description=transformation_desc,
+            current_result=current_result,
+            verification_type="verify_user_suggestion",
+            user_suggested_result=user_suggestion
+        )
+        
+        # Отправляем результат проверки
+        await handle_verification_result(update, state, verification_result, "Проверка вашего предложения:")
+        
+    except Exception as e:
+        logger.error(f"Ошибка при обработке предложения пользователя: {e}")
+        await update.message.reply_text("❌ Произошла ошибка при проверке вашего предложения")
+
+async def handle_user_transformation_result(update: Update, user_id: int, user_input: str) -> None:
+    """Обработчик результата самостоятельно выполненного преобразования."""
+    try:
+        state = user_states[user_id]
+        
+        if not state.verification_context:
+            await update.message.reply_text("❌ Контекст не найден")
+            return
+        
+        # Парсим ввод пользователя
+        original_expr = state.verification_context["original_expression"]
+        
+        # Ищем разделитель для описания и результата
+        if "->" in user_input:
+            parts = user_input.split("->", 1)
+            transformation_desc = parts[0].strip()
+            user_result = parts[1].strip()
+        else:
+            # Если нет разделителя, считаем весь ввод результатом
+            transformation_desc = "Пользовательское преобразование"
+            user_result = user_input.strip()
+        
+        await update.message.reply_text("🔍 Проверяю ваше преобразование...")
+        
+        # Выполняем проверку пользовательского преобразования
+        engine = TransformationEngine(preview_mode=True)
+        verification_result = engine.verify_transformation(
+            original_expression=original_expr,
+            transformation_description=f"Пользователь: '{transformation_desc}'",
+            current_result=user_result,
+            verification_type="verify_user_transformation",
+            user_suggested_result=user_result
+        )
+        
+        # Отправляем результат проверки
+        await handle_verification_result(update, state, verification_result, "Проверка вашего преобразования:")
+        
+    except Exception as e:
+        logger.error(f"Ошибка при обработке результата преобразования: {e}")
+        await update.message.reply_text("❌ Произошла ошибка при проверке вашего преобразования")
+
 def run_bot(token: str) -> None:
     """Запускает Telegram-бота."""
     logger.info("Инициализация бота...")
@@ -1143,6 +1328,8 @@ def run_bot(token: str) -> None:
         application.add_handler(CommandHandler("history", show_history))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_task))
         application.add_handler(CallbackQueryHandler(handle_rollback_suggestion, pattern=r"^(rollback_|continue_current)"))
+        application.add_handler(CallbackQueryHandler(handle_verification_choice, pattern=r"^verify_"))
+        application.add_handler(CallbackQueryHandler(handle_user_transformation_choice, pattern=r"^user_done_transform"))
         application.add_handler(CallbackQueryHandler(handle_transformation_choice))
         
         logger.info("Бот успешно инициализирован")

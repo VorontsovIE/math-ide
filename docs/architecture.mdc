@@ -159,6 +159,20 @@ class ProgressAnalysisResult:
     rollback_reason: Optional[str] = None
     suggestion_message: Optional[str] = None
 ```
+**Назначение:** Результат анализа прогресса решения для рекомендаций возврата к прошлым шагам
+
+#### VerificationResult
+```python
+@dataclass
+class VerificationResult:
+    is_correct: bool
+    corrected_result: str
+    verification_explanation: str
+    errors_found: List[str] = field(default_factory=list)
+    step_by_step_check: str = ""
+    user_result_assessment: Optional[str] = None
+```
+**Назначение:** Результат проверки и пересчёта математического преобразования с детальным анализом ошибок
 **Назначение:** Результат анализа прогресса решения с рекомендациями возврата
 
 #### BaseTransformationType
@@ -180,6 +194,11 @@ class TransformationEngine:
     def generate_transformations(self, step: SolutionStep) -> GenerationResult
     def apply_transformation(self, current_step: SolutionStep, transformation: Transformation) -> ApplyResult
     def check_solution_completeness(self, current_step: SolutionStep, original_task: str) -> CheckResult
+    def analyze_progress(self, original_task: str, history_steps: List[Dict[str, Any]], 
+                        current_step: str, steps_count: int) -> ProgressAnalysisResult
+    def verify_transformation(self, original_expression: str, transformation_description: str,
+                             current_result: str, verification_type: str,
+                             user_suggested_result: Optional[str] = None) -> VerificationResult
     def analyze_progress(self, original_task: str, history_steps: List[Dict], current_step: str, steps_count: int) -> ProgressAnalysisResult
 ```
 **Назначение:** Главный движок системы, отвечающий за генерацию, применение преобразований, проверку завершённости и анализ прогресса решения. Поддерживает режим предпоказа результатов преобразований
@@ -483,6 +502,40 @@ class HistoryObserver:
 **Назначение:** Краткое подтверждение математической корректности в результатах применения и проверки
 **Содержание:** Объяснение проверки корректности (например, проверка подстановкой значений)
 **Использование:** Логирование и отладка математической корректности
+
+### 13. Система проверки и исправления ошибок
+
+**Назначение:** Позволяет пользователю сообщить об ошибках в результатах преобразований и предложить свои варианты решения.
+
+**Реализация:**
+- Новый промпт `verification.md` для проверки и пересчёта преобразований
+- Метод `verify_transformation()` в `TransformationEngine`
+- Структура данных `VerificationResult` для результатов проверки
+- Три типа проверки: пересчёт, проверка предложения пользователя, проверка самостоятельного преобразования
+
+**Типы проверки:**
+
+#### recalculate
+Пользователь сообщил, что результат ошибочен. Система пересчитывает преобразование с нуля, игнорируя полученный результат.
+
+#### verify_user_suggestion
+Пользователь предложил свой вариант правильного результата. Система проверяет корректность предложения и выдаёт окончательный правильный ответ.
+
+#### verify_user_transformation
+Пользователь сообщил, что сам выполнил преобразование и получил определённый результат. Система проверяет корректность выполненного преобразования.
+
+**Функциональность:**
+- Интерактивные кнопки для выбора типа проверки в Telegram-боте
+- Детальное объяснение найденных ошибок с пошаговой проверкой
+- Оценка предложений пользователя
+- Автоматическое продолжение с исправленным результатом
+- Поддержка частичных ошибок и альтернативных форм записи
+
+**Особенности:**
+- Независимость проверки - игнорирование полученного результата при пересчёте
+- Тщательность - проверка каждого арифметического и алгебраического шага
+- Объективность - признание правильности предложений пользователя
+- Конструктивность - не только указание ошибок, но и объяснение правильного способа
 
 ## Мониторинг и логирование
 

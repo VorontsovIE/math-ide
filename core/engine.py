@@ -130,6 +130,17 @@ class ProgressAnalysisResult:
     suggestion_message: Optional[str] = None
 
 
+@dataclass
+class VerificationResult:
+    """Результат проверки и пересчёта математического преобразования."""
+    is_correct: bool
+    corrected_result: str
+    verification_explanation: str
+    errors_found: List[str] = field(default_factory=list)
+    step_by_step_check: str = ""
+    user_result_assessment: Optional[str] = None
+
+
 class PromptManager:
     """Управляет загрузкой и подстановкой промптов."""
     
@@ -174,6 +185,7 @@ class TransformationEngine:
         self.apply_prompt = self.prompt_manager.load_prompt("apply.md")
         self.check_prompt = self.prompt_manager.load_prompt("check.md")
         self.progress_analysis_prompt = self.prompt_manager.load_prompt("progress_analysis.md")
+        self.verification_prompt = self.prompt_manager.load_prompt("verification.md")
         logger.debug("Промпты успешно загружены")
 
     def generate_transformations(self, step: SolutionStep) -> GenerationResult:
@@ -677,6 +689,135 @@ class TransformationEngine:
                 confidence=0.0,
                 analysis=f"Ошибка при анализе прогресса: {str(e)}",
                 recommend_rollback=False
+            )
+
+    def verify_transformation(self, original_expression: str, transformation_description: str,
+                             current_result: str, verification_type: str,
+                             user_suggested_result: Optional[str] = None) -> VerificationResult:
+        """
+        Проверяет корректность математического преобразования и при необходимости исправляет ошибки.
+        
+        Args:
+            original_expression: Исходное выражение
+            transformation_description: Описание применённого преобразования
+            current_result: Полученный результат
+            verification_type: Тип проверки (recalculate, verify_user_suggestion, verify_user_transformation)
+            user_suggested_result: Предложенный пользователем результат (опционально)
+            
+        Returns:
+            VerificationResult с результатом проверки
+        """
+        try:
+            logger.info("Проверка преобразования: %s -> %s", original_expression, current_result)
+            
+            # Форматируем промпт
+            formatted_prompt = self.prompt_manager.format_prompt(
+                self.verification_prompt,
+                original_expression=original_expression,
+                transformation_description=transformation_description,
+                current_result=current_result,
+                verification_type=verification_type,
+                user_suggested_result=user_suggested_result or ""
+            )
+            
+            logger.debug("Отправка запроса к GPT для проверки преобразования")
+            # Запрос к GPT
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "Ты - эксперт по математике. Отвечай только в JSON-формате."},
+                    {"role": "user", "content": formatted_prompt}
+                ],
+                temperature=0.1,  # Низкая температура для точности
+                max_tokens=1000
+            )
+            
+            # Логируем токены
+            usage = response.usage
+            logger.info(
+                "Использование токенов: промпт=%d, ответ=%d, всего=%d",
+                usage.prompt_tokens,
+                usage.completion_tokens,
+                usage.total_tokens
+            )
+            
+            # Парсим ответ
+            content = response.choices[0].message.content.strip()
+            logger.debug("Получен ответ от GPT: %s", content)
+            
+            # Проверяем, что ответ не пустой
+            if not content:
+                logger.error("Получен пустой ответ от GPT")
+                return VerificationResult(
+                    is_correct=False,
+                    corrected_result=current_result,
+                    verification_explanation="Не удалось получить результат проверки",
+                    errors_found=["Ошибка при обращении к GPT"]
+                )
+            
+            # Пытаемся найти JSON в ответе
+            json_start = content.find('{')
+            json_end = content.rfind('}') + 1
+            
+            if json_start == -1 or json_end == 0:
+                logger.error("Не найден JSON-объект в ответе GPT. Полный ответ: %s", content)
+                return VerificationResult(
+                    is_correct=False,
+                    corrected_result=current_result,
+                    verification_explanation="Ошибка парсинга ответа GPT",
+                    errors_found=["Некорректный формат ответа"]
+                )
+            
+            json_content = content[json_start:json_end]
+            logger.debug("Извлеченный JSON: %s", json_content)
+            
+            try:
+                # Используем безопасный парсинг JSON
+                verification_data = safe_json_parse(json_content)
+            except json.JSONDecodeError as e:
+                logger.error("Ошибка парсинга JSON: %s", str(e))
+                logger.error("Проблемный JSON: %s", json_content)
+                return VerificationResult(
+                    is_correct=False,
+                    corrected_result=current_result,
+                    verification_explanation=f"Ошибка парсинга JSON: {str(e)}",
+                    errors_found=["Ошибка парсинга ответа"]
+                )
+            
+            # Проверяем обязательные поля
+            required_fields = ["is_correct", "corrected_result", "verification_explanation"]
+            missing_fields = [field for field in required_fields if field not in verification_data]
+            if missing_fields:
+                logger.error("Отсутствуют обязательные поля в ответе: %s", missing_fields)
+                return VerificationResult(
+                    is_correct=False,
+                    corrected_result=current_result,
+                    verification_explanation=f"Отсутствуют обязательные поля: {missing_fields}",
+                    errors_found=["Неполный ответ от GPT"]
+                )
+            
+            logger.info(
+                "Результат проверки: корректно=%s, исправленный результат=%s",
+                verification_data["is_correct"],
+                verification_data["corrected_result"]
+            )
+            
+            return VerificationResult(
+                is_correct=verification_data["is_correct"],
+                corrected_result=verification_data["corrected_result"],
+                verification_explanation=verification_data["verification_explanation"],
+                errors_found=verification_data.get("errors_found", []),
+                step_by_step_check=verification_data.get("step_by_step_check", ""),
+                user_result_assessment=verification_data.get("user_result_assessment")
+            )
+            
+        except Exception as e:
+            logger.error("Ошибка при проверке преобразования: %s", str(e), exc_info=True)
+            return VerificationResult(
+                is_correct=False,
+                corrected_result=current_result,
+                verification_explanation=f"Ошибка при проверке преобразования: {str(e)}",
+                errors_found=[f"Системная ошибка: {str(e)}"]
             )
 
 
