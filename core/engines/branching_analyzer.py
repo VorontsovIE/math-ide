@@ -92,7 +92,7 @@ class BranchingAnalyzer:
                 if not isinstance(parsed_data, dict):
                     logger.error("Ожидался JSON-объект, получен: %s", type(parsed_data))
                     return step  # Возвращаем исходный шаг без изменений
-                result_data = cast(Dict[str, Any], parsed_data)
+                result_data = parsed_data
             except Exception as e:
                 logger.error("Ошибка парсинга JSON: %s", str(e))
                 logger.error("Проблемный JSON: %s", json_content)

@@ -7,7 +7,7 @@ class LatexRenderer:
     Конвертирует основные LaTeX-команды в Unicode-символы.
     """
     
-    def __init__(self):
+    def __init__(self) -> None:
         # Словарь замен LaTeX-команд на Unicode-символы
         self.replacements = {
             r'\times': '×',

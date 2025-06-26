@@ -3,7 +3,7 @@
 import json
 import random
 import logging
-from typing import List, Dict, Any, cast
+from typing import List, Dict, Any, cast, Union
 
 from ..types import (
     SolutionStep,
@@ -160,20 +160,23 @@ class TransformationGenerator:
                 # Обрабатываем определения параметров, если они есть
                 parameter_definitions = []
                 if data.get("parameter_definitions"):
-                    for param_def_data in data["parameter_definitions"]:
-                        try:
-                            param_def = ParameterDefinition(
-                                name=param_def_data["name"],
-                                prompt=param_def_data["prompt"],
-                                param_type=ParameterType(param_def_data["param_type"]),
-                                options=param_def_data.get("options"),
-                                default_value=param_def_data.get("default_value"),
-                                validation_rule=param_def_data.get("validation_rule"),
-                                suggested_values=param_def_data.get("suggested_values")
-                            )
-                            parameter_definitions.append(param_def)
-                        except (KeyError, ValueError) as e:
-                            logger.warning("Ошибка при парсинге определения параметра: %s", str(e))
+                    param_defs = data["parameter_definitions"]
+                    if isinstance(param_defs, list):
+                        for param_def_data in param_defs:
+                            if isinstance(param_def_data, dict):
+                                try:
+                                    param_def = ParameterDefinition(
+                                        name=param_def_data["name"],
+                                        prompt=param_def_data["prompt"],
+                                        param_type=ParameterType(param_def_data["param_type"]),
+                                        options=param_def_data.get("options"),
+                                        default_value=param_def_data.get("default_value"),
+                                        validation_rule=param_def_data.get("validation_rule"),
+                                        suggested_values=param_def_data.get("suggested_values")
+                                    )
+                                    parameter_definitions.append(param_def)
+                                except (KeyError, ValueError) as e:
+                                    logger.warning("Ошибка при парсинге определения параметра: %s", str(e))
                 
                 transformation = Transformation(
                     description=data["description"],

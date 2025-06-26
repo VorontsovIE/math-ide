@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 root_dir = Path(__file__).parent.parent
 sys.path.append(str(root_dir))
 
-def load_env_files():
+def load_env_files() -> bool:
     """Загружает переменные окружения из .env файлов."""
     # Пытаемся загрузить локальные .env файлы в порядке приоритета
     env_files = [
@@ -28,7 +28,7 @@ def load_env_files():
     print("Внимание: .env файл не найден, используются переменные окружения системы")
     return False
 
-def main():
+def main() -> None:
     """Точка входа для запуска бота."""
     # Загружаем переменные окружения
     load_env_files()

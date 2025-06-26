@@ -107,7 +107,7 @@ class SolutionChecker:
                         explanation="Неверный формат ответа",
                         solution_type="unknown"
                     )
-                result_data = cast(Dict[str, Any], parsed_data)
+                result_data = parsed_data
             except Exception as e:
                 logger.error("Ошибка парсинга JSON: %s", str(e))
                 logger.error("Проблемный JSON: %s", json_content)

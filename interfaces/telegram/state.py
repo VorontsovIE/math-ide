@@ -49,7 +49,7 @@ def reset_user_state(user_id: int) -> UserState:
     return create_user_state(user_id)
 
 
-def update_user_state(user_id: int, **kwargs) -> None:
+def update_user_state(user_id: int, **kwargs: Any) -> None:
     """Обновляет состояние пользователя."""
     state = user_states.get(user_id)
     if state:

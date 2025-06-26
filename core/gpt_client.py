@@ -5,7 +5,7 @@
 
 import logging
 import time
-from typing import Optional, Dict, Any, List, Union
+from typing import Optional, Dict, Any, List, Union, cast
 from dataclasses import dataclass
 
 from .exceptions import GPTError, GPTConnectionError, GPTRateLimitError, GPTInvalidResponseError
@@ -74,15 +74,18 @@ class GPTClient:
         Raises:
             GPTError: При ошибках API
         """
-        last_error = None
+        last_error: Optional[Exception] = None
         
         for attempt in range(self.max_retries):
             try:
                 logger.debug(f"GPT запрос, попытка {attempt + 1}/{self.max_retries}")
                 
+                # Приводим сообщения к правильному типу для OpenAI API
+                typed_messages = cast(List[Dict[str, str]], messages)
+                
                 response = self.client.chat.completions.create(
                     model=self.model,
-                    messages=messages,
+                    messages=typed_messages,
                     temperature=temperature
                 )
                 
@@ -140,7 +143,10 @@ class GPTClient:
                     raise GPTError(f"Ошибка GPT API: {str(e)}")
         
         # Если все попытки неудачны
-        raise GPTError(f"Не удалось выполнить запрос после {self.max_retries} попыток: {str(last_error)}")
+        if last_error is not None:
+            raise GPTError(f"Не удалось выполнить запрос после {self.max_retries} попыток: {str(last_error)}")
+        else:
+            raise GPTError(f"Не удалось выполнить запрос после {self.max_retries} попыток")
     
     def generate_completion(self, prompt: str, temperature: float = 0.3) -> GPTResponse:
         """

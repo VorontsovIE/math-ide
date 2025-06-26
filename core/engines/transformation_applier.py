@@ -112,7 +112,7 @@ class TransformationApplier:
                         explanation="Неверный формат ответа",
                         errors=["invalid_response_format"]
                     )
-                result_data = cast(Dict[str, Any], parsed_data)
+                result_data = parsed_data
             except Exception as e:
                 logger.error("Ошибка парсинга JSON: %s", str(e))
                 logger.error("Проблемный JSON: %s", json_content)

@@ -5,7 +5,7 @@
 
 import logging
 import time
-from typing import Optional, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from telegram import Update, Message
@@ -27,7 +27,7 @@ def get_progress_indicator(operation_time: float) -> str:
         return "🐌"
 
 
-async def send_status_message(update, message: str, force_update: bool = False):
+async def send_status_message(update: Any, message: str, force_update: bool = False) -> Optional[Any]:
     """Отправляет сообщение со статусом с проверкой лимитов."""
     user_id = update.effective_user.id
     

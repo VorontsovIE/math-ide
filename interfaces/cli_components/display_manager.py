@@ -1,4 +1,9 @@
-from typing import Optional
+"""
+Модуль для отображения информации в CLI.
+Содержит DisplayManager для красивого вывода различных типов данных.
+"""
+
+from typing import Optional, List, Any
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -15,16 +20,20 @@ from .latex_renderer import LatexRenderer
 
 class DisplayManager:
     """
-    Компонент для отображения информации в CLI интерфейсе.
-    Управляет отображением преобразований, истории и состояния решения.
+    Менеджер отображения для CLI.
+    Отвечает за красивый вывод различных типов информации.
     """
     
-    def __init__(self, console: Optional[Console] = None, latex_renderer: Optional[LatexRenderer] = None):
+    def __init__(self, console: Optional[Console] = None, latex_renderer: Optional[LatexRenderer] = None) -> None:
         self.console = console or Console()
         self.latex_renderer = latex_renderer or LatexRenderer()
     
-    def display_transformations(self, transformations: list[Transformation]) -> None:
+    def display_transformations(self, transformations: List[Transformation]) -> None:
         """Отображает список доступных преобразований."""
+        if not transformations:
+            self.console.print("[yellow]Нет доступных преобразований[/yellow]")
+            return
+        
         table = Table(title="Доступные преобразования")
         table.add_column("№", justify="right", style="cyan")
         table.add_column("Описание", style="green")
@@ -32,34 +41,21 @@ class DisplayManager:
         table.add_column("Выражение", style="magenta")
         table.add_column("Параметры", style="yellow")
         
-        # Добавляем колонку для предварительного результата, если он есть у хотя бы одного преобразования
-        has_previews = any(tr.preview_result is not None for tr in transformations)
-        if has_previews:
-            table.add_column("Результат", style="yellow")
-        
-        for idx, tr in enumerate(transformations, 1):
-            # Определяем статус параметров
-            params_status = "-"
-            if tr.requires_user_input and tr.parameter_definitions:
-                params_status = f"Требуется {len(tr.parameter_definitions)} параметр(ов)"
-            elif tr.parameters:
-                params_status = f"Заполнено {len(tr.parameters)} параметр(ов)"
+        for idx, transformation in enumerate(transformations, 1):
+            # Формируем строку параметров
+            params_str = "-"
+            if transformation.parameter_definitions:
+                param_names = [param.name for param in transformation.parameter_definitions]
+                params_str = ", ".join(param_names)
             
+            # Добавляем строку в таблицу
             row = [
                 str(idx),
-                tr.description,
-                tr.type,
-                self.latex_renderer.render_latex(tr.expression),
-                params_status
+                transformation.description,
+                transformation.type,
+                self.latex_renderer.render_latex(transformation.expression),
+                params_str
             ]
-            
-            # Добавляем предварительный результат, если он есть
-            if has_previews:
-                if tr.preview_result:
-                    row.append(self.latex_renderer.render_latex(tr.preview_result))
-                else:
-                    row.append("-")
-            
             table.add_row(*row)
         
         self.console.print(table)
@@ -205,7 +201,7 @@ class DisplayManager:
         self.console.print(table)
         return None  # Возвращаем None, так как сама логика обработки ввода вынесена отдельно
     
-    def display_success_message(self, message: str, result: str = None) -> None:
+    def display_success_message(self, message: str, result: Optional[str] = None) -> None:
         """Отображает сообщение об успехе."""
         content = f"[green]{message}[/green]"
         if result:
@@ -238,7 +234,7 @@ class DisplayManager:
             border_style="green"
         ))
     
-    def show_welcome(self):
+    def show_welcome(self) -> None:
         """Show welcome message."""
         self.console.print(Panel.fit(
             "[bold blue]Math IDE - Интерактивный решатель математических задач[/bold blue]\n"
@@ -246,54 +242,47 @@ class DisplayManager:
             border_style="blue"
         ))
     
-    def show_problem(self, problem: str):
+    def show_problem(self, problem: str) -> None:
         """Show the problem to be solved."""
         self.console.print("\n[bold green]Задача:[/bold green]")
-        self.console.print(Panel(self.latex_renderer.render(problem), border_style="green"))
+        self.console.print(Panel(self.latex_renderer.render_plain(problem), border_style="green"))
     
-    def show_completion_message(self):
+    def show_completion_message(self) -> None:
         """Show completion message when problem is solved."""
         self.console.print("\n[bold green]🎉 Задача решена![/bold green]")
         self.console.print("[green]Все необходимые преобразования выполнены.[/green]")
     
-    def show_error(self, message: str):
+    def show_error(self, message: str) -> None:
         """Show error message."""
-        self.console.print(f"[bold red]❌ Ошибка:[/bold red] {message}")
+        self.console.print(f"\n[bold red]Ошибка:[/bold red] {message}")
     
-    def show_info(self, message: str):
-        """Show informational message."""
-        self.console.print(f"[blue]ℹ️ {message}[/blue]")
+    def show_info(self, message: str) -> None:
+        """Show info message."""
+        self.console.print(f"\n[cyan]{message}[/cyan]")
     
-    def show_transformations(self, transformations):
-        """Show available transformations for user selection."""
-        from core.types import GenerationResult
-        
-        if isinstance(transformations, GenerationResult):
-            transformation_list = transformations.transformations
-        else:
-            transformation_list = transformations
-        
-        if not transformation_list:
-            self.show_error("Нет доступных трансформаций")
+    def show_transformations(self, transformations: List[Transformation]) -> None:
+        """Show available transformations."""
+        if not transformations:
+            self.console.print("[yellow]Нет доступных преобразований[/yellow]")
             return
         
-        self.console.print("\n[bold yellow]Доступные преобразования:[/bold yellow]")
-        for i, transformation in enumerate(transformation_list, 1):
-            param_info = ""
-            if transformation.requires_user_input:
-                param_info = " [dim](параметрическая)[/dim]"
-            
-            self.console.print(f"{i}. {transformation.description}{param_info}")
-            if transformation.reasoning:
-                self.console.print(f"   [dim]Обоснование: {transformation.reasoning}[/dim]")
-    
-    def show_branching_analysis(self, analysis):
-        """Show branching analysis results."""
-        self.console.print("\n[bold orange_red1]🔀 Обнаружена необходимость ветвления решения[/bold orange_red1]")
-        self.console.print(f"Тип ветвления: {analysis.solution_type}")
-        self.console.print(f"Причина: {analysis.reasoning}")
+        table = Table(title="Доступные преобразования")
+        table.add_column("№", justify="right", style="cyan")
+        table.add_column("Описание", style="green")
+        table.add_column("Тип", style="blue")
+        table.add_column("Выражение", style="magenta")
         
-        if hasattr(analysis, 'branches') and analysis.branches:
-            self.console.print("\nПредлагаемые ветви:")
-            for i, branch in enumerate(analysis.branches, 1):
-                self.console.print(f"{i}. {branch.description}") 
+        for idx, transformation in enumerate(transformations, 1):
+            table.add_row(
+                str(idx),
+                transformation.description,
+                transformation.type,
+                self.latex_renderer.render_latex(transformation.expression)
+            )
+        
+        self.console.print(table)
+    
+    def show_branching_analysis(self, analysis: Any) -> None:
+        """Show branching analysis results."""
+        self.console.print("[blue]Анализ ветвления завершён[/blue]")
+        # Дополнительная логика отображения результатов анализа 

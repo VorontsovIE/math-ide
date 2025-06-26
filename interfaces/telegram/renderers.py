@@ -5,7 +5,7 @@
 
 import io
 import logging
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING, Any
 
 import matplotlib.pyplot as plt
 
@@ -15,6 +15,14 @@ if TYPE_CHECKING:
 
 # Получаем логгер
 logger = logging.getLogger(__name__)
+
+# Настройка matplotlib для корректного отображения LaTeX
+plt.rcParams.update({
+    'text.usetex': True,
+    'font.family': 'serif',
+    'font.serif': ['Computer Modern Roman'],
+    'text.latex.preamble': r'\usepackage{amsmath} \usepackage{amssymb}'
+})
 
 
 def fix_latex_expression(latex_expr: str) -> str:
@@ -155,7 +163,7 @@ def render_transformations_image(current_expression: str, transformations: "List
         return img_buffer
 
 
-async def check_and_suggest_rollback(engine, state, update_or_query, caption: str, new_step_id: Optional[str] = None) -> bool:
+async def check_and_suggest_rollback(engine: Any, state: Any, update_or_query: Any, caption: str, new_step_id: Optional[str] = None) -> bool:
     """
     Проверяет прогресс и при необходимости предлагает мягкую рекомендацию возврата к прошлому шагу.
     

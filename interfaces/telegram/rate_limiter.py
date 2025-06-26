@@ -22,7 +22,7 @@ PROGRESS_UPDATE_INTERVAL = 3.0  # Интервал для обновления �
 class RateLimiter:
     """Класс для управления лимитами API."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         self.global_last_update = 0.0
         self.global_update_count = 0
         self.global_reset_time = time.time()
