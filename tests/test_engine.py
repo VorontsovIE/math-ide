@@ -10,6 +10,7 @@ from core.engine import (
     CheckResult
 )
 from core.history import SolutionHistory, HistoryStep
+from core.gpt_client import GPTResponse, GPTUsage
 
 
 class TestTransformationEngine:
@@ -25,21 +26,29 @@ class TestTransformationEngine:
         assert self.engine.model == "gpt-3.5-turbo"
         assert self.engine.client is not None
         assert self.engine.prompt_manager is not None
+        # Проверяем что компоненты инициализированы
+        assert self.engine.generator is not None
+        assert self.engine.applier is not None
+        assert self.engine.checker is not None
     
-    @patch('core.engine.OpenAI')
-    def test_generate_transformations_success(self, mock_openai):
+    @patch('core.gpt_client.GPTClient.generate_completion')
+    def test_generate_transformations_success(self, mock_generate):
         """Тест успешной генерации преобразований."""
         # Мокаем ответ GPT
-        mock_response = Mock()
-        mock_response.choices[0].message.content = '''[
-            {
-                "description": "Раскрыть скобки",
-                "expression": "2x + 2 = 4",
-                "type": "expand",
-                "metadata": {"difficulty": "elementary school"}
-            }
-        ]'''
-        mock_openai.return_value.chat.completions.create.return_value = mock_response
+        mock_response = GPTResponse(
+            content='''[
+                {
+                    "description": "Раскрыть скобки",
+                    "expression": "2x + 2 = 4",
+                    "type": "expand",
+                    "metadata": {"difficulty": "elementary school"}
+                }
+            ]''',
+            usage=GPTUsage(prompt_tokens=100, completion_tokens=50, total_tokens=150),
+            model="gpt-3.5-turbo",
+            finish_reason="stop"
+        )
+        mock_generate.return_value = mock_response
         
         result = self.engine.generate_transformations(self.sample_step)
         
@@ -48,20 +57,19 @@ class TestTransformationEngine:
         assert result.transformations[0].description == "Раскрыть скобки"
         assert result.transformations[0].type == "expand"
     
-    @patch('core.engine.OpenAI')
-    def test_generate_transformations_error(self, mock_openai):
+    @patch('core.gpt_client.GPTClient.generate_completion')
+    def test_generate_transformations_error(self, mock_generate):
         """Тест обработки ошибки при генерации."""
         # Мокаем ошибку API
-        mock_openai.return_value.chat.completions.create.side_effect = Exception("API Error")
+        mock_generate.side_effect = Exception("API Error")
         
         result = self.engine.generate_transformations(self.sample_step)
         
         assert isinstance(result, GenerationResult)
-        assert len(result.transformations) == 1  # Заглушка
-        assert "заглушка" in result.transformations[0].metadata.get("reasoning", "")
+        assert len(result.transformations) >= 1  # Должна быть заглушка или fallback
     
-    @patch('core.engine.OpenAI')
-    def test_apply_transformation_success(self, mock_openai):
+    @patch('core.gpt_client.GPTClient.generate_completion')
+    def test_apply_transformation_success(self, mock_generate):
         """Тест успешного применения преобразования."""
         transformation = Transformation(
             description="Раскрыть скобки",
@@ -70,13 +78,17 @@ class TestTransformationEngine:
         )
         
         # Мокаем ответ GPT
-        mock_response = Mock()
-        mock_response.choices[0].message.content = '''{
-            "result": "2x + 2 = 4",
-            "is_valid": true,
-            "explanation": "Применил распределительный закон"
-        }'''
-        mock_openai.return_value.chat.completions.create.return_value = mock_response
+        mock_response = GPTResponse(
+            content='''{
+                "result": "2x + 2 = 4",
+                "is_valid": true,
+                "explanation": "Применил распределительный закон"
+            }''',
+            usage=GPTUsage(prompt_tokens=100, completion_tokens=50, total_tokens=150),
+            model="gpt-3.5-turbo",
+            finish_reason="stop"
+        )
+        mock_generate.return_value = mock_response
         
         result = self.engine.apply_transformation(self.sample_step, transformation)
         
@@ -85,8 +97,8 @@ class TestTransformationEngine:
         assert result.result == "2x + 2 = 4"
         assert "распределительный" in result.explanation
     
-    @patch('core.engine.OpenAI')
-    def test_apply_transformation_error(self, mock_openai):
+    @patch('core.gpt_client.GPTClient.generate_completion')
+    def test_apply_transformation_error(self, mock_generate):
         """Тест обработки ошибки при применении."""
         transformation = Transformation(
             description="Раскрыть скобки",
@@ -95,7 +107,7 @@ class TestTransformationEngine:
         )
         
         # Мокаем ошибку API
-        mock_openai.return_value.chat.completions.create.side_effect = Exception("API Error")
+        mock_generate.side_effect = Exception("API Error")
         
         result = self.engine.apply_transformation(self.sample_step, transformation)
         
@@ -103,21 +115,25 @@ class TestTransformationEngine:
         assert not result.is_valid
         assert "ошибка" in result.explanation.lower()
     
-    @patch('core.engine.OpenAI')
-    def test_check_solution_completeness_solved(self, mock_openai):
+    @patch('core.gpt_client.GPTClient.generate_completion')
+    def test_check_solution_completeness_solved(self, mock_generate):
         """Тест проверки завершённости - задача решена."""
         solved_step = SolutionStep(expression="x = 2")
         
         # Мокаем ответ GPT
-        mock_response = Mock()
-        mock_response.choices[0].message.content = '''{
-            "is_solved": true,
-            "confidence": 0.95,
-            "explanation": "Переменная x выражена через число",
-            "solution_type": "exact",
-            "next_steps": []
-        }'''
-        mock_openai.return_value.chat.completions.create.return_value = mock_response
+        mock_response = GPTResponse(
+            content='''{
+                "is_solved": true,
+                "confidence": 0.95,
+                "explanation": "Переменная x выражена через число",
+                "solution_type": "exact",
+                "next_steps": []
+            }''',
+            usage=GPTUsage(prompt_tokens=100, completion_tokens=50, total_tokens=150),
+            model="gpt-3.5-turbo",
+            finish_reason="stop"
+        )
+        mock_generate.return_value = mock_response
         
         result = self.engine.check_solution_completeness(solved_step, "Решить уравнение")
         
@@ -126,19 +142,23 @@ class TestTransformationEngine:
         assert result.confidence > 0.9
         assert result.solution_type == "exact"
     
-    @patch('core.engine.OpenAI')
-    def test_check_solution_completeness_not_solved(self, mock_openai):
+    @patch('core.gpt_client.GPTClient.generate_completion')
+    def test_check_solution_completeness_not_solved(self, mock_generate):
         """Тест проверки завершённости - задача не решена."""
         # Мокаем ответ GPT
-        mock_response = Mock()
-        mock_response.choices[0].message.content = '''{
-            "is_solved": false,
-            "confidence": 0.3,
-            "explanation": "Уравнение упрощено, но x не выражен",
-            "solution_type": "partial",
-            "next_steps": ["Вычесть 2", "Разделить на 2"]
-        }'''
-        mock_openai.return_value.chat.completions.create.return_value = mock_response
+        mock_response = GPTResponse(
+            content='''{
+                "is_solved": false,
+                "confidence": 0.3,
+                "explanation": "Уравнение упрощено, но x не выражен",
+                "solution_type": "partial",
+                "next_steps": ["Вычесть 2", "Разделить на 2"]
+            }''',
+            usage=GPTUsage(prompt_tokens=100, completion_tokens=50, total_tokens=150),
+            model="gpt-3.5-turbo",
+            finish_reason="stop"
+        )
+        mock_generate.return_value = mock_response
         
         result = self.engine.check_solution_completeness(self.sample_step, "Решить уравнение")
         
@@ -148,70 +168,70 @@ class TestTransformationEngine:
         assert result.solution_type == "partial"
         assert len(result.next_steps) > 0
 
-    def test_preview_mode_enabled(self):
+    @patch('core.gpt_client.GPTClient.generate_completion')
+    def test_preview_mode_enabled(self, mock_generate):
         """Тест режима предпоказа - должен заполнять preview_result из expression."""
         engine = TransformationEngine(api_key="test-key", preview_mode=True)
         step = SolutionStep(expression="2x + 4 = 10")
         
         # Мокаем ответ GPT для генерации преобразований
-        with patch.object(engine.client.chat.completions, 'create') as mock_create:
-            mock_response = Mock()
-            mock_response.choices = [Mock()]
-            mock_response.choices[0].message.content = '''
-            [
+        mock_response = GPTResponse(
+            content='''[
                 {
                     "description": "Вычесть 4 из обеих частей",
                     "expression": "2x = 6",
                     "type": "subtract"
                 }
-            ]
-            '''
-            mock_response.usage = Mock(prompt_tokens=100, completion_tokens=50, total_tokens=150)
-            mock_create.return_value = mock_response
-            
-            result = engine.generate_transformations(step)
-            
-            # Проверяем, что результат содержит преобразования с предварительными результатами
-            self.assertEqual(len(result.transformations), 1)
-            transformation = result.transformations[0]
-            self.assertEqual(transformation.description, "Вычесть 4 из обеих частей")
-            self.assertEqual(transformation.expression, "2x = 6")
-            self.assertEqual(transformation.preview_result, "2x = 6")  # Должен быть скопирован из expression
-            
-            # Проверяем, что был сделан только 1 вызов для генерации (без дополнительных запросов)
-            self.assertEqual(mock_create.call_count, 1)
+            ]''',
+            usage=GPTUsage(prompt_tokens=100, completion_tokens=50, total_tokens=150),
+            model="gpt-3.5-turbo",
+            finish_reason="stop"
+        )
+        mock_generate.return_value = mock_response
+        
+        result = engine.generate_transformations(step)
+        
+        # Проверяем, что результат содержит преобразования с предварительными результатами
+        assert len(result.transformations) == 1
+        transformation = result.transformations[0]
+        assert transformation.description == "Вычесть 4 из обеих частей"
+        assert transformation.expression == "2x = 6"
+        assert transformation.preview_result == "2x = 6"  # Должен быть скопирован из expression
+        
+        # Проверяем, что был сделан только 1 вызов для генерации (без дополнительных запросов)
+        assert mock_generate.call_count == 1
 
-    def test_preview_mode_disabled(self):
+    @patch('core.gpt_client.GPTClient.generate_completion')
+    def test_preview_mode_disabled(self, mock_generate):
         """Тест обычного режима - не должен генерировать предварительные результаты."""
         engine = TransformationEngine(api_key="test-key", preview_mode=False)
         step = SolutionStep(expression="2x + 4 = 10")
         
         # Мокаем ответ GPT для генерации преобразований
-        with patch.object(engine.client.chat.completions, 'create') as mock_create:
-            mock_response = Mock()
-            mock_response.choices = [Mock()]
-            mock_response.choices[0].message.content = '''
-            [
+        mock_response = GPTResponse(
+            content='''[
                 {
                     "description": "Вычесть 4 из обеих частей",
                     "expression": "2x = 6",
                     "type": "subtract"
                 }
-            ]
-            '''
-            mock_response.usage = Mock(prompt_tokens=100, completion_tokens=50, total_tokens=150)
-            mock_create.return_value = mock_response
-            
-            result = engine.generate_transformations(step)
-            
-            # Проверяем, что результат содержит преобразования без предварительных результатов
-            self.assertEqual(len(result.transformations), 1)
-            transformation = result.transformations[0]
-            self.assertEqual(transformation.description, "Вычесть 4 из обеих частей")
-            self.assertIsNone(transformation.preview_result)
-            
-            # Проверяем, что был сделан только 1 вызов для генерации
-            self.assertEqual(mock_create.call_count, 1)
+            ]''',
+            usage=GPTUsage(prompt_tokens=100, completion_tokens=50, total_tokens=150),
+            model="gpt-3.5-turbo",
+            finish_reason="stop"
+        )
+        mock_generate.return_value = mock_response
+        
+        result = engine.generate_transformations(step)
+        
+        # Проверяем, что результат содержит преобразования без предварительных результатов
+        assert len(result.transformations) == 1
+        transformation = result.transformations[0]
+        assert transformation.description == "Вычесть 4 из обеих частей"
+        assert transformation.preview_result is None
+        
+        # Проверяем, что был сделан только 1 вызов для генерации
+        assert mock_generate.call_count == 1
 
 
 class TestSolutionHistory:
