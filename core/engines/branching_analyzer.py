@@ -88,10 +88,6 @@ class BranchingAnalyzer:
             try:
                 # Используем безопасный парсинг JSON с автоматическим исправлением
                 parsed_data = safe_json_parse(json_content)
-                # Проверяем, что это словарь
-                if not isinstance(parsed_data, dict):
-                    logger.error("Ожидался JSON-объект, получен: %s", type(parsed_data))
-                    return step  # Возвращаем исходный шаг без изменений
                 result_data = parsed_data
             except Exception as e:
                 logger.error("Ошибка парсинга JSON: %s", str(e))

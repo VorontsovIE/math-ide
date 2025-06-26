@@ -3,7 +3,7 @@
 Содержит DisplayManager для красивого вывода различных типов данных.
 """
 
-from typing import Optional, List, Any
+from typing import Optional, List, Any, cast
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -56,7 +56,7 @@ class DisplayManager:
                 self.latex_renderer.render_latex(transformation.expression),
                 params_str
             ]
-            table.add_row(*row)
+            table.add_row(*cast(List[Any], row))
         
         self.console.print(table)
     
@@ -106,7 +106,7 @@ class DisplayManager:
             if any(b.condition for b in step.branches):
                 row.append(branch.condition or "-")
             
-            table.add_row(*row)
+            table.add_row(*cast(List[Any], row))
         
         self.console.print(table)
     

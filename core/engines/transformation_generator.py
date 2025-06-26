@@ -96,7 +96,7 @@ class TransformationGenerator:
                 if not isinstance(parsed_data, list):
                     logger.error("Ожидался список преобразований, получен: %s", type(parsed_data))
                     return GenerationResult(transformations=[])
-                transformations_data = cast(List[Dict[str, Any]], parsed_data)
+                transformations_data = parsed_data
             except Exception as e:
                 logger.error("Ошибка парсинга JSON: %s", str(e))
                 logger.error("Проблемный JSON: %s", json_content)

@@ -103,15 +103,6 @@ class TransformationApplier:
             try:
                 # Используем безопасный парсинг JSON с автоматическим исправлением
                 parsed_data = safe_json_parse(json_content)
-                # Проверяем, что это словарь
-                if not isinstance(parsed_data, dict):
-                    logger.error("Ожидался JSON-объект, получен: %s", type(parsed_data))
-                    return ApplyResult(
-                        result=current_step.expression,
-                        is_valid=False,
-                        explanation="Неверный формат ответа",
-                        errors=["invalid_response_format"]
-                    )
                 result_data = parsed_data
             except Exception as e:
                 logger.error("Ошибка парсинга JSON: %s", str(e))

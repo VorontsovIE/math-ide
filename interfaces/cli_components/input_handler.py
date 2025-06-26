@@ -4,7 +4,7 @@
 """
 
 import click
-from typing import Optional, Any, List, Union
+from typing import Optional, Any, List, Union, cast
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -111,7 +111,7 @@ class InputHandler:
         """
         while True:
             try:
-                choice = click.prompt(prompt, type=str).strip().lower()
+                choice = cast(str, click.prompt(prompt, type=str)).strip().lower()
                 
                 if choices is None:
                     return choice
@@ -140,7 +140,7 @@ class InputHandler:
         """
         while True:
             try:
-                choice = click.prompt(prompt, type=int)
+                choice = cast(int, click.prompt(prompt, type=int))
                 
                 if min_value <= choice <= max_value:
                     return choice
@@ -160,7 +160,7 @@ class InputHandler:
         Returns:
             True если пользователь подтвердил, False иначе
         """
-        return click.confirm(message)
+        return bool(click.confirm(message))
     
     def get_transformation_choice(self, num_transformations: int) -> Optional[int]:
         """Get user's transformation choice."""
@@ -246,13 +246,14 @@ class InputHandler:
         except KeyboardInterrupt:
             return None
     
-    def get_numeric_parameter(self, param_def: ParameterDefinition) -> Union[int, float, str]:
+    def get_numeric_parameter(self, param_def: ParameterDefinition) -> str:
         """Get numeric parameter value from user."""
         while True:
             try:
                 value = self.console.input(f"{param_def.prompt} (число): ")
                 if param_def.param_type == ParameterType.NUMBER:
-                    return float(value) if '.' in value else int(value)
+                    # Проверяем, что это число, но возвращаем как строку
+                    float(value) if '.' in value else int(value)
                 return value
             except ValueError:
                 self.console.print("[red]Введите корректное число[/red]")

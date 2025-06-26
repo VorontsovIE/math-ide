@@ -3,10 +3,10 @@
 from typing import Dict, Any, List, Optional, Callable
 from core.types import (
     SolutionStep, Transformation, TransformationParameter,
-    ParameterType, SolutionType
+    ParameterType, SolutionType, GenerationResult
 )
 from core.engine import TransformationEngine
-from core.history import HistoryManager
+from core.history import SolutionHistory
 from .input_handler import InputHandler
 from .display_manager import DisplayManager
 
@@ -14,8 +14,8 @@ from .display_manager import DisplayManager
 class SolutionProcessor:
     """Handles solution processing workflow."""
     
-    def __init__(self, engine: TransformationEngine, history: HistoryManager,
-                 input_handler: InputHandler, display_manager: DisplayManager):
+    def __init__(self, engine: TransformationEngine, history: SolutionHistory,
+                 input_handler: InputHandler, display_manager: DisplayManager) -> None:
         self.engine = engine
         self.history = history
         self.input_handler = input_handler
@@ -34,19 +34,19 @@ class SolutionProcessor:
                 return False
             
             # Generate transformations  
-            transformations = self.engine.generate_transformations(problem)
-            if not transformations or not transformations.transformations:
+            transformations_result = self.engine.generate_transformations(problem)
+            if not transformations_result or not transformations_result.transformations:
                 self.display_manager.show_error("Не удалось сгенерировать трансформации")
                 return False
             
             # Display transformations and get user choice
-            self.display_manager.show_transformations(transformations)
-            choice = self.input_handler.get_transformation_choice(len(transformations.transformations))
+            self.display_manager.show_transformations(transformations_result.transformations)
+            choice = self.input_handler.get_transformation_choice(len(transformations_result.transformations))
             
             if choice is None:  # User cancelled
                 return False
             
-            selected_transformation = transformations.transformations[choice]
+            selected_transformation = transformations_result.transformations[choice]
             
             # Handle parameterized transformations
             if selected_transformation.requires_user_input:
@@ -63,12 +63,8 @@ class SolutionProcessor:
             
             # Create and save solution step
             step = SolutionStep(
-                step_number=len(self.history.steps) + 1,
-                description=selected_transformation.description,
-                original_expression=problem,
-                transformed_expression=result,
-                transformation=selected_transformation,
-                reasoning=selected_transformation.reasoning or ""
+                expression=problem,
+                solution_type=SolutionType.SINGLE
             )
             
             # Add step to history using the simplified API
@@ -76,18 +72,16 @@ class SolutionProcessor:
                 expression=problem,
                 available_transformations=[{
                     'description': t.description,
-                    'reasoning': t.reasoning,
                     'requires_user_input': t.requires_user_input
-                } for t in transformations.transformations],
+                } for t in transformations_result.transformations],
                 chosen_transformation={
                     'description': selected_transformation.description,
-                    'reasoning': selected_transformation.reasoning,
-                    'expression': result
+                    'expression': result.result
                 },
-                result_expression=result
+                result_expression=result.result
             )
             
-            self.display_manager.show_step(step)
+            self.display_manager.show_info(f"Применено преобразование: {selected_transformation.description}")
             
             return True
             
@@ -95,33 +89,36 @@ class SolutionProcessor:
             self.display_manager.show_error(f"Ошибка при обработке шага: {e}")
             return False
     
-    def _collect_transformation_parameters(self, transformation: Transformation) -> Optional[Dict[str, Any]]:
+    def _collect_transformation_parameters(self, transformation: Transformation) -> Optional[List[TransformationParameter]]:
         """Collect parameters for parameterized transformation."""
         if not transformation.parameter_definitions:
-            return {}
+            return []
         
-        parameters = {}
+        parameters = []
         
         self.display_manager.show_info(f"Трансформация '{transformation.description}' требует параметры:")
         
         for param_def in transformation.parameter_definitions:
             try:
-                if param_def.type == ParameterType.NUMBER:
+                if param_def.param_type == ParameterType.NUMBER:
                     value = self.input_handler.get_numeric_parameter(param_def)
-                elif param_def.type == ParameterType.EXPRESSION:
+                elif param_def.param_type == ParameterType.EXPRESSION:
                     value = self.input_handler.get_expression_parameter(param_def)
-                elif param_def.type == ParameterType.CHOICE:
+                elif param_def.param_type == ParameterType.CHOICE:
                     value = self.input_handler.get_choice_parameter(param_def)
-                elif param_def.type == ParameterType.TEXT:
+                elif param_def.param_type == ParameterType.TEXT:
                     value = self.input_handler.get_text_parameter(param_def)
                 else:
-                    self.display_manager.show_error(f"Неизвестный тип параметра: {param_def.type}")
+                    self.display_manager.show_error(f"Неизвестный тип параметра: {param_def.param_type}")
                     return None
                 
-                if value is None:  # User cancelled
+                if not value:  # User cancelled or empty value
                     return None
                 
-                parameters[param_def.name] = value
+                parameters.append(TransformationParameter(
+                    name=param_def.name,
+                    value=value
+                ))
                 
             except KeyboardInterrupt:
                 self.display_manager.show_info("Ввод параметров отменён")
@@ -132,28 +129,23 @@ class SolutionProcessor:
         
         return parameters
     
-    def show_solution_summary(self):
+    def show_solution_summary(self) -> None:
         """Show complete solution summary."""
-        steps = self.history.get_steps()
-        if not steps:
+        if not self.history or self.history.is_empty():
             self.display_manager.show_info("История решения пуста")
             return
         
-        self.display_manager.show_solution_summary(steps)
+        self.display_manager.display_history(self.history)
     
     def handle_rollback(self) -> bool:
         """Handle solution rollback."""
-        if not self.history.can_rollback():
+        if not self.history or not self.history.can_rollback():
             self.display_manager.show_info("Нет шагов для отката")
             return False
         
-        steps = self.history.get_steps()
-        if not steps:
-            return False
-        
         # Show current steps for selection
-        self.display_manager.show_steps_for_rollback(steps)
-        step_choice = self.input_handler.get_rollback_choice(len(steps))
+        self.display_manager.display_interactive_history(self.history)
+        step_choice = self.input_handler.get_rollback_choice(len(self.history.steps))
         
         if step_choice is None:
             return False
