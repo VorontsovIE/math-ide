@@ -4,8 +4,6 @@ import logging
 import re
 from typing import List, Optional, Any, Dict
 from pathlib import Path
-import openai
-from openai import OpenAI
 import io
 
 # Импортируем типы данных из отдельного модуля
@@ -23,6 +21,7 @@ from .types import (
 )
 from .parsers import safe_json_parse, fix_latex_escapes_in_json
 from .prompts import PromptManager
+from .gpt_client import GPTClient
 
 # Настройка логирования
 logging.basicConfig(
@@ -56,7 +55,7 @@ class TransformationEngine:
 
     def __init__(self, api_key: Optional[str] = None, model: str = "gpt-3.5-turbo", preview_mode: bool = False):
         self.model = model
-        self.client = OpenAI(api_key=api_key)
+        self.client = GPTClient(api_key=api_key, model=model)
         self.prompt_manager = PromptManager()
         self.preview_mode = preview_mode
         
@@ -87,28 +86,25 @@ class TransformationEngine:
             )
             
             logger.debug("Отправка запроса к GPT для генерации преобразований")
-            # Запрос к GPT
-            response = self.client.chat.completions.create(
-                model=self.model,
+            # Запрос к GPT через GPTClient
+            gpt_response = self.client.chat_completion(
                 messages=[
                     {"role": "system", "content": "Ты - эксперт по математике. Отвечай только в JSON-формате."},
                     {"role": "user", "content": formatted_prompt}
                 ],
-                temperature=0.7,
-                max_tokens=1000
+                temperature=0.7
             )
             
             # Логируем токены
-            usage = response.usage
             logger.info(
                 "Использование токенов: промпт=%d, ответ=%d, всего=%d",
-                usage.prompt_tokens,
-                usage.completion_tokens,
-                usage.total_tokens
+                gpt_response.usage.prompt_tokens,
+                gpt_response.usage.completion_tokens,
+                gpt_response.usage.total_tokens
             )
             
             # Парсим ответ
-            content = response.choices[0].message.content.strip()
+            content = gpt_response.content
             logger.debug("Получен ответ от GPT: %s", content)
             
             # Проверяем, что ответ не пустой
@@ -701,3 +697,4 @@ class TransformationEngine:
                 corrected_result=current_result,
                 verification_explanation=f"Ошибка при проверке преобразования: {str(e)}",
                 errors_found=[f"Системная ошибка: {str(e)}"]
+            )
