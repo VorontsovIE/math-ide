@@ -283,6 +283,94 @@ class MathIDECLI:
         
         console.print(table)
     
+    def display_interactive_history(self) -> Optional[int]:
+        """
+        Отображает интерактивную историю с возможностью возврата к произвольному шагу.
+        
+        Returns:
+            Номер шага для возврата или None если возврат не нужен
+        """
+        if not self.history or self.history.is_empty():
+            console.print("[yellow]История пуста[/yellow]")
+            return None
+        
+        if not self.history.can_rollback():
+            console.print("[yellow]Недостаточно шагов для возврата[/yellow]") 
+            return None
+        
+        summary = self.history.get_full_history_summary()
+        
+        # Отображаем историю с номерами для возврата
+        table = Table(title="История решения (интерактивная)")
+        table.add_column("№ для возврата", justify="right", style="cyan", width=12)
+        table.add_column("Шаг", justify="right", style="cyan")
+        table.add_column("Выражение", style="green")
+        table.add_column("Преобразование", style="blue")
+        table.add_column("Результат", style="magenta")
+        table.add_column("Статус", style="white")
+        
+        current_step_number = len(summary["steps"]) - 1
+        
+        for idx, step in enumerate(summary["steps"]):
+            transformation = "-"
+            if step["has_chosen_transformation"]:
+                tr = step["chosen_transformation"]
+                transformation = f"{tr['description']} ({tr['type']})"
+            
+            result = step["result_expression"] if step["has_result"] else "-"
+            
+            # Определяем статус шага
+            if idx == current_step_number:
+                status = "[bold green]← Текущий[/bold green]"
+            elif idx < current_step_number:
+                status = "Можно вернуться"
+            else:
+                status = "Будущий"
+            
+            # Номер для возврата (только для прошлых шагов)
+            rollback_num = str(idx) if idx < current_step_number else "-"
+            
+            table.add_row(
+                rollback_num,
+                str(step["step_number"]),
+                render_latex(step["expression"]),
+                transformation,
+                render_latex(result) if result != "-" else result,
+                status
+            )
+        
+        console.print(table)
+        
+        # Запрашиваем у пользователя выбор
+        max_rollback_step = current_step_number - 1
+        if max_rollback_step < 0:
+            console.print("[yellow]Нет доступных шагов для возврата[/yellow]")
+            return None
+        
+        console.print(f"\n[cyan]Доступные команды:[/cyan]")
+        console.print(f"• Введите номер шага (0-{max_rollback_step}) для возврата")
+        console.print(f"• 'c' - отменить возврат и продолжить")
+        console.print(f"• 'q' - выйти из программы")
+        
+        while True:
+            try:
+                choice = click.prompt("Ваш выбор", type=str).strip().lower()
+                
+                if choice == 'c':
+                    return None
+                elif choice == 'q':
+                    return -1  # Специальное значение для выхода
+                else:
+                    step_num = int(choice)
+                    if 0 <= step_num <= max_rollback_step:
+                        return step_num
+                    else:
+                        console.print(f"[red]Введите номер от 0 до {max_rollback_step}[/red]")
+            except ValueError:
+                console.print("[red]Введите корректный номер шага, 'c' или 'q'[/red]")
+            except click.Abort:
+                return None
+    
     def solve_task(self, task: str) -> None:
         """Основной процесс решения задачи."""
         self.history = SolutionHistory(task)
@@ -304,7 +392,7 @@ class MathIDECLI:
             # Если есть ветвящееся решение, предлагаем пользователю выбрать ветвь
             if analyzed_step.solution_type != SolutionType.SINGLE:
                 choice = click.prompt(
-                    "Выберите ветвь для продолжения (номер), 'a' для анализа всех ветвей, 'h' для истории, 'q' для выхода",
+                    "Выберите ветвь для продолжения (номер), 'a' для анализа всех ветвей, 'h' для истории, 'r' для возврата к шагу, 'q' для выхода",
                     type=str
                 )
                 
@@ -312,6 +400,20 @@ class MathIDECLI:
                     break
                 elif choice.lower() == 'h':
                     self.display_history()
+                    continue
+                elif choice.lower() == 'r':
+                    # Интерактивный возврат к произвольному шагу
+                    rollback_step = self.display_interactive_history()
+                    if rollback_step == -1:  # Выход из программы
+                        break
+                    elif rollback_step is not None:
+                        # Выполняем возврат
+                        if self.history.rollback_to_step(rollback_step):
+                            console.print(f"[green]Возврат к шагу {rollback_step} выполнен успешно![/green]")
+                            # Обновляем текущий шаг на основе истории
+                            current_step = SolutionStep(expression=self.history.get_current_expression())
+                        else:
+                            console.print(f"[red]Ошибка возврата к шагу {rollback_step}[/red]")
                     continue
                 elif choice.lower() == 'a':
                     console.print("[yellow]Анализ всех ветвей пока не реализован[/yellow]")
@@ -352,7 +454,7 @@ class MathIDECLI:
             
             # Запрашиваем выбор пользователя
             choice = click.prompt(
-                "Выберите преобразование (номер) или введите 'h' для истории, 'q' для выхода",
+                "Выберите преобразование (номер) или введите 'h' для истории, 'r' для возврата к шагу, 'q' для выхода",
                 type=str
             )
             
@@ -360,6 +462,20 @@ class MathIDECLI:
                 break
             elif choice.lower() == 'h':
                 self.display_history()
+                continue
+            elif choice.lower() == 'r':
+                # Интерактивный возврат к произвольному шагу
+                rollback_step = self.display_interactive_history()
+                if rollback_step == -1:  # Выход из программы
+                    break
+                elif rollback_step is not None:
+                    # Выполняем возврат
+                    if self.history.rollback_to_step(rollback_step):
+                        console.print(f"[green]Возврат к шагу {rollback_step} выполнен успешно![/green]")
+                        # Обновляем текущий шаг на основе истории
+                        current_step = SolutionStep(expression=self.history.get_current_expression())
+                    else:
+                        console.print(f"[red]Ошибка возврата к шагу {rollback_step}[/red]")
                 continue
             
             try:

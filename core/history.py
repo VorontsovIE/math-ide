@@ -182,6 +182,70 @@ class SolutionHistory:
                 metadata=step_data["metadata"]
             )
             self.steps.append(step)
+    
+    def rollback_to_step(self, step_number: int) -> bool:
+        """
+        Возвращается к указанному шагу, отбрасывая все последующие шаги.
+        
+        Args:
+            step_number: Номер шага, к которому нужно вернуться
+            
+        Returns:
+            bool: True если возврат успешен, False если шаг не найден
+        """
+        # Проверяем, что номер шага валиден
+        if step_number < 0 or step_number >= len(self.steps):
+            return False
+        
+        # Находим шаг по номеру
+        target_step = None
+        for step in self.steps:
+            if step.step_number == step_number:
+                target_step = step
+                break
+        
+        if target_step is None:
+            return False
+        
+        # Сохраняем только шаги до целевого шага включительно
+        self.steps = [step for step in self.steps if step.step_number <= step_number]
+        
+        # Обновляем текущий номер шага
+        self.current_step_number = step_number + 1
+        
+        return True
+    
+    def rollback_to_step_by_id(self, step_id: str) -> bool:
+        """
+        Возвращается к указанному шагу по ID, отбрасывая все последующие шаги.
+        
+        Args:
+            step_id: ID шага, к которому нужно вернуться
+            
+        Returns:
+            bool: True если возврат успешен, False если шаг не найден
+        """
+        target_step = self.get_step_by_id(step_id)
+        if target_step is None:
+            return False
+        
+        return self.rollback_to_step(target_step.step_number)
+    
+    def get_current_expression(self) -> str:
+        """
+        Возвращает выражение текущего (последнего) шага.
+        Если есть результат преобразования, возвращает его, иначе исходное выражение шага.
+        """
+        current_step = self.get_current_step()
+        if current_step is None:
+            return self.original_task
+        
+        # Возвращаем результат, если он есть, иначе исходное выражение шага
+        return current_step.result_expression or current_step.expression
+    
+    def can_rollback(self) -> bool:
+        """Проверяет, возможен ли откат (есть ли шаги в истории)."""
+        return len(self.steps) > 1  # Больше одного шага (исключая начальный)
 
 
 # Пример использования для демонстрации
