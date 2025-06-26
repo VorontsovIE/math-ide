@@ -27,7 +27,7 @@ class SolutionHistory:
     Поддерживает просмотр истории и задел для отката к произвольному шагу.
     """
     
-    def __init__(self, original_task: str):
+    def __init__(self, original_task: str = ""):
         self.original_task = original_task
         self.steps: List[HistoryStep] = []
         self.current_step_number = 0
@@ -93,6 +93,10 @@ class SolutionHistory:
     def get_all_steps(self) -> List[HistoryStep]:
         """Возвращает все шаги в хронологическом порядке."""
         return self.steps.copy()
+    
+    def get_steps(self) -> List[HistoryStep]:
+        """Алиас для обратной совместимости."""
+        return self.get_all_steps()
     
     def get_steps_count(self) -> int:
         """Возвращает количество шагов в истории."""
@@ -309,3 +313,6 @@ if __name__ == "__main__":
         if step['has_result']:
             print(f"  Результат: {step['result_expression']}")
         print() 
+
+# Алиас для обратной совместимости
+HistoryManager = SolutionHistory 

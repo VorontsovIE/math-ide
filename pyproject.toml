@@ -103,3 +103,8 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"
 asyncio_mode = "auto" 
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+]

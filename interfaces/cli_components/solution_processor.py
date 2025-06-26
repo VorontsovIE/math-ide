@@ -33,25 +33,20 @@ class SolutionProcessor:
                 self.display_manager.show_completion_message()
                 return False
             
-            # Analyze if branching is needed
-            branching_analysis = self.engine.analyze_branching_solution(problem)
-            if branching_analysis and branching_analysis.needs_branching:
-                return self._handle_branching_solution(problem, branching_analysis)
-            
-            # Generate transformations
+            # Generate transformations  
             transformations = self.engine.generate_transformations(problem)
-            if not transformations:
+            if not transformations or not transformations.transformations:
                 self.display_manager.show_error("Не удалось сгенерировать трансформации")
                 return False
             
             # Display transformations and get user choice
             self.display_manager.show_transformations(transformations)
-            choice = self.input_handler.get_transformation_choice(len(transformations))
+            choice = self.input_handler.get_transformation_choice(len(transformations.transformations))
             
             if choice is None:  # User cancelled
                 return False
             
-            selected_transformation = transformations[choice]
+            selected_transformation = transformations.transformations[choice]
             
             # Handle parameterized transformations
             if selected_transformation.requires_user_input:
@@ -76,7 +71,22 @@ class SolutionProcessor:
                 reasoning=selected_transformation.reasoning or ""
             )
             
-            self.history.add_step(step)
+            # Add step to history using the simplified API
+            self.history.add_step(
+                expression=problem,
+                available_transformations=[{
+                    'description': t.description,
+                    'reasoning': t.reasoning,
+                    'requires_user_input': t.requires_user_input
+                } for t in transformations.transformations],
+                chosen_transformation={
+                    'description': selected_transformation.description,
+                    'reasoning': selected_transformation.reasoning,
+                    'expression': result
+                },
+                result_expression=result
+            )
+            
             self.display_manager.show_step(step)
             
             return True
@@ -121,38 +131,6 @@ class SolutionProcessor:
                 return None
         
         return parameters
-    
-    def _handle_branching_solution(self, problem: str, branching_analysis) -> bool:
-        """Handle branching solution workflow."""
-        self.display_manager.show_branching_analysis(branching_analysis)
-        
-        if not self.input_handler.confirm_branching():
-            return self.process_solution_step(problem)  # Continue with regular approach
-        
-        # Generate branching step
-        try:
-            branching_step = self.engine.generate_branching_step(problem, branching_analysis)
-            if not branching_step:
-                self.display_manager.show_error("Не удалось создать ветвящееся решение")
-                return False
-            
-            self.history.add_step(branching_step)
-            self.display_manager.show_branching_step(branching_step)
-            
-            # Let user select branch to continue
-            if branching_step.branches:
-                branch_choice = self.input_handler.get_branch_choice(branching_step.branches)
-                if branch_choice is not None:
-                    selected_branch = branching_step.branches[branch_choice]
-                    self.display_manager.show_info(f"Продолжаем с ветвью: {selected_branch.description}")
-                    # Continue solving with selected branch
-                    return True
-            
-            return True
-            
-        except Exception as e:
-            self.display_manager.show_error(f"Ошибка при обработке ветвящегося решения: {e}")
-            return False
     
     def show_solution_summary(self):
         """Show complete solution summary."""

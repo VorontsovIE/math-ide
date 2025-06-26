@@ -237,4 +237,64 @@ class DisplayManager:
         console.print(Panel.fit(
             f"[green]Задача решена![/green]\n{explanation}\n\nИтоговый результат:\n{self.latex_renderer.render_latex(result)}",
             border_style="green"
-        )) 
+        ))
+    
+    def show_welcome(self):
+        """Show welcome message."""
+        self.console.print(Panel.fit(
+            "[bold blue]Math IDE - Интерактивный решатель математических задач[/bold blue]\n"
+            "Система пошагового решения с поддержкой ветвящихся решений и параметризованных трансформаций",
+            border_style="blue"
+        ))
+    
+    def show_problem(self, problem: str):
+        """Show the problem to be solved."""
+        self.console.print("\n[bold green]Задача:[/bold green]")
+        self.console.print(Panel(self.latex_renderer.render(problem), border_style="green"))
+    
+    def show_completion_message(self):
+        """Show completion message when problem is solved."""
+        self.console.print("\n[bold green]🎉 Задача решена![/bold green]")
+        self.console.print("[green]Все необходимые преобразования выполнены.[/green]")
+    
+    def show_error(self, message: str):
+        """Show error message."""
+        self.console.print(f"[bold red]❌ Ошибка:[/bold red] {message}")
+    
+    def show_info(self, message: str):
+        """Show informational message."""
+        self.console.print(f"[blue]ℹ️ {message}[/blue]")
+    
+    def show_transformations(self, transformations):
+        """Show available transformations for user selection."""
+        from core.types import GenerationResult
+        
+        if isinstance(transformations, GenerationResult):
+            transformation_list = transformations.transformations
+        else:
+            transformation_list = transformations
+        
+        if not transformation_list:
+            self.show_error("Нет доступных трансформаций")
+            return
+        
+        self.console.print("\n[bold yellow]Доступные преобразования:[/bold yellow]")
+        for i, transformation in enumerate(transformation_list, 1):
+            param_info = ""
+            if transformation.requires_user_input:
+                param_info = " [dim](параметрическая)[/dim]"
+            
+            self.console.print(f"{i}. {transformation.description}{param_info}")
+            if transformation.reasoning:
+                self.console.print(f"   [dim]Обоснование: {transformation.reasoning}[/dim]")
+    
+    def show_branching_analysis(self, analysis):
+        """Show branching analysis results."""
+        self.console.print("\n[bold orange_red1]🔀 Обнаружена необходимость ветвления решения[/bold orange_red1]")
+        self.console.print(f"Тип ветвления: {analysis.solution_type}")
+        self.console.print(f"Причина: {analysis.reasoning}")
+        
+        if hasattr(analysis, 'branches') and analysis.branches:
+            self.console.print("\nПредлагаемые ветви:")
+            for i, branch in enumerate(analysis.branches, 1):
+                self.console.print(f"{i}. {branch.description}") 

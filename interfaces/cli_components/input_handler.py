@@ -178,4 +178,88 @@ class InputHandler:
         Returns:
             True если пользователь подтвердил, False иначе
         """
-        return click.confirm(message) 
+        return click.confirm(message)
+    
+    def get_transformation_choice(self, num_transformations: int) -> Optional[int]:
+        """Get user's transformation choice."""
+        while True:
+            try:
+                choice = self.console.input(f"Выберите преобразование (1-{num_transformations}, 0-выход): ")
+                
+                if choice == '0':
+                    return None
+                
+                choice_num = int(choice) - 1
+                if 0 <= choice_num < num_transformations:
+                    return choice_num
+                else:
+                    self.console.print(f"[red]Выберите число от 1 до {num_transformations}[/red]")
+            except ValueError:
+                self.console.print("[red]Введите корректное число[/red]")
+            except KeyboardInterrupt:
+                return None
+    
+    def confirm_branching(self) -> bool:
+        """Ask user to confirm branching approach."""
+        return self.confirm_action("Использовать ветвящийся подход к решению?")
+    
+    def get_branch_choice(self, branches) -> Optional[int]:
+        """Get user's choice of branch to continue with."""
+        if not branches:
+            return None
+        
+        self.console.print("\nДоступные ветви:")
+        for i, branch in enumerate(branches, 1):
+            self.console.print(f"{i}. {branch.description}")
+        
+        while True:
+            try:
+                choice = self.console.input(f"Выберите ветвь (1-{len(branches)}, 0-отмена): ")
+                
+                if choice == '0':
+                    return None
+                
+                choice_num = int(choice) - 1
+                if 0 <= choice_num < len(branches):
+                    return choice_num
+                else:
+                    self.console.print(f"[red]Выберите число от 1 до {len(branches)}[/red]")
+            except ValueError:
+                self.console.print("[red]Введите корректное число[/red]")
+            except KeyboardInterrupt:
+                return None
+    
+    def get_rollback_choice(self, num_steps: int) -> Optional[int]:
+        """Get user's choice for rollback step."""
+        if num_steps == 0:
+            return None
+        
+        self.console.print(f"\nДоступно шагов для отката: {num_steps}")
+        
+        while True:
+            try:
+                choice = self.console.input(f"К какому шагу откатиться? (1-{num_steps}, 0-отмена): ")
+                
+                if choice == '0':
+                    return None
+                
+                choice_num = int(choice) - 1  # Convert to 0-based
+                if 0 <= choice_num < num_steps:
+                    return choice_num
+                else:
+                    self.console.print(f"[red]Выберите число от 1 до {num_steps}[/red]")
+            except ValueError:
+                self.console.print("[red]Введите корректное число[/red]")
+            except KeyboardInterrupt:
+                return None
+    
+    def get_problem_input(self) -> Optional[str]:
+        """Get problem input from user."""
+        try:
+            problem = self.console.input("\n[bold]Введите математическую задачу:[/bold] ").strip()
+            if not problem:
+                self.console.print("[yellow]Задача не может быть пустой[/yellow]")
+                return None
+            return problem
+        except KeyboardInterrupt:
+            return None 
