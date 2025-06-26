@@ -111,7 +111,7 @@ class InputHandler:
         """
         while True:
             try:
-                choice = cast(str, click.prompt(prompt, type=str)).strip().lower()
+                choice = str(click.prompt(prompt, type=str)).strip().lower()
                 
                 if choices is None:
                     return choice
@@ -140,7 +140,7 @@ class InputHandler:
         """
         while True:
             try:
-                choice = cast(int, click.prompt(prompt, type=int))
+                choice = int(click.prompt(prompt, type=int))
                 
                 if min_value <= choice <= max_value:
                     return choice
