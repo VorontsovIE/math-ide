@@ -7,9 +7,8 @@ import logging
 import time
 from typing import Optional, TYPE_CHECKING
 
-# Избегаем прямого импорта telegram для предотвращения ошибок
-# if TYPE_CHECKING:
-#     from telegram import Update, Message
+if TYPE_CHECKING:
+    from telegram import Update, Message
 
 from .rate_limiter import rate_limiter
 
@@ -45,7 +44,7 @@ async def send_status_message(update, message: str, force_update: bool = False):
         return None
 
 
-async def edit_status_message(message: Message, new_text: str, user_id: int, force_update: bool = False) -> bool:
+async def edit_status_message(message: "Message", new_text: str, user_id: int, force_update: bool = False) -> bool:
     """Редактирует сообщение со статусом с проверкой лимитов."""
     if not rate_limiter.can_update_status(user_id, force_update):
         logger.debug(f"Пропущено редактирование статуса для пользователя {user_id} из-за лимитов")
@@ -60,13 +59,15 @@ async def edit_status_message(message: Message, new_text: str, user_id: int, for
         return False
 
 
-async def update_status_with_progress(message: Message, base_text: str, user_id: int) -> bool:
+async def update_status_with_progress(message: "Message", base_text: str, user_id: int) -> bool:
     """Обновляет статус с индикатором прогресса для длительных операций."""
     if not rate_limiter.should_show_progress(user_id):
         return False
     
     current_time = time.time()
-    state = get_user_state(user_id)
+    # Импорт здесь для избежания циклических зависимостей
+    from .state import user_states
+    state = user_states.get(user_id)
     if not state:
         return False
     
