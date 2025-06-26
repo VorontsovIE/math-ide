@@ -1,0 +1,13 @@
+The currently activated Python version 3.9.22 is not supported by the project (^3.10).
+Trying to find and use a compatible version. 
+Using python3.11 (3.11.2)
+2025-06-26 01:59:27 - __main__ - INFO - [telegram_bot.py:437] - Запуск Telegram-бота...
+2025-06-26 01:59:27 - __main__ - INFO - [telegram_bot.py:402] - Инициализация бота...
+2025-06-26 01:59:27 - __main__ - CRITICAL - [telegram_bot.py:421] - Критическая ошибка при запуске бота: name 'start' is not defined
+Traceback (most recent call last):
+  File "/home/vorontsovie/programming/math-ide/interfaces/telegram_bot.py", line 438, in <module>
+    run_bot(token)
+  File "/home/vorontsovie/programming/math-ide/interfaces/telegram_bot.py", line 408, in run_bot
+    application.add_handler(CommandHandler("start", start))
+                                                    ^^^^^
+NameError: name 'start' is not defined

@@ -16,7 +16,7 @@ from telegram.ext import (
     filters,
 )
 
-from core.engine import TransformationEngine, SolutionStep, Transformation
+from core.engine import TransformationEngine, SolutionStep, Transformation, ProgressAnalysisResult
 from core.history import SolutionHistory
 
 # Настройка логирования
@@ -331,6 +331,91 @@ def render_latex_to_image(latex_expression: str) -> io.BytesIO:
         plt.close(fig)
         
         return img_buffer
+
+async def check_and_suggest_rollback(engine: TransformationEngine, state: UserState, 
+                                   update_or_query, caption: str, new_step_id: Optional[str] = None) -> bool:
+    """
+    Проверяет прогресс и при необходимости предлагает мягкую рекомендацию возврата к прошлому шагу.
+    
+    Returns:
+        True если была отправлена рекомендация возврата, False в противном случае
+    """
+    try:
+        # Проверяем, что есть история и достаточно шагов для анализа
+        if not state.history or len(state.history.steps) < 4:
+            return False
+        
+        # Подготавливаем данные для анализа
+        original_task = state.history.original_task
+        current_step = state.current_step.expression if state.current_step else ""
+        steps_count = len(state.history.steps)
+        
+        # Преобразуем шаги истории в нужный формат
+        history_steps = []
+        for step in state.history.steps:
+            step_data = {
+                'expression': step.expression,
+                'chosen_transformation': step.chosen_transformation
+            }
+            history_steps.append(step_data)
+        
+        # Анализируем прогресс
+        logger.info("Анализ прогресса для возможной рекомендации возврата")
+        progress_result = engine.analyze_progress(
+            original_task=original_task,
+            history_steps=history_steps,
+            current_step=current_step,
+            steps_count=steps_count
+        )
+        
+        # Если рекомендуется откат и есть сообщение для пользователя
+        if (progress_result.recommend_rollback and 
+            progress_result.suggestion_message and 
+            progress_result.recommended_step is not None):
+            
+            logger.info(f"Отправка рекомендации возврата к шагу {progress_result.recommended_step}")
+            
+            # Создаем кнопки для рекомендации
+            rollback_keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton(
+                        f"🔙 Вернуться к шагу {progress_result.recommended_step}",
+                        callback_data=f"rollback_{progress_result.recommended_step}"
+                    )
+                ],
+                [
+                    InlineKeyboardButton(
+                        "➡️ Продолжить текущий путь",
+                        callback_data="continue_current"
+                    )
+                ]
+            ])
+            
+            # Отправляем рекомендацию
+            suggestion_text = f"🤔 **Рекомендация:**\n\n{progress_result.suggestion_message}"
+            
+            if hasattr(update_or_query, 'message'):
+                # Это query
+                await update_or_query.message.reply_text(
+                    suggestion_text,
+                    reply_markup=rollback_keyboard,
+                    parse_mode='Markdown'
+                )
+            else:
+                # Это update
+                await update_or_query.message.reply_text(
+                    suggestion_text,
+                    reply_markup=rollback_keyboard,
+                    parse_mode='Markdown'
+                )
+            
+            return True
+            
+    except Exception as e:
+        logger.error(f"Ошибка при анализе прогресса: {e}")
+        
+    return False
+
 
 def render_transformations_image(current_expression: str, transformations: List[Transformation]) -> io.BytesIO:
     """Рендерит изображение с текущим выражением и всеми доступными преобразованиями."""
@@ -742,6 +827,9 @@ async def handle_transformation_choice(update: Update, context: ContextTypes.DEF
                 )
                 
                 logger.info(f"Сгенерировано {len(generation_result.transformations)} новых преобразований")
+                
+                # Проверяем прогресс и при необходимости предлагаем откат
+                await check_and_suggest_rollback(engine, state, query, caption, new_step_id)
         else:
             logger.error(f"Ошибка при применении преобразования: {apply_result.explanation}")
             await query.answer(f"❌ Ошибка: {apply_result.explanation}")
@@ -750,6 +838,73 @@ async def handle_transformation_choice(update: Update, context: ContextTypes.DEF
         await query.answer("❌ Произошла ошибка при обработке преобразования")
     
     await query.answer()
+
+async def handle_rollback_suggestion(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик рекомендаций возврата к прошлым шагам."""
+    query = update.callback_query
+    user_id = query.from_user.id
+    
+    if user_id not in user_states:
+        await query.answer("❌ Сначала начните решение задачи")
+        return
+    
+    state = user_states[user_id]
+    
+    try:
+        callback_data = query.data
+        
+        if callback_data == "continue_current":
+            # Пользователь решил продолжить текущий путь
+            await query.answer("➡️ Продолжаем текущий путь")
+            await query.message.delete()  # Удаляем сообщение с рекомендацией
+            return
+        
+        if callback_data.startswith("rollback_"):
+            # Пользователь выбрал откат к определенному шагу
+            step_number = int(callback_data.split("_")[1])
+            
+            if not state.history:
+                await query.answer("❌ История не найдена")
+                return
+            
+            # Находим шаг для возврата
+            target_step = state.history.get_step_by_number(step_number)
+            if not target_step:
+                await query.answer("❌ Шаг не найден в истории")
+                return
+            
+            logger.info(f"Возврат к шагу {step_number}: {target_step.expression}")
+            
+            # Обновляем текущее состояние
+            state.current_step = SolutionStep(expression=target_step.expression)
+            
+            # Генерируем новые преобразования для этого шага
+            await query.answer("🔄 Возвращаемся к выбранному шагу...")
+            
+            engine = TransformationEngine(preview_mode=True)
+            generation_result = engine.generate_transformations(state.current_step)
+            
+            if generation_result.transformations:
+                state.available_transformations = generation_result.transformations
+                
+                # Отправляем изображение с преобразованиями
+                img = render_transformations_image(target_step.expression, generation_result.transformations)
+                await query.message.reply_photo(
+                    photo=img,
+                    caption=f"🔙 Вернулись к шагу {step_number}\n\nВыберите следующее преобразование:",
+                    reply_markup=get_transformations_keyboard(generation_result.transformations, target_step.id)
+                )
+                
+                # Удаляем сообщение с рекомендацией
+                await query.message.delete()
+                
+                logger.info(f"Успешно вернулись к шагу {step_number}")
+            else:
+                await query.answer("❌ Не удалось сгенерировать преобразования для этого шага")
+        
+    except Exception as e:
+        logger.error(f"Ошибка при обработке рекомендации возврата: {e}")
+        await query.answer("❌ Произошла ошибка при обработке возврата")
 
 async def handle_custom_transformation(update: Update, user_id: int, custom_description: str) -> None:
     """Обработчик пользовательского преобразования."""
@@ -987,6 +1142,7 @@ def run_bot(token: str) -> None:
         application.add_handler(CommandHandler("cancel", cancel))
         application.add_handler(CommandHandler("history", show_history))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_task))
+        application.add_handler(CallbackQueryHandler(handle_rollback_suggestion, pattern=r"^(rollback_|continue_current)"))
         application.add_handler(CallbackQueryHandler(handle_transformation_choice))
         
         logger.info("Бот успешно инициализирован")

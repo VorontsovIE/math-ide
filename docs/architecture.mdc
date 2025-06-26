@@ -147,6 +147,20 @@ class CheckResult:
 ```
 **Назначение:** Результат проверки завершённости решения задачи
 
+#### ProgressAnalysisResult
+```python
+@dataclass
+class ProgressAnalysisResult:
+    progress_assessment: str  # good, neutral, poor
+    confidence: float
+    analysis: str
+    recommend_rollback: bool
+    recommended_step: Optional[int] = None
+    rollback_reason: Optional[str] = None
+    suggestion_message: Optional[str] = None
+```
+**Назначение:** Результат анализа прогресса решения с рекомендациями возврата
+
 #### BaseTransformationType
 ```python
 class BaseTransformationType(Enum):
@@ -166,8 +180,9 @@ class TransformationEngine:
     def generate_transformations(self, step: SolutionStep) -> GenerationResult
     def apply_transformation(self, current_step: SolutionStep, transformation: Transformation) -> ApplyResult
     def check_solution_completeness(self, current_step: SolutionStep, original_task: str) -> CheckResult
+    def analyze_progress(self, original_task: str, history_steps: List[Dict], current_step: str, steps_count: int) -> ProgressAnalysisResult
 ```
-**Назначение:** Главный движок системы, отвечающий за генерацию, применение преобразований и проверку завершённости. Поддерживает режим предпоказа результатов преобразований
+**Назначение:** Главный движок системы, отвечающий за генерацию, применение преобразований, проверку завершённости и анализ прогресса решения. Поддерживает режим предпоказа результатов преобразований
 
 #### SolutionHistory
 ```python
@@ -275,6 +290,27 @@ class RateLimiter:
 - Предварительный результат берется из поля `expression` промпта генерации
 - Не требует дополнительных API вызовов
 - Эффективное использование уже полученных данных
+
+### 11. Анализ прогресса и рекомендации возврата
+
+**Назначение:** Анализирует прогресс решения и предлагает мягкие рекомендации возврата к прошлым шагам при отклонении от оптимального пути.
+
+**Реализация:**
+- Новый промпт `progress_analysis.md` для анализа прогресса решения
+- Метод `analyze_progress()` в `TransformationEngine` 
+- Автоматический анализ после каждого применения преобразования (при наличии достаточной истории)
+- Мягкие рекомендации через интерактивные кнопки в Telegram-боте
+
+**Критерии активации:**
+- Минимум 4 шага в истории решения
+- Анализ показывает отклонение от оптимального пути
+- GPT рекомендует конкретный шаг для возврата
+
+**Особенности:**
+- Рекомендации носят мягкий характер - пользователь может игнорировать их
+- Указывается конкретный шаг для возврата с обоснованием
+- Возможность как принять рекомендацию, так и продолжить текущий путь
+- Анализ не проводится слишком часто (только при достаточной истории)
 
 ### 8. Применение преобразований к историческим шагам
 

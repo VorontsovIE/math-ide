@@ -118,6 +118,18 @@ class CheckResult:
     mathematical_verification: Optional[str] = None  # Математическая проверка корректности
 
 
+@dataclass
+class ProgressAnalysisResult:
+    """Результат анализа прогресса решения."""
+    progress_assessment: str  # good, neutral, poor
+    confidence: float
+    analysis: str
+    recommend_rollback: bool
+    recommended_step: Optional[int] = None
+    rollback_reason: Optional[str] = None
+    suggestion_message: Optional[str] = None
+
+
 class PromptManager:
     """Управляет загрузкой и подстановкой промптов."""
     
@@ -161,6 +173,7 @@ class TransformationEngine:
         self.generation_prompt = self.prompt_manager.load_prompt("generation.md")
         self.apply_prompt = self.prompt_manager.load_prompt("apply.md")
         self.check_prompt = self.prompt_manager.load_prompt("check.md")
+        self.progress_analysis_prompt = self.prompt_manager.load_prompt("progress_analysis.md")
         logger.debug("Промпты успешно загружены")
 
     def generate_transformations(self, step: SolutionStep) -> GenerationResult:
@@ -529,6 +542,141 @@ class TransformationEngine:
                 confidence=0.0,
                 explanation=f"Ошибка при проверке завершённости: {str(e)}",
                 solution_type="error"
+            )
+
+    def analyze_progress(self, original_task: str, history_steps: List[Dict[str, Any]], 
+                        current_step: str, steps_count: int) -> ProgressAnalysisResult:
+        """
+        Анализирует прогресс решения задачи и определяет, стоит ли рекомендовать откат.
+        
+        Args:
+            original_task: Исходная задача
+            history_steps: История шагов решения 
+            current_step: Текущее состояние
+            steps_count: Количество шагов
+            
+        Returns:
+            ProgressAnalysisResult с рекомендациями
+        """
+        try:
+            logger.info("Анализ прогресса решения для задачи: %s", original_task)
+            
+            # Форматируем историю шагов в читаемый вид
+            history_text = ""
+            for i, step in enumerate(history_steps):
+                history_text += f"- Шаг {i}: \"{step.get('expression', '')}\""
+                if step.get('chosen_transformation'):
+                    history_text += f" ({step['chosen_transformation'].get('description', '')})"
+                history_text += "\n"
+            
+            # Форматируем промпт
+            formatted_prompt = self.prompt_manager.format_prompt(
+                self.progress_analysis_prompt,
+                original_task=original_task,
+                history_steps=history_text,
+                current_step=current_step,
+                steps_count=steps_count
+            )
+            
+            logger.debug("Отправка запроса к GPT для анализа прогресса")
+            # Запрос к GPT
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "Ты - эксперт по математике. Отвечай только в JSON-формате."},
+                    {"role": "user", "content": formatted_prompt}
+                ],
+                temperature=0.3,
+                max_tokens=800
+            )
+            
+            # Логируем токены
+            usage = response.usage
+            logger.info(
+                "Использование токенов: промпт=%d, ответ=%d, всего=%d",
+                usage.prompt_tokens,
+                usage.completion_tokens,
+                usage.total_tokens
+            )
+            
+            # Парсим ответ
+            content = response.choices[0].message.content.strip()
+            logger.debug("Получен ответ от GPT: %s", content)
+            
+            # Проверяем, что ответ не пустой
+            if not content:
+                logger.error("Получен пустой ответ от GPT")
+                return ProgressAnalysisResult(
+                    progress_assessment="neutral",
+                    confidence=0.0,
+                    analysis="Не удалось получить анализ прогресса",
+                    recommend_rollback=False
+                )
+            
+            # Пытаемся найти JSON в ответе
+            json_start = content.find('{')
+            json_end = content.rfind('}') + 1
+            
+            if json_start == -1 or json_end == 0:
+                logger.error("Не найден JSON-объект в ответе GPT. Полный ответ: %s", content)
+                return ProgressAnalysisResult(
+                    progress_assessment="neutral",
+                    confidence=0.0,
+                    analysis="Ошибка парсинга ответа GPT",
+                    recommend_rollback=False
+                )
+            
+            json_content = content[json_start:json_end]
+            logger.debug("Извлеченный JSON: %s", json_content)
+            
+            try:
+                # Используем безопасный парсинг JSON
+                analysis_data = safe_json_parse(json_content)
+            except json.JSONDecodeError as e:
+                logger.error("Ошибка парсинга JSON: %s", str(e))
+                logger.error("Проблемный JSON: %s", json_content)
+                return ProgressAnalysisResult(
+                    progress_assessment="neutral",
+                    confidence=0.0,
+                    analysis=f"Ошибка парсинга JSON: {str(e)}",
+                    recommend_rollback=False
+                )
+            
+            # Проверяем обязательные поля
+            required_fields = ["progress_assessment", "confidence", "analysis", "recommend_rollback"]
+            missing_fields = [field for field in required_fields if field not in analysis_data]
+            if missing_fields:
+                logger.error("Отсутствуют обязательные поля в ответе: %s", missing_fields)
+                return ProgressAnalysisResult(
+                    progress_assessment="neutral",
+                    confidence=0.0,
+                    analysis=f"Отсутствуют обязательные поля: {missing_fields}",
+                    recommend_rollback=False
+                )
+            
+            logger.info(
+                "Результат анализа прогресса: оценка=%s, рекомендация отката=%s",
+                analysis_data["progress_assessment"],
+                analysis_data["recommend_rollback"]
+            )
+            
+            return ProgressAnalysisResult(
+                progress_assessment=analysis_data["progress_assessment"],
+                confidence=analysis_data["confidence"],
+                analysis=analysis_data["analysis"],
+                recommend_rollback=analysis_data["recommend_rollback"],
+                recommended_step=analysis_data.get("recommended_step"),
+                rollback_reason=analysis_data.get("rollback_reason"),
+                suggestion_message=analysis_data.get("suggestion_message")
+            )
+            
+        except Exception as e:
+            logger.error("Ошибка при анализе прогресса: %s", str(e), exc_info=True)
+            return ProgressAnalysisResult(
+                progress_assessment="neutral",
+                confidence=0.0,
+                analysis=f"Ошибка при анализе прогресса: {str(e)}",
+                recommend_rollback=False
             )
 
 
