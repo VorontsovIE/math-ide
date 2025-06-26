@@ -1,7 +1,7 @@
 import io
 import logging
 import time
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Any
 import asyncio
 from dataclasses import dataclass, field
 
@@ -16,8 +16,14 @@ from telegram.ext import (
     filters,
 )
 
-from core.engine import TransformationEngine, SolutionStep, Transformation, ProgressAnalysisResult, VerificationResult
+from core.engine import TransformationEngine
 from core.history import SolutionHistory
+from core.types import (
+    SolutionStep, 
+    Transformation, 
+    ProgressAnalysisResult, 
+    VerificationResult
+)
 
 # Настройка логирования
 logging.basicConfig(

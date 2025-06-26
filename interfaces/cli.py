@@ -6,8 +6,9 @@ from rich.table import Table
 from rich.markdown import Markdown
 from rich.text import Text
 
-from core.engine import TransformationEngine, SolutionStep, Transformation
+from core.engine import TransformationEngine
 from core.history import SolutionHistory
+from core.types import SolutionStep, Transformation
 
 console = Console()
 
