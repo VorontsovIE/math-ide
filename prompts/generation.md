@@ -47,8 +47,8 @@
 **Формат параметризованного преобразования:**
 ```json
 {{
-  "description": "Умножить обе части на {FACTOR}",
-  "expression": "{FACTOR} \\cdot (выражение) = {FACTOR} \\cdot (правая_часть)",
+  "description": "Умножить обе части на {{FACTOR}}",
+  "expression": "{{FACTOR}} \\cdot (выражение) = {{FACTOR}} \\cdot (правая_часть)",
   "type": "multiply",
   "requires_user_input": true,
   "parameter_definitions": [
@@ -78,8 +78,8 @@
 **Пример с выбором:**
 ```json
 {{
-  "description": "Заменить {TERM} на его эквивалент",
-  "expression": "выражение с заменой {TERM} на {REPLACEMENT}",
+  "description": "Заменить {{TERM}} на его эквивалент",
+  "expression": "выражение с заменой {{TERM}} на {{REPLACEMENT}}",
   "type": "substitute",
   "requires_user_input": true,
   "parameter_definitions": [

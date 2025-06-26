@@ -31,9 +31,13 @@ class TestTransformationEngine:
         assert self.engine.applier is not None
         assert self.engine.checker is not None
     
-    @patch('core.gpt_client.GPTClient.generate_completion')
-    def test_generate_transformations_success(self, mock_generate):
+    @patch('core.gpt_client.GPTClient.chat_completion')
+    @patch('core.prompts.PromptManager.format_prompt')
+    def test_generate_transformations_success(self, mock_format, mock_chat):
         """Тест успешной генерации преобразований."""
+        # Мокаем форматирование промпта
+        mock_format.return_value = "Test prompt"
+        
         # Мокаем ответ GPT
         mock_response = GPTResponse(
             content='''[
@@ -41,14 +45,14 @@ class TestTransformationEngine:
                     "description": "Раскрыть скобки",
                     "expression": "2x + 2 = 4",
                     "type": "expand",
-                    "metadata": {"difficulty": "elementary school"}
+                    "metadata": {"difficulty": "elementary school", "usefullness": "good"}
                 }
             ]''',
             usage=GPTUsage(prompt_tokens=100, completion_tokens=50, total_tokens=150),
             model="gpt-3.5-turbo",
             finish_reason="stop"
         )
-        mock_generate.return_value = mock_response
+        mock_chat.return_value = mock_response
         
         result = self.engine.generate_transformations(self.sample_step)
         
@@ -57,20 +61,29 @@ class TestTransformationEngine:
         assert result.transformations[0].description == "Раскрыть скобки"
         assert result.transformations[0].type == "expand"
     
-    @patch('core.gpt_client.GPTClient.generate_completion')
-    def test_generate_transformations_error(self, mock_generate):
+    @patch('core.gpt_client.GPTClient.chat_completion')
+    @patch('core.prompts.PromptManager.format_prompt')
+    def test_generate_transformations_error(self, mock_format, mock_chat):
         """Тест обработки ошибки при генерации."""
+        # Мокаем форматирование промпта
+        mock_format.return_value = "Test prompt"
+        
         # Мокаем ошибку API
-        mock_generate.side_effect = Exception("API Error")
+        mock_chat.side_effect = Exception("API Error")
         
         result = self.engine.generate_transformations(self.sample_step)
         
         assert isinstance(result, GenerationResult)
-        assert len(result.transformations) >= 1  # Должна быть заглушка или fallback
+        # При ошибке возвращается пустой список преобразований
+        assert len(result.transformations) == 0
     
-    @patch('core.gpt_client.GPTClient.generate_completion')
-    def test_apply_transformation_success(self, mock_generate):
+    @patch('core.gpt_client.GPTClient.chat_completion')
+    @patch('core.prompts.PromptManager.format_prompt')
+    def test_apply_transformation_success(self, mock_format, mock_chat):
         """Тест успешного применения преобразования."""
+        # Мокаем форматирование промпта
+        mock_format.return_value = "Test prompt"
+        
         transformation = Transformation(
             description="Раскрыть скобки",
             expression="2x + 2 = 4",
@@ -88,7 +101,7 @@ class TestTransformationEngine:
             model="gpt-3.5-turbo",
             finish_reason="stop"
         )
-        mock_generate.return_value = mock_response
+        mock_chat.return_value = mock_response
         
         result = self.engine.apply_transformation(self.sample_step, transformation)
         
@@ -97,9 +110,13 @@ class TestTransformationEngine:
         assert result.result == "2x + 2 = 4"
         assert "распределительный" in result.explanation
     
-    @patch('core.gpt_client.GPTClient.generate_completion')
-    def test_apply_transformation_error(self, mock_generate):
+    @patch('core.gpt_client.GPTClient.chat_completion')
+    @patch('core.prompts.PromptManager.format_prompt')
+    def test_apply_transformation_error(self, mock_format, mock_chat):
         """Тест обработки ошибки при применении."""
+        # Мокаем форматирование промпта
+        mock_format.return_value = "Test prompt"
+        
         transformation = Transformation(
             description="Раскрыть скобки",
             expression="2x + 2 = 4",
@@ -107,7 +124,7 @@ class TestTransformationEngine:
         )
         
         # Мокаем ошибку API
-        mock_generate.side_effect = Exception("API Error")
+        mock_chat.side_effect = Exception("API Error")
         
         result = self.engine.apply_transformation(self.sample_step, transformation)
         
@@ -115,9 +132,13 @@ class TestTransformationEngine:
         assert not result.is_valid
         assert "ошибка" in result.explanation.lower()
     
-    @patch('core.gpt_client.GPTClient.generate_completion')
-    def test_check_solution_completeness_solved(self, mock_generate):
+    @patch('core.gpt_client.GPTClient.chat_completion')
+    @patch('core.prompts.PromptManager.format_prompt')
+    def test_check_solution_completeness_solved(self, mock_format, mock_chat):
         """Тест проверки завершённости - задача решена."""
+        # Мокаем форматирование промпта
+        mock_format.return_value = "Test prompt"
+        
         solved_step = SolutionStep(expression="x = 2")
         
         # Мокаем ответ GPT
@@ -133,7 +154,7 @@ class TestTransformationEngine:
             model="gpt-3.5-turbo",
             finish_reason="stop"
         )
-        mock_generate.return_value = mock_response
+        mock_chat.return_value = mock_response
         
         result = self.engine.check_solution_completeness(solved_step, "Решить уравнение")
         
@@ -142,9 +163,13 @@ class TestTransformationEngine:
         assert result.confidence > 0.9
         assert result.solution_type == "exact"
     
-    @patch('core.gpt_client.GPTClient.generate_completion')
-    def test_check_solution_completeness_not_solved(self, mock_generate):
+    @patch('core.gpt_client.GPTClient.chat_completion')
+    @patch('core.prompts.PromptManager.format_prompt')
+    def test_check_solution_completeness_not_solved(self, mock_format, mock_chat):
         """Тест проверки завершённости - задача не решена."""
+        # Мокаем форматирование промпта
+        mock_format.return_value = "Test prompt"
+        
         # Мокаем ответ GPT
         mock_response = GPTResponse(
             content='''{
@@ -158,7 +183,7 @@ class TestTransformationEngine:
             model="gpt-3.5-turbo",
             finish_reason="stop"
         )
-        mock_generate.return_value = mock_response
+        mock_chat.return_value = mock_response
         
         result = self.engine.check_solution_completeness(self.sample_step, "Решить уравнение")
         
@@ -168,9 +193,13 @@ class TestTransformationEngine:
         assert result.solution_type == "partial"
         assert len(result.next_steps) > 0
 
-    @patch('core.gpt_client.GPTClient.generate_completion')
-    def test_preview_mode_enabled(self, mock_generate):
+    @patch('core.gpt_client.GPTClient.chat_completion')
+    @patch('core.prompts.PromptManager.format_prompt')
+    def test_preview_mode_enabled(self, mock_format, mock_chat):
         """Тест режима предпоказа - должен заполнять preview_result из expression."""
+        # Мокаем форматирование промпта
+        mock_format.return_value = "Test prompt"
+        
         engine = TransformationEngine(api_key="test-key", preview_mode=True)
         step = SolutionStep(expression="2x + 4 = 10")
         
@@ -180,14 +209,15 @@ class TestTransformationEngine:
                 {
                     "description": "Вычесть 4 из обеих частей",
                     "expression": "2x = 6",
-                    "type": "subtract"
+                    "type": "subtract",
+                    "metadata": {"usefullness": "good"}
                 }
             ]''',
             usage=GPTUsage(prompt_tokens=100, completion_tokens=50, total_tokens=150),
             model="gpt-3.5-turbo",
             finish_reason="stop"
         )
-        mock_generate.return_value = mock_response
+        mock_chat.return_value = mock_response
         
         result = engine.generate_transformations(step)
         
@@ -199,11 +229,15 @@ class TestTransformationEngine:
         assert transformation.preview_result == "2x = 6"  # Должен быть скопирован из expression
         
         # Проверяем, что был сделан только 1 вызов для генерации (без дополнительных запросов)
-        assert mock_generate.call_count == 1
+        assert mock_chat.call_count == 1
 
-    @patch('core.gpt_client.GPTClient.generate_completion')
-    def test_preview_mode_disabled(self, mock_generate):
+    @patch('core.gpt_client.GPTClient.chat_completion')
+    @patch('core.prompts.PromptManager.format_prompt')
+    def test_preview_mode_disabled(self, mock_format, mock_chat):
         """Тест обычного режима - не должен генерировать предварительные результаты."""
+        # Мокаем форматирование промпта
+        mock_format.return_value = "Test prompt"
+        
         engine = TransformationEngine(api_key="test-key", preview_mode=False)
         step = SolutionStep(expression="2x + 4 = 10")
         
@@ -213,14 +247,15 @@ class TestTransformationEngine:
                 {
                     "description": "Вычесть 4 из обеих частей",
                     "expression": "2x = 6",
-                    "type": "subtract"
+                    "type": "subtract",
+                    "metadata": {"usefullness": "good"}
                 }
             ]''',
             usage=GPTUsage(prompt_tokens=100, completion_tokens=50, total_tokens=150),
             model="gpt-3.5-turbo",
             finish_reason="stop"
         )
-        mock_generate.return_value = mock_response
+        mock_chat.return_value = mock_response
         
         result = engine.generate_transformations(step)
         
@@ -231,7 +266,7 @@ class TestTransformationEngine:
         assert transformation.preview_result is None
         
         # Проверяем, что был сделан только 1 вызов для генерации
-        assert mock_generate.call_count == 1
+        assert mock_chat.call_count == 1
 
 
 class TestSolutionHistory:
