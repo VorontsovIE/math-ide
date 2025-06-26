@@ -12,12 +12,18 @@ from .types import (
     TransformationParameter,
     Transformation,
     SolutionStep,
+    SolutionType,
+    SolutionBranch,
     GenerationResult,
     ApplyResult,
     CheckResult,
     ProgressAnalysisResult,
     VerificationResult,
     get_transformation_types_markdown,
+    create_solution_step,
+    create_system_step,
+    create_cases_step,
+    create_alternatives_step,
 )
 from .parsers import safe_json_parse, fix_latex_escapes_in_json
 from .prompts import PromptManager
@@ -68,6 +74,7 @@ class TransformationEngine:
         self.check_prompt = self.prompt_manager.load_prompt("check.md")
         self.progress_analysis_prompt = self.prompt_manager.load_prompt("progress_analysis.md")
         self.verification_prompt = self.prompt_manager.load_prompt("verification.md")
+        self.branching_prompt = self.prompt_manager.load_prompt("branching.md")
         logger.debug("Промпты успешно загружены")
 
     def generate_transformations(self, step: SolutionStep) -> GenerationResult:
@@ -698,3 +705,132 @@ class TransformationEngine:
                 verification_explanation=f"Ошибка при проверке преобразования: {str(e)}",
                 errors_found=[f"Системная ошибка: {str(e)}"]
             )
+
+    def analyze_branching_solution(self, step: SolutionStep) -> SolutionStep:
+        """
+        Анализирует математическое выражение на предмет необходимости ветвящегося решения.
+        
+        Args:
+            step: Текущий шаг решения
+            
+        Returns:
+            SolutionStep - либо исходный шаг (если ветвление не нужно), 
+                          либо новый шаг с ветвящейся структурой
+        """
+        try:
+            logger.info("Анализ ветвящегося решения для выражения: %s", step.expression)
+            
+            # Форматируем промпт
+            formatted_prompt = self.prompt_manager.format_prompt(
+                self.branching_prompt,
+                current_state=step.expression
+            )
+            
+            logger.debug("Отправка запроса к GPT для анализа ветвления")
+            # Запрос к GPT через GPTClient
+            gpt_response = self.client.chat_completion(
+                messages=[
+                    {"role": "system", "content": "Ты - эксперт по математике. Отвечай только в JSON-формате."},
+                    {"role": "user", "content": formatted_prompt}
+                ],
+                temperature=0.3  # Средняя температура для баланса точности и креативности
+            )
+            
+            # Логируем токены
+            logger.info(
+                "Использование токенов: промпт=%d, ответ=%d, всего=%d",
+                gpt_response.usage.prompt_tokens,
+                gpt_response.usage.completion_tokens,
+                gpt_response.usage.total_tokens
+            )
+            
+            # Парсим ответ
+            content = gpt_response.content
+            logger.debug("Получен ответ от GPT: %s", content)
+            
+            # Проверяем, что ответ не пустой
+            if not content:
+                logger.error("Получен пустой ответ от GPT")
+                return step  # Возвращаем исходный шаг
+            
+            # Пытаемся найти JSON в ответе
+            json_start = content.find('{')
+            json_end = content.rfind('}') + 1
+            
+            if json_start == -1 or json_end == 0:
+                logger.error("Не найден JSON-объект в ответе GPT. Полный ответ: %s", content)
+                return step
+            
+            json_content = content[json_start:json_end]
+            logger.debug("Извлеченный JSON: %s", json_content)
+            
+            try:
+                # Используем безопасный парсинг JSON
+                branch_data = safe_json_parse(json_content)
+            except json.JSONDecodeError as e:
+                logger.error("Ошибка парсинга JSON: %s", str(e))
+                logger.error("Проблемный JSON: %s", json_content)
+                return step
+            
+            # Проверяем обязательные поля
+            required_fields = ["needs_branching", "solution_type", "description"]
+            missing_fields = [field for field in required_fields if field not in branch_data]
+            if missing_fields:
+                logger.error("Отсутствуют обязательные поля в ответе: %s", missing_fields)
+                return step
+            
+            # Если ветвление не требуется, возвращаем исходный шаг
+            if not branch_data["needs_branching"]:
+                logger.info("Ветвление не требуется для данного выражения")
+                return step
+            
+            # Создаем ветвящийся шаг
+            solution_type_str = branch_data["solution_type"]
+            description = branch_data["description"]
+            branches_data = branch_data.get("branches", [])
+            
+            # Преобразуем строку типа в enum
+            try:
+                solution_type = SolutionType(solution_type_str)
+            except ValueError:
+                logger.error("Неизвестный тип решения: %s", solution_type_str)
+                return step
+            
+            # Создаем ветви
+            branches = []
+            for branch_data_item in branches_data:
+                try:
+                    branch = SolutionBranch(
+                        id=branch_data_item["id"],
+                        name=branch_data_item["name"],
+                        expression=branch_data_item["expression"],
+                        condition=branch_data_item.get("condition"),
+                        is_valid=True
+                    )
+                    branches.append(branch)
+                except KeyError as e:
+                    logger.warning("Пропускаем ветвь из-за отсутствующего поля: %s", str(e))
+                    continue
+            
+            if not branches:
+                logger.error("Не удалось создать ни одной ветви")
+                return step
+            
+            logger.info("Создано ветвящееся решение: тип=%s, ветвей=%d", solution_type_str, len(branches))
+            
+            # Создаем новый шаг с ветвящейся структурой
+            branched_step = SolutionStep(
+                expression=description,
+                solution_type=solution_type,
+                branches=branches,
+                metadata={
+                    "original_expression": step.expression,
+                    "branching_analysis": description
+                }
+            )
+            
+            return branched_step
+            
+        except Exception as e:
+            logger.error("Ошибка при анализе ветвящегося решения: %s", str(e), exc_info=True)
+            return step  # В случае ошибки возвращаем исходный шаг

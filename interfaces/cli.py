@@ -8,7 +8,7 @@ from rich.text import Text
 
 from core.engine import TransformationEngine
 from core.history import SolutionHistory
-from core.types import SolutionStep, Transformation
+from core.types import SolutionStep, Transformation, SolutionType, SolutionBranch
 
 console = Console()
 
@@ -111,6 +111,56 @@ class MathIDECLI:
         
         console.print(table)
     
+    def display_branching_step(self, step: SolutionStep) -> None:
+        """Отображает ветвящийся шаг решения."""
+        if step.solution_type == SolutionType.SINGLE:
+            # Обычное отображение для одиночного шага
+            console.print(Panel.fit(
+                render_latex(step.expression),
+                title="Текущее выражение",
+                border_style="green"
+            ))
+            return
+        
+        # Отображение ветвящегося решения
+        type_descriptions = {
+            SolutionType.SYSTEM: "Система уравнений/неравенств",
+            SolutionType.CASES: "Разбор случаев", 
+            SolutionType.ALTERNATIVES: "Альтернативные методы решения",
+            SolutionType.UNION: "Объединение решений",
+            SolutionType.INTERSECTION: "Пересечение решений"
+        }
+        
+        title = type_descriptions.get(step.solution_type, "Ветвящееся решение")
+        
+        console.print(Panel.fit(
+            step.expression,
+            title=title,
+            border_style="blue"
+        ))
+        
+        # Создаем таблицу для ветвей
+        table = Table(title="Ветви решения")
+        table.add_column("№", justify="right", style="cyan")
+        table.add_column("Название", style="green")
+        table.add_column("Выражение", style="magenta")
+        if any(branch.condition for branch in step.branches):
+            table.add_column("Условие", style="yellow")
+        
+        for idx, branch in enumerate(step.branches, 1):
+            row = [
+                str(idx),
+                branch.name,
+                render_latex(branch.expression)
+            ]
+            
+            if any(b.condition for b in step.branches):
+                row.append(branch.condition or "-")
+            
+            table.add_row(*row)
+        
+        console.print(table)
+    
     def display_history(self) -> None:
         """Отображает историю решения."""
         if not self.history:
@@ -152,15 +202,57 @@ class MathIDECLI:
         )
         
         while True:
+            # Анализируем на предмет ветвящихся решений
+            analyzed_step = self.engine.analyze_branching_solution(current_step)
+            
+            # Отображаем текущее состояние (с учетом ветвления)
+            self.display_branching_step(analyzed_step)
+            
+            # Если есть ветвящееся решение, предлагаем пользователю выбрать ветвь
+            if analyzed_step.solution_type != SolutionType.SINGLE:
+                choice = click.prompt(
+                    "Выберите ветвь для продолжения (номер), 'a' для анализа всех ветвей, 'h' для истории, 'q' для выхода",
+                    type=str
+                )
+                
+                if choice.lower() == 'q':
+                    break
+                elif choice.lower() == 'h':
+                    self.display_history()
+                    continue
+                elif choice.lower() == 'a':
+                    console.print("[yellow]Анализ всех ветвей пока не реализован[/yellow]")
+                    continue
+                
+                try:
+                    branch_idx = int(choice) - 1
+                    if 0 <= branch_idx < len(analyzed_step.branches):
+                        chosen_branch = analyzed_step.branches[branch_idx]
+                        current_step = SolutionStep(expression=chosen_branch.expression)
+                        console.print(f"[green]Выбрана ветвь: {chosen_branch.name}[/green]")
+                        
+                        # Добавляем в историю
+                        self.history.add_step(
+                            expression=analyzed_step.expression,
+                            available_transformations=[],
+                            chosen_transformation={
+                                "description": f"Выбрана ветвь: {chosen_branch.name}",
+                                "type": "branch_selection",
+                                "expression": chosen_branch.expression
+                            },
+                            result_expression=chosen_branch.expression
+                        )
+                        continue
+                    else:
+                        console.print("[red]Неверный номер ветви[/red]")
+                        continue
+                except ValueError:
+                    console.print("[red]Введите корректный номер ветви[/red]")
+                    continue
+            
+            # Обычный процесс для одиночных шагов
             # Генерируем возможные преобразования
             generation_result = self.engine.generate_transformations(current_step)
-            
-            # Отображаем текущее состояние
-            console.print(Panel.fit(
-                render_latex(current_step.expression),
-                title="Текущее выражение",
-                border_style="green"
-            ))
             
             # Отображаем доступные преобразования
             self.display_transformations(generation_result.transformations)
