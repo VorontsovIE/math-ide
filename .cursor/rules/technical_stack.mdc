@@ -18,4 +18,9 @@ alwaysApply: true
 | LaTeX-рендеринг CLI | rich                   | >=13.0     | Отображение формул в терминале                   | https://rich.readthedocs.io/                       |
 | Тестирование        | pytest                 | >=7.0      | Юнит-тесты                                       | https://docs.pytest.org/                           |
 | Документация        | mkdocs                 | >=1.4      | Документирование                                 | https://www.mkdocs.org/                            |
-| Управление зависимостями | poetry             | >=1.5      | Управление зависимостями и пакетами               | https://python-poetry.org/docs/                    |
+| Управление зависимостями | uv                 | >=0.4.0    | Быстрое управление зависимостями и средами        | https://docs.astral.sh/uv/                         |
+| CI/CD               | GitHub Actions         | latest     | Автоматизация тестирования и деплоя              | https://docs.github.com/actions                    |
+| Контейнеризация     | Docker                 | >=24.0     | Контейнеры для деплоя                            | https://docs.docker.com/                           |
+| Reverse Proxy       | Nginx                  | >=1.20     | Проксирование и SSL на VPS                       | https://nginx.org/en/docs/                         |
+| Процесс-менеджер    | systemd                | system     | Управление сервисами на VPS                      | https://systemd.io/                                |
+| Мониторинг          | journalctl             | system     | Логирование и мониторинг на VPS                  | https://www.freedesktop.org/software/systemd/man/journalctl.html |
