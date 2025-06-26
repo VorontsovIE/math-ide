@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 class PromptManager:
     """Управляет загрузкой и подстановкой промптов."""
     
-    def __init__(self, prompts_dir: str = "prompts"):
+    def __init__(self, prompts_dir: str = "prompts") -> None:
         self.prompts_dir = Path(prompts_dir)
         self._cache: Dict[str, str] = {}
     
@@ -33,14 +33,14 @@ class PromptManager:
             self._cache[filename] = content
             return content
     
-    def format_prompt(self, prompt: str, **kwargs) -> str:
+    def format_prompt(self, prompt: str, **kwargs: Any) -> str:
         """Форматирует промпт с подстановкой переменных."""
         try:
             return prompt.format(**kwargs)
         except (KeyError, ValueError) as e:
             raise PromptFormatError(f"Ошибка форматирования промпта: {str(e)}")
     
-    def load_and_format_prompt(self, filename: str, **kwargs) -> str:
+    def load_and_format_prompt(self, filename: str, **kwargs: Any) -> str:
         """Загружает и форматирует промпт одной операцией."""
         prompt = self.load_prompt(filename)
         return self.format_prompt(prompt, **kwargs)

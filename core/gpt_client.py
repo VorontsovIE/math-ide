@@ -5,7 +5,7 @@
 
 import logging
 import time
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Union
 from dataclasses import dataclass
 
 from .exceptions import GPTError, GPTConnectionError, GPTRateLimitError, GPTInvalidResponseError
@@ -36,7 +36,7 @@ class GPTClient:
     """
     
     def __init__(self, api_key: Optional[str] = None, model: str = "gpt-3.5-turbo", 
-                 max_retries: int = 3, retry_delay: float = 1.0):
+                 max_retries: int = 3, retry_delay: float = 1.0) -> None:
         """
         Инициализирует GPT клиент.
         
@@ -91,11 +91,16 @@ class GPTClient:
                     raise GPTInvalidResponseError("Пустой ответ от GPT API")
                 
                 content = response.choices[0].message.content.strip()
-                usage = GPTUsage(
-                    prompt_tokens=response.usage.prompt_tokens,
-                    completion_tokens=response.usage.completion_tokens,
-                    total_tokens=response.usage.total_tokens
-                )
+                
+                # Безопасная обработка usage
+                if response.usage is None:
+                    usage = GPTUsage(prompt_tokens=0, completion_tokens=0, total_tokens=0)
+                else:
+                    usage = GPTUsage(
+                        prompt_tokens=response.usage.prompt_tokens,
+                        completion_tokens=response.usage.completion_tokens,
+                        total_tokens=response.usage.total_tokens
+                    )
                 
                 logger.debug(f"GPT ответ получен. Токены: {usage.total_tokens}")
                 
@@ -103,7 +108,7 @@ class GPTClient:
                     content=content,
                     usage=usage,
                     model=self.model,
-                    finish_reason=response.choices[0].finish_reason
+                    finish_reason=response.choices[0].finish_reason or "stop"
                 )
                 
             except Exception as e:

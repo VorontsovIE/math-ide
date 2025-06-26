@@ -105,5 +105,6 @@ addopts = "-v --tb=short"
 
 [dependency-groups]
 dev = [
+    "mypy>=1.16.1",
     "pytest>=8.4.1",
 ]

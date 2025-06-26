@@ -35,7 +35,7 @@ def fix_latex_escapes_in_json(json_content: str) -> str:
         temp_markers = {}
         marker_counter = 0
         
-        def create_marker():
+        def create_marker() -> str:
             nonlocal marker_counter
             marker = f"__TEMP_MARKER_{marker_counter}__"
             marker_counter += 1

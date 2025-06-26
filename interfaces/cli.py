@@ -1,33 +1,26 @@
 """Command Line Interface for Math IDE."""
 
 import click
-from typing import Optional
 from rich.console import Console
 from rich.panel import Panel
-from rich.text import Text
+from typing import Optional, List
 
 from core.engine import TransformationEngine
-from core.history import HistoryManager
+from core.history import SolutionHistory
+from core.types import SolutionStep, Transformation, SolutionType
 from core.gpt_client import GPTClient
-from core.types import SolutionStep
 
-try:
-    from .cli_components import (
-        DisplayManager, InputHandler, LatexRenderer, SolutionProcessor
-    )
-except ImportError:
-    # Fallback for direct execution
-    from cli_components import (
-        DisplayManager, InputHandler, LatexRenderer, SolutionProcessor
-    )
-
+from .cli_components.display_manager import DisplayManager
+from .cli_components.input_handler import InputHandler
+from .cli_components.latex_renderer import LatexRenderer
+from .cli_components.solution_processor import SolutionProcessor
 
 console = Console()
 
 
 @click.group()
-def cli():
-    """Math IDE - Interactive Mathematical Problem Solver."""
+def cli() -> None:
+    """Math IDE - Интерактивная система решения математических задач."""
     pass
 
 
@@ -36,93 +29,103 @@ def cli():
 @click.option('--model', default='gpt-4o-mini', 
               help='GPT model to use (default: gpt-4o-mini)')
 @click.option('--debug', is_flag=True, help='Enable debug mode')
-def solve(problem: str, model: str, debug: bool):
+def solve(problem: str, model: str, debug: bool) -> None:
     """Solve a mathematical problem interactively."""
     try:
         # Initialize components
-        gpt_client = GPTClient(model_name=model)
-        engine = TransformationEngine(gpt_client)
-        history = HistoryManager()
+        gpt_client = GPTClient(model=model)
+        engine = TransformationEngine(model=model)
+        history = SolutionHistory(problem)
         
-        # Initialize CLI components
         latex_renderer = LatexRenderer()
         display_manager = DisplayManager(console, latex_renderer)
         input_handler = InputHandler(console)
         solution_processor = SolutionProcessor(engine, history, input_handler, display_manager)
         
-        # Show welcome message
         display_manager.show_welcome()
         display_manager.show_problem(problem)
         
-        # Main solution loop
+        # Main solving loop
         current_problem = problem
-        
         while True:
             try:
-                # Process solution step
-                should_continue = solution_processor.process_solution_step(current_problem)
-                
-                if not should_continue:
+                # Check if solved
+                is_solved = engine.check_solution_completeness(current_problem, problem)
+                if is_solved.is_solved:
+                    display_manager.show_completion_message()
                     break
                 
-                # Get current state for next iteration
-                steps = history.get_steps()
-                if steps:
-                    last_step = steps[-1]
-                    if last_step.solution_type and last_step.branches:
-                        # Handle branching continuation
-                        display_manager.show_info("Выберите действие:")
-                        display_manager.show_info("1. Продолжить с текущей ветвью")
-                        display_manager.show_info("2. Переключиться на другую ветвь")
-                        display_manager.show_info("3. Показать полное решение")
-                        display_manager.show_info("4. Откатить шаг")
-                        display_manager.show_info("5. Выйти")
-                        
-                        action = input_handler.get_user_choice("Выберите действие (1-5): ", 1, 5)
-                        
-                        if action == 1:
-                            current_problem = last_step.transformed_expression
-                        elif action == 2:
-                            branch_choice = input_handler.get_branch_choice(last_step.branches)
-                            if branch_choice is not None:
-                                selected_branch = last_step.branches[branch_choice]
-                                current_problem = selected_branch.expression
-                        elif action == 3:
-                            solution_processor.show_solution_summary()
-                            if not input_handler.confirm_action("Продолжить решение?"):
-                                break
-                        elif action == 4:
-                            if solution_processor.handle_rollback():
-                                steps = history.get_steps()
-                                if steps:
-                                    current_problem = steps[-1].transformed_expression
-                                else:
-                                    current_problem = problem
-                        else:
-                            break
+                # Generate transformations
+                transformations = engine.generate_transformations(current_problem)
+                if not transformations or not transformations.transformations:
+                    display_manager.show_error("Не удалось сгенерировать трансформации")
+                    break
+                
+                # Show available transformations
+                display_manager.show_transformations(transformations.transformations)
+                
+                # Get user choice
+                choice = input_handler.get_user_choice("Выберите преобразование (номер): ", 
+                                                     [str(i+1) for i in range(len(transformations.transformations))])
+                
+                if not choice:
+                    break
+                
+                try:
+                    choice_index = int(choice) - 1
+                    if 0 <= choice_index < len(transformations.transformations):
+                        selected_transformation = transformations.transformations[choice_index]
                     else:
-                        current_problem = last_step.transformed_expression
-                
-                # Show continue options
-                display_manager.show_info("\nВыберите действие:")
-                display_manager.show_info("1. Продолжить решение")
-                display_manager.show_info("2. Показать полное решение")
-                display_manager.show_info("3. Откатить шаг")
-                display_manager.show_info("4. Выйти")
-                
-                action = input_handler.get_user_choice("Выберите действие (1-4): ", 1, 4)
-                
-                if action == 1:
+                        display_manager.show_error("Неверный номер преобразования")
+                        continue
+                except ValueError:
+                    display_manager.show_error("Введите число")
                     continue
-                elif action == 2:
+                
+                # Apply transformation
+                result = engine.apply_transformation(current_problem, selected_transformation)
+                if not result or not result.is_valid:
+                    display_manager.show_error("Не удалось применить преобразование")
+                    continue
+                
+                # Create step and add to history
+                step = SolutionStep(
+                    expression=current_problem,
+                    solution_type=SolutionType.SINGLE
+                )
+                
+                # Add step to history
+                history.add_step(
+                    expression=current_problem,
+                    available_transformations=[t.__dict__ for t in transformations.transformations],
+                    chosen_transformation=selected_transformation.__dict__,
+                    result_expression=result.result
+                )
+                
+                # Show step result
+                display_manager.display_success_message(
+                    f"Применено: {selected_transformation.description}",
+                    result.result
+                )
+                
+                # Update current problem
+                current_problem = result.result
+                
+                # Ask user what to do next
+                action = input_handler.get_user_choice("Выберите действие (1-4): ", 
+                                                     ["1", "2", "3", "4"])
+                
+                if action == "1":
+                    continue
+                elif action == "2":
                     solution_processor.show_solution_summary()
                     if not input_handler.confirm_action("Продолжить решение?"):
                         break
-                elif action == 3:
+                elif action == "3":
                     if solution_processor.handle_rollback():
                         steps = history.get_steps()
                         if steps:
-                            current_problem = steps[-1].transformed_expression
+                            current_problem = steps[-1].expression
                         else:
                             current_problem = problem
                 else:
@@ -159,7 +162,7 @@ def solve(problem: str, model: str, debug: bool):
 
 
 @cli.command()
-def interactive():
+def interactive() -> None:
     """Start interactive problem-solving session."""
     console.print(Panel.fit(
         "[bold blue]Math IDE - Интерактивный режим[/bold blue]\n"
@@ -170,8 +173,8 @@ def interactive():
     try:
         # Initialize components
         gpt_client = GPTClient()
-        engine = TransformationEngine(gpt_client)
-        history = HistoryManager()
+        engine = TransformationEngine()
+        history = SolutionHistory()
         
         latex_renderer = LatexRenderer()
         display_manager = DisplayManager(console, latex_renderer)
@@ -185,7 +188,7 @@ def interactive():
                     continue
                 
                 # Reset history for new problem
-                history = HistoryManager()
+                history = SolutionHistory(problem)
                 solution_processor.history = history
                 
                 display_manager.show_problem(problem)
@@ -201,7 +204,7 @@ def interactive():
                     # Update current problem
                     steps = history.get_steps()
                     if steps:
-                        current_problem = steps[-1].transformed_expression
+                        current_problem = steps[-1].expression
                     
                     # Ask user what to do next
                     if not input_handler.confirm_action("Продолжить решение этой задачи?"):
@@ -230,12 +233,12 @@ def interactive():
 @click.argument('problem')
 @click.option('--steps', '-s', type=int, help='Maximum number of solution steps')
 @click.option('--model', default='gpt-4o-mini', help='GPT model to use')
-def auto(problem: str, steps: Optional[int], model: str):
+def auto(problem: str, steps: Optional[int], model: str) -> None:
     """Automatically solve problem without user interaction."""
     try:
-        gpt_client = GPTClient(model_name=model)
-        engine = TransformationEngine(gpt_client)
-        history = HistoryManager()
+        gpt_client = GPTClient(model=model)
+        engine = TransformationEngine(model=model)
+        history = SolutionHistory(problem)
         
         latex_renderer = LatexRenderer()
         display_manager = DisplayManager(console, latex_renderer)
@@ -249,8 +252,8 @@ def auto(problem: str, steps: Optional[int], model: str):
         
         while step_count < max_steps:
             # Check if solved
-            is_solved = engine.check_solution_completeness(current_problem)
-            if is_solved:
+            is_solved = engine.check_solution_completeness(current_problem, problem)
+            if is_solved.is_solved:
                 display_manager.show_completion_message()
                 break
             
@@ -273,24 +276,30 @@ def auto(problem: str, steps: Optional[int], model: str):
                     break
             
             result = engine.apply_transformation(current_problem, best_transformation)
-            if not result:
+            if not result or not result.is_valid:
                 display_manager.show_error("Не удалось применить трансформацию")
                 break
             
             # Create and save step
             step = SolutionStep(
-                step_number=step_count + 1,
-                description=best_transformation.description,
-                original_expression=current_problem,
-                transformed_expression=result,
-                transformation=best_transformation,
-                reasoning=best_transformation.reasoning or ""
+                expression=current_problem,
+                solution_type=SolutionType.SINGLE
             )
             
-            history.add_step(step)
-            display_manager.show_step(step)
+            # Add to history
+            history.add_step(
+                expression=current_problem,
+                available_transformations=[t.__dict__ for t in transformations.transformations],
+                chosen_transformation=best_transformation.__dict__,
+                result_expression=result.result
+            )
             
-            current_problem = result
+            display_manager.display_success_message(
+                f"Применено: {best_transformation.description}",
+                result.result
+            )
+            
+            current_problem = result.result
             step_count += 1
         
         # Show final solution
@@ -299,7 +308,7 @@ def auto(problem: str, steps: Optional[int], model: str):
         
         steps_list = history.get_steps()
         if steps_list:
-            display_manager.show_solution_summary(steps_list)
+            display_manager.display_history(history)
         else:
             console.print("[yellow]Решение не найдено[/yellow]")
     

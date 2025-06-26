@@ -27,20 +27,20 @@ class BaseTransformationType(Enum):
     CUSTOM = "custom"
 
     @classmethod
-    def descriptions(cls):
+    def descriptions(cls) -> Dict[str, str]:
         """Возвращает описания типов преобразований."""
         return {
-            cls.ADD.value: "добавление к обеим частям",
-            cls.SUBTRACT.value: "вычитание из обеих частей",
-            cls.MULTIPLY.value: "умножение обеих частей",
-            cls.DIVIDE.value: "деление обеих частей",
-            cls.FACTOR.value: "разложение на множители",
-            cls.EXPAND.value: "раскрытие скобок",
-            cls.COLLECT_TERMS.value: "приведение подобных слагаемых",
-            cls.SUBSTITUTE.value: "подстановка",
-            cls.EXPAND_CASES.value: "разбор случаев (например, с модулем)",
-            cls.SIMPLIFY.value: "упрощение выражения",
-            cls.CUSTOM.value: "любое другое преобразование"
+            cls.ADD.value: "Сложение выражений",
+            cls.SUBTRACT.value: "Вычитание выражений", 
+            cls.MULTIPLY.value: "Умножение выражений",
+            cls.DIVIDE.value: "Деление выражений",
+            cls.FACTOR.value: "Разложение на множители",
+            cls.EXPAND.value: "Раскрытие скобок",
+            cls.COLLECT_TERMS.value: "Приведение подобных членов",
+            cls.SUBSTITUTE.value: "Подстановка значений",
+            cls.EXPAND_CASES.value: "Разбор случаев",
+            cls.SIMPLIFY.value: "Упрощение выражения",
+            cls.CUSTOM.value: "Пользовательское преобразование"
         }
 
 
@@ -91,7 +91,7 @@ class SolutionType(Enum):
     SINGLE = "single"           # Одно выражение
     SYSTEM = "system"           # Система уравнений/неравенств
     ALTERNATIVES = "alternatives"  # Альтернативные пути решения
-    CASES = "cases"             # Разбор случаев (например, с модулем)
+    CASES = "cases"             # Разбор случаев (например, с модулем |x|)
     UNION = "union"             # Объединение решений
     INTERSECTION = "intersection"  # Пересечение решений
 

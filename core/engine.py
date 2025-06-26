@@ -1,7 +1,7 @@
 # New refactored engine
 
 import logging
-from typing import List, Optional, Any, Dict
+from typing import List, Optional, Any, Dict, Union, Callable
 
 # Импортируем типы данных из отдельного модуля
 from .types import (
@@ -54,7 +54,7 @@ class TransformationEngine:
     Координирует работу специализированных компонентов.
     """
 
-    def __init__(self, api_key: Optional[str] = None, model: str = "gpt-3.5-turbo", preview_mode: bool = False):
+    def __init__(self, api_key: Optional[str] = None, model: str = "gpt-3.5-turbo", preview_mode: bool = False) -> None:
         self.model = model
         self.client = GPTClient(api_key=api_key, model=model)
         self.prompt_manager = PromptManager()
@@ -73,7 +73,7 @@ class TransformationEngine:
         
         logger.debug("Все компоненты успешно инициализированы")
 
-    def generate_transformations(self, step_or_expression) -> GenerationResult:
+    def generate_transformations(self, step_or_expression: Union[str, SolutionStep]) -> GenerationResult:
         """
         Генерирует список возможных математических преобразований для текущего шага.
         Делегирует работу TransformationGenerator.
@@ -90,7 +90,7 @@ class TransformationEngine:
             
         return self.generator.generate_transformations(step)
 
-    def apply_transformation(self, current_step_or_expression, transformation: Transformation) -> ApplyResult:
+    def apply_transformation(self, current_step_or_expression: Union[str, SolutionStep], transformation: Transformation) -> ApplyResult:
         """
         Применяет выбранное преобразование к текущему шагу решения.
         Делегирует работу TransformationApplier.
@@ -108,7 +108,7 @@ class TransformationEngine:
             
         return self.applier.apply_transformation(step, transformation)
 
-    def check_solution_completeness(self, current_step_or_expression, original_task: str = "") -> CheckResult:
+    def check_solution_completeness(self, current_step_or_expression: Union[str, SolutionStep], original_task: str = "") -> CheckResult:
         """
         Проверяет, завершено ли решение задачи.
         Делегирует работу SolutionChecker.
@@ -152,7 +152,7 @@ class TransformationEngine:
         """
         return self.branching_analyzer.analyze_branching_solution(step)
 
-    def request_parameters(self, transformation: Transformation, user_input_callback) -> Transformation:
+    def request_parameters(self, transformation: Transformation, user_input_callback: Callable[[ParameterDefinition], Any]) -> Transformation:
         """
         Запрашивает параметры у пользователя для параметризованного преобразования.
         
