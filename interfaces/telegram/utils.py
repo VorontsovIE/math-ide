@@ -8,7 +8,7 @@ import time
 from typing import Optional, TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from telegram import Update, Message
+    from telegram import Message
 
 from .rate_limiter import rate_limiter
 
@@ -83,7 +83,6 @@ async def update_status_with_progress(
         return False
 
     operation_time = current_time - state.current_operation_start
-    progress_indicator = get_progress_indicator(operation_time)
 
     # Добавляем информацию о времени выполнения
     if operation_time > 5:

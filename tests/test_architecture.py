@@ -1,20 +1,15 @@
 #!/usr/bin/env python3
 """
-Тесты модульной архитектуры MathIDE.
-Проверяет корректность импортов всех ключевых компонентов с использованием pytest.
+Тесты архитектуры MathIDE.
+Проверяет корректность структуры проекта и импортов.
 """
 
-import pytest
 import sys
 import os
-from typing import List, Tuple
+from typing import List
 
-# Добавляем корневую папку проекта в sys.path для импорта модулей
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(script_dir)
-if project_root not in sys.path:
-    sys.path.insert(0, project_root)
-
+# Добавляем корневую директорию в sys.path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 def _test_import(
     module_path: str, items: List[str], description: str

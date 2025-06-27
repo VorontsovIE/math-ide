@@ -5,14 +5,14 @@
 
 import logging
 import time
-from typing import Optional, Dict, Any, List, Union
+from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
+from openai import OpenAI
 
 from .exceptions import (
-    GPTError,
-    GPTConnectionError,
+    GPTClientError,
     GPTRateLimitError,
-    GPTInvalidResponseError,
+    GPTServiceError,
 )
 
 logger = logging.getLogger(__name__)
@@ -63,14 +63,12 @@ class GPTClient:
         self.retry_delay = retry_delay
 
         try:
-            from openai import OpenAI
-
             self.client = OpenAI(api_key=api_key)
             logger.info(f"Инициализация GPT клиента с моделью {model}")
         except ImportError as e:
-            raise GPTError(f"OpenAI библиотека не установлена: {str(e)}")
+            raise GPTClientError(f"OpenAI библиотека не установлена: {str(e)}")
         except Exception as e:
-            raise GPTConnectionError(f"Ошибка инициализации OpenAI клиента: {str(e)}")
+            raise GPTServiceError(f"Ошибка инициализации OpenAI клиента: {str(e)}")
 
     def _make_request_with_retry(
         self, messages: List[Dict[str, str]], temperature: float = 0.3
@@ -86,7 +84,7 @@ class GPTClient:
             Ответ от GPT
 
         Raises:
-            GPTError: При ошибках API
+            GPTClientError: При ошибках API
         """
         last_error: Optional[Exception] = None
 
@@ -102,7 +100,7 @@ class GPTClient:
 
                 # Проверяем что ответ корректный
                 if not response.choices or not response.choices[0].message.content:
-                    raise GPTInvalidResponseError("Пустой ответ от GPT API")
+                    raise GPTClientError("Пустой ответ от GPT API")
 
                 content = response.choices[0].message.content.strip()
 
@@ -150,20 +148,20 @@ class GPTClient:
                     if attempt < self.max_retries - 1:
                         time.sleep(self.retry_delay)
                         continue
-                    raise GPTConnectionError(f"Ошибка подключения к API: {str(e)}")
+                    raise GPTServiceError(f"Ошибка подключения к API: {str(e)}")
 
                 else:
                     # Для других ошибок не повторяем
                     logger.error(f"GPT API ошибка: {str(e)}")
-                    raise GPTError(f"Ошибка GPT API: {str(e)}")
+                    raise GPTClientError(f"Ошибка GPT API: {str(e)}")
 
         # Если все попытки неудачны
         if last_error is not None:
-            raise GPTError(
+            raise GPTClientError(
                 f"Не удалось выполнить запрос после {self.max_retries} попыток: {str(last_error)}"
             )
         # Этот код недостижим, но оставляем для полноты
-        raise GPTError(f"Не удалось выполнить запрос после {self.max_retries} попыток")
+        raise GPTClientError(f"Не удалось выполнить запрос после {self.max_retries} попыток")
 
     def generate_completion(self, prompt: str, temperature: float = 0.3) -> GPTResponse:
         """

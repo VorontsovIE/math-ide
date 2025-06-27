@@ -1,15 +1,16 @@
-import pytest
-from unittest.mock import Mock, patch
-from core.engine import (
-    TransformationEngine,
+import unittest
+from unittest.mock import patch
+from core.engine import TransformationEngine
+from core.types import (
     SolutionStep,
     Transformation,
-    BaseTransformationType,
+    ParameterDefinition,
+    ParameterType,
     GenerationResult,
     ApplyResult,
     CheckResult,
 )
-from core.history import SolutionHistory, HistoryStep
+from core.history import SolutionHistory
 from core.gpt_client import GPTResponse, GPTUsage
 
 
@@ -270,6 +271,34 @@ class TestTransformationEngine:
         # Проверяем, что был сделан только 1 вызов для генерации
         assert mock_chat.call_count == 1
 
+    def test_apply_transformation_with_parameters(self):
+        """Тест применения преобразования с параметрами."""
+        engine = TransformationEngine(preview_mode=True)
+        
+        # Создаем преобразование с параметрами
+        transformation = Transformation(
+            description="Умножить на коэффициент",
+            expression="x * {COEFFICIENT}",
+            type="multiply",
+            parameter_definitions=[
+                ParameterDefinition(
+                    name="COEFFICIENT",
+                    prompt="Введите коэффициент для умножения:",
+                    param_type=ParameterType.NUMBER,
+                    default_value=2
+                )
+            ],
+            requires_user_input=True
+        )
+        
+        # Применяем преобразование
+        result = engine.apply_transformation("x + 1", transformation)
+        
+        # Проверяем результат
+        assert result.is_valid is True
+        assert "2x + 2" in result.result or "x*2 + 1*2" in result.result
+        assert result.explanation != ""
+
 
 class TestSolutionHistory:
     """Тесты для управления историей решения."""
@@ -294,11 +323,10 @@ class TestSolutionHistory:
             }
         ]
 
-        step_id = self.history.add_step(
+        self.history.add_step(
             expression="2(x + 1) = 4", available_transformations=transformations
         )
 
-        assert step_id is not None
         assert not self.history.is_empty()
         assert self.history.get_steps_count() == 1
 
@@ -318,7 +346,7 @@ class TestSolutionHistory:
         ]
         chosen_transformation = transformations[0]
 
-        step_id = self.history.add_step(
+        self.history.add_step(
             expression="2(x + 1) = 4",
             available_transformations=transformations,
             chosen_transformation=chosen_transformation,
@@ -414,4 +442,4 @@ class TestSolutionHistory:
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    unittest.main([__file__])

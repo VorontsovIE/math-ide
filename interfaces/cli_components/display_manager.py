@@ -1,6 +1,6 @@
 """
-Модуль для отображения информации в CLI.
-Содержит DisplayManager для красивого вывода различных типов данных.
+Модуль для отображения информации в CLI интерфейсе.
+Содержит функции для красивого вывода математических выражений и преобразований.
 """
 
 from typing import Optional, List, Any, cast
@@ -8,7 +8,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from core.types import SolutionStep, Transformation, SolutionType, SolutionBranch
+from core.types import SolutionStep, Transformation, SolutionType
 from core.history import SolutionHistory
 from .latex_renderer import LatexRenderer
 

@@ -1,9 +1,8 @@
 # transformation_generator.py
 
-import json
 import random
 import logging
-from typing import List, Dict, Any, cast, Union
+from typing import Dict, Any, List
 
 from ..types import (
     SolutionStep,

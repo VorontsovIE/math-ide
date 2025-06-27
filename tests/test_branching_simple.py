@@ -9,9 +9,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from core.types import (
-    SolutionStep,
     SolutionType,
-    SolutionBranch,
     create_solution_step,
     create_system_step,
     create_cases_step,

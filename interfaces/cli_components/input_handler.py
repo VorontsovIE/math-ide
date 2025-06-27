@@ -4,10 +4,8 @@
 """
 
 import click
-from typing import Optional, Any, List, Union, cast
+from typing import Optional, Any, List, cast
 from rich.console import Console
-from rich.panel import Panel
-from rich.table import Table
 
 from core.types import ParameterDefinition, ParameterType
 

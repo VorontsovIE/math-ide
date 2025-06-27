@@ -3,17 +3,14 @@
 Содержит функции для создания изображений из LaTeX выражений.
 """
 
-import io
 import logging
+import io
 from typing import List, Optional, TYPE_CHECKING, Any
-
 import matplotlib.pyplot as plt
 
 if TYPE_CHECKING:
     from core.types import Transformation
-    from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 
-# Получаем логгер
 logger = logging.getLogger(__name__)
 
 # Настройка matplotlib для корректного отображения LaTeX
@@ -208,7 +205,7 @@ def render_transformations_image(
                         fontsize=11,
                         transform=ax.transAxes,
                     )
-                except:
+                except Exception:
                     # Если LaTeX не рендерится, показываем как текст
                     ax.text(
                         0.8,
@@ -269,9 +266,6 @@ async def check_and_suggest_rollback(
         True если была отправлена рекомендация возврата, False в противном случае
     """
     try:
-        # Импорт здесь для избежания циклических зависимостей
-        from telegram import InlineKeyboardMarkup, InlineKeyboardButton
-
         # Проверяем, что есть история и достаточно шагов для анализа
         if not state.history or len(state.history.steps) < 4:
             return False

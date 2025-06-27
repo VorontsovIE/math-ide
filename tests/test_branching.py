@@ -1,10 +1,16 @@
 """
 Тесты для ветвящихся решений MathIDE.
+Проверяет функциональность работы с системами уравнений, разбором случаев и альтернативными методами.
 """
+
+import sys
+import os
+
+# Добавляем корневую директорию в sys.path
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
 from core.types import (
-    SolutionStep,
     SolutionType,
     SolutionBranch,
     create_solution_step,

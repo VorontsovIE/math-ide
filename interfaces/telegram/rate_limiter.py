@@ -1,14 +1,10 @@
 """
-Модуль ограничения запросов для Telegram бота.
-Содержит RateLimiter для управления частотой обновлений статуса.
+Модуль для ограничения частоты запросов в Telegram боте.
+Предотвращает спам и превышение лимитов API.
 """
 
-import time
 import logging
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from .state import UserState
+import time
 
 # Получаем логгер
 logger = logging.getLogger(__name__)

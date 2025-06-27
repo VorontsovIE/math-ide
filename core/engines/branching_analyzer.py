@@ -1,7 +1,7 @@
 # branching_analyzer.py
 
 import logging
-from typing import Dict, Any, cast
+from typing import Dict, Any
 
 from ..types import (
     SolutionStep,

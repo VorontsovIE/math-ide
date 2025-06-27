@@ -1,7 +1,7 @@
 # transformation_applier.py
 
 import logging
-from typing import List, Dict, Any, cast
+from typing import List, Dict, Any
 
 from ..types import (
     SolutionStep,

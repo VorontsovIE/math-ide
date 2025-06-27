@@ -1,15 +1,17 @@
 """Command Line Interface for Math IDE."""
 
 import click
+from typing import Optional
 from rich.console import Console
 from rich.panel import Panel
-from typing import Optional, List
 
-from core.engines.transformation_generator import TransformationGenerator
-from core.engines.transformation_applier import TransformationApplier
-from core.engines.solution_checker import SolutionChecker
+from core.engines import (
+    TransformationGenerator,
+    TransformationApplier,
+    SolutionChecker,
+)
+from core.types import SolutionStep, SolutionType
 from core.history import SolutionHistory
-from core.types import SolutionStep, Transformation, SolutionType
 from core.gpt_client import GPTClient
 from core.prompts import PromptManager
 

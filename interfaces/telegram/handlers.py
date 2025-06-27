@@ -10,15 +10,14 @@ if TYPE_CHECKING:
     from telegram import Update
     from telegram.ext import ContextTypes
 
-from core.engine import TransformationEngine
+from core.engines import TransformationGenerator
+from core.types import SolutionStep
 from core.history import SolutionHistory
-from core.types import SolutionStep, Transformation
 
 from .state import user_states, UserState
 from .rate_limiter import rate_limiter
 from .utils import send_status_message, edit_status_message
-from .keyboards import get_transformations_keyboard, get_verification_keyboard
-from .renderers import render_transformations_image, render_latex_to_image
+from .keyboards import get_transformations_keyboard
 
 logger = logging.getLogger(__name__)
 
@@ -150,7 +149,7 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
                 status_message, "🧠 Генерирую возможные преобразования...", user_id
             )
 
-        engine = TransformationEngine(preview_mode=True)
+        engine = TransformationGenerator(preview_mode=True)
         history = SolutionHistory(task)
         current_step = SolutionStep(expression=task)
 

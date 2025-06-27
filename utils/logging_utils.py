@@ -4,7 +4,6 @@
 """
 
 import logging
-import sys
 
 
 def setup_logging(level: str = "INFO", use_colors: bool = True) -> None:

@@ -5,11 +5,10 @@ from typing import List, Optional, Any, Dict, Union, Callable
 
 # Импортируем типы данных из отдельного модуля
 from .types import (
-    BaseTransformationType,
+    SolutionStep,
+    Transformation,
     TransformationParameter,
     ParameterDefinition,
-    Transformation,
-    SolutionStep,
     GenerationResult,
     ApplyResult,
     CheckResult,

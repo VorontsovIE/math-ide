@@ -3,7 +3,6 @@
 """
 
 import re
-from typing import Dict, Any
 
 
 def clean_latex_expression(latex_expr: str) -> str:
