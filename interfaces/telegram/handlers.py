@@ -267,25 +267,71 @@ async def handle_transformation_choice(
         return
 
     try:
-        # Базовая логика для демонстрации
-        await query.answer("🔧 Модуль handlers создан и работает!")
-        if query.message:
-            await query.message.reply_text(
-                "⚙️ Успешно! Telegram бот теперь использует модульную архитектуру!\n\n"
-                "🎯 **Этап 4 завершен на 90%**\n\n"
-                "✅ Созданные модули:\n"
-                "• state.py - управление состояниями\n"
-                "• rate_limiter.py - ограничение запросов\n"
-                "• utils.py - утилиты отправки сообщений\n"
-                "• keyboards.py - inline-клавиатуры\n"
-                "• renderers.py - рендеринг LaTeX\n"
-                "• handlers.py - обработчики команд\n\n"
-                "📊 Основные команды работают:\n"
-                "• /start, /help, /cancel, /history\n"
-                "• Обработка новых задач\n"
-                "• Базовые callback'ы\n\n"
-                "🚀 Рефакторинг почти завершен!"
+        # Получаем данные из callback
+        callback_data = query.data
+        if not callback_data or not callback_data.startswith("transform_"):
+            await query.answer("Неверный формат данных")
+            return
+
+        # Извлекаем индекс преобразования
+        try:
+            transform_index = int(callback_data.split("_")[1])
+        except (IndexError, ValueError):
+            await query.answer("Неверный индекс преобразования")
+            return
+
+        # Проверяем, что индекс в допустимых пределах
+        if not state.available_transformations or transform_index >= len(state.available_transformations):
+            await query.answer("Преобразование не найдено")
+            return
+
+        # Получаем выбранное преобразование
+        selected_transformation = state.available_transformations[transform_index]
+        
+        # Применяем преобразование
+        from core.engines.transformation_applier import TransformationApplier
+        from core.gpt_client import GPTClient
+        from core.prompts import PromptManager
+        
+        client = GPTClient()
+        prompt_manager = PromptManager()
+        applier = TransformationApplier(client, prompt_manager)
+        result = applier.apply_transformation(state.current_step, selected_transformation)
+        
+        if result.is_valid:
+            # Создаем новый шаг с результатом
+            new_step = SolutionStep(expression=result.result)
+            state.current_step = new_step
+            
+            # Добавляем шаг в историю
+            step_id = state.history.add_step(
+                expression=result.result,
+                transformation=selected_transformation.__dict__,
+                available_transformations=[]
             )
+            
+            # Отправляем результат пользователю
+            await query.answer("✅ Преобразование применено!")
+            
+            if query.message:
+                await query.message.reply_text(
+                    f"🔧 **Применено преобразование:**\n"
+                    f"_{selected_transformation.description}_\n\n"
+                    f"📝 **Результат:**\n"
+                    f"`{result.result}`\n\n"
+                    f"🎯 **Следующий шаг:**\n"
+                    f"Отправьте новую задачу или выберите другое преобразование."
+                )
+        else:
+            await query.answer("❌ Ошибка при применении преобразования")
+            if query.message:
+                await query.message.reply_text(
+                    f"❌ **Ошибка:**\n"
+                    f"Не удалось применить преобразование:\n"
+                    f"_{selected_transformation.description}_\n\n"
+                    f"**Причина:** {result.explanation}\n\n"
+                    f"Попробуйте другое преобразование или отправьте новую задачу."
+                )
 
     except Exception as e:
         logger.error(f"Ошибка при обработке выбора преобразования: {e}")
