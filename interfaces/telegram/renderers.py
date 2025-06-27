@@ -115,7 +115,7 @@ def render_transformations_image(
         ax.text(
             0.5,
             0.95,
-            "Текущее выражение:",
+            "Current expression:",
             horizontalalignment="center",
             verticalalignment="top",
             fontsize=14,
@@ -147,7 +147,7 @@ def render_transformations_image(
         ax.text(
             0.5,
             0.78,
-            "Доступные действия:",
+            "Available actions:",
             horizontalalignment="center",
             verticalalignment="top",
             fontsize=14,
@@ -236,7 +236,7 @@ def render_transformations_image(
         ax.text(
             0.5,
             0.5,
-            f"Текущее выражение:\n{current_expression}\n\nДоступно {len(transformations)} преобразований",
+            f"Current expression:\n{current_expression}\n\nAvailable {len(transformations)} transformations",
             horizontalalignment="center",
             verticalalignment="center",
             fontsize=12,
