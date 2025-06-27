@@ -4,8 +4,7 @@
 """
 
 import logging
-from typing import TYPE_CHECKING, Union, cast
-from telegram import Message
+from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from telegram import Update, Message
@@ -275,7 +274,7 @@ async def handle_transformation_choice(
 
         # Извлекаем индекс преобразования
         try:
-            transform_index = int(callback_data.split("_")[1])
+            transform_index = int(callback_data.split("_")[2])
         except (IndexError, ValueError):
             await query.answer("Неверный индекс преобразования")
             return
@@ -293,6 +292,10 @@ async def handle_transformation_choice(
         from core.gpt_client import GPTClient
         from core.prompts import PromptManager
         
+        if not state.current_step:
+            await query.answer("❌ Ошибка: нет текущего шага")
+            return
+            
         client = GPTClient()
         prompt_manager = PromptManager()
         applier = TransformationApplier(client, prompt_manager)
@@ -306,7 +309,7 @@ async def handle_transformation_choice(
             # Добавляем шаг в историю
             step_id = state.history.add_step(
                 expression=result.result,
-                transformation=selected_transformation.__dict__,
+                chosen_transformation=selected_transformation.__dict__,
                 available_transformations=[]
             )
             
@@ -331,7 +334,7 @@ async def handle_transformation_choice(
                     f"_{selected_transformation.description}_\n\n"
                     f"**Причина:** {result.explanation}\n\n"
                     f"Попробуйте другое преобразование или отправьте новую задачу."
-                )
+            )
 
     except Exception as e:
         logger.error(f"Ошибка при обработке выбора преобразования: {e}")
