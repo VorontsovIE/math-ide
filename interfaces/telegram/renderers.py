@@ -8,6 +8,7 @@ import logging
 from typing import TYPE_CHECKING, Any, List, Optional
 
 import matplotlib.pyplot as plt
+import re
 
 if TYPE_CHECKING:
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -27,8 +28,35 @@ plt.rcParams.update(
 )
 
 
+def extract_math_expression(text: str) -> str:
+    """Извлекает математическое выражение из текста, убирая русские слова."""
+    # Паттерны для поиска математических выражений
+    math_patterns = [
+        r'[0-9+\-*/()=<>≤≥≠±√∫∑∏∞θαβγδεζηθικλμνξοπρστυφχψω]+',  # Базовые математические символы
+        r'[a-zA-Z]+[0-9+\-*/()=<>≤≥≠±√∫∑∏∞θαβγδεζηθικλμνξοπρστυφχψω]*',  # Переменные с математическими символами
+        r'[0-9]+\s*[+\-*/]\s*[0-9]+',  # Простые арифметические операции
+        r'[a-zA-Z]+\s*[+\-*/=]\s*[0-9a-zA-Z]+',  # Уравнения с переменными
+    ]
+    
+    # Ищем математические выражения
+    math_expressions = []
+    for pattern in math_patterns:
+        matches = re.findall(pattern, text)
+        math_expressions.extend(matches)
+    
+    if math_expressions:
+        # Возвращаем самое длинное найденное выражение
+        return max(math_expressions, key=len)
+    
+    # Если ничего не найдено, возвращаем исходный текст
+    return text
+
+
 def fix_latex_expression(latex_expr: str) -> str:
     """Исправляет распространенные проблемы в LaTeX-выражениях."""
+    # Сначала извлекаем математическое выражение
+    latex_expr = extract_math_expression(latex_expr)
+    
     # Удаляем лишние пробелы и переводы строк
     latex_expr = " ".join(latex_expr.split())
 
