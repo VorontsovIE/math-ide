@@ -289,6 +289,7 @@ async def handle_transformation_choice(
         
         # Применяем преобразование
         from core.engines.transformation_applier import TransformationApplier
+        from core.engines.transformation_generator import TransformationGenerator
         from core.gpt_client import GPTClient
         from core.prompts import PromptManager
         
@@ -299,6 +300,7 @@ async def handle_transformation_choice(
         client = GPTClient()
         prompt_manager = PromptManager()
         applier = TransformationApplier(client, prompt_manager)
+        engine = TransformationGenerator(client, prompt_manager, preview_mode=True)
         result = applier.apply_transformation(state.current_step, selected_transformation)
         
         if result.is_valid:
@@ -313,18 +315,44 @@ async def handle_transformation_choice(
                 available_transformations=[]
             )
             
+            # Генерируем новые преобразования для следующего шага
+            logger.info("Генерация новых преобразований для следующего шага...")
+            generation_result = engine.generate_transformations(new_step)
+            
+            # Обновляем состояние с новыми преобразованиями
+            state.available_transformations = generation_result.transformations
+            
             # Отправляем результат пользователю
             await query.answer("✅ Преобразование применено!")
             
             if query.message:
-                await query.message.reply_text(
-                    f"🔧 **Применено преобразование:**\n"
-                    f"_{selected_transformation.description}_\n\n"
-                    f"📝 **Результат:**\n"
-                    f"`{result.result}`\n\n"
-                    f"🎯 **Следующий шаг:**\n"
-                    f"Отправьте новую задачу или выберите другое преобразование."
-                )
+                # Если есть новые преобразования, показываем их
+                if generation_result.transformations:
+                    # Подготавливаем изображение с новыми преобразованиями
+                    img = render_transformations_image(result.result, generation_result.transformations)
+                    
+                    await query.message.reply_photo(
+                        photo=img,
+                        caption=f"🔧 **Применено преобразование:**\n"
+                                f"_{selected_transformation.description}_\n\n"
+                                f"📝 **Результат:**\n"
+                                f"`{result.result}`\n\n"
+                                f"🎯 **Выберите следующее преобразование:**",
+                        reply_markup=get_transformations_keyboard(
+                            [tr.__dict__ for tr in generation_result.transformations],
+                            step_id,
+                        ),
+                    )
+                else:
+                    # Если нет новых преобразований, показываем сообщение о завершении
+                    await query.message.reply_text(
+                        f"🔧 **Применено преобразование:**\n"
+                        f"_{selected_transformation.description}_\n\n"
+                        f"📝 **Результат:**\n"
+                        f"`{result.result}`\n\n"
+                        f"🎉 **Задача решена!**\n"
+                        f"Отправьте новую задачу для продолжения."
+                    )
         else:
             await query.answer("❌ Ошибка при применении преобразования")
             if query.message:
