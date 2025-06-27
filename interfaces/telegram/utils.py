@@ -27,14 +27,18 @@ def get_progress_indicator(operation_time: float) -> str:
         return "🐌"
 
 
-async def send_status_message(update: Any, message: str, force_update: bool = False) -> Optional[Any]:
+async def send_status_message(
+    update: Any, message: str, force_update: bool = False
+) -> Optional[Any]:
     """Отправляет сообщение со статусом с проверкой лимитов."""
     user_id = update.effective_user.id
-    
+
     if not rate_limiter.can_update_status(user_id, force_update):
-        logger.debug(f"Пропущено обновление статуса для пользователя {user_id} из-за лимитов")
+        logger.debug(
+            f"Пропущено обновление статуса для пользователя {user_id} из-за лимитов"
+        )
         return None
-    
+
     try:
         result = await update.message.reply_text(message)
         rate_limiter.record_status_update(user_id)
@@ -44,12 +48,16 @@ async def send_status_message(update: Any, message: str, force_update: bool = Fa
         return None
 
 
-async def edit_status_message(message: "Message", new_text: str, user_id: int, force_update: bool = False) -> bool:
+async def edit_status_message(
+    message: "Message", new_text: str, user_id: int, force_update: bool = False
+) -> bool:
     """Редактирует сообщение со статусом с проверкой лимитов."""
     if not rate_limiter.can_update_status(user_id, force_update):
-        logger.debug(f"Пропущено редактирование статуса для пользователя {user_id} из-за лимитов")
+        logger.debug(
+            f"Пропущено редактирование статуса для пользователя {user_id} из-за лимитов"
+        )
         return False
-    
+
     try:
         await message.edit_text(new_text)
         rate_limiter.record_status_update(user_id)
@@ -59,25 +67,28 @@ async def edit_status_message(message: "Message", new_text: str, user_id: int, f
         return False
 
 
-async def update_status_with_progress(message: "Message", base_text: str, user_id: int) -> bool:
+async def update_status_with_progress(
+    message: "Message", base_text: str, user_id: int
+) -> bool:
     """Обновляет статус с индикатором прогресса для длительных операций."""
     if not rate_limiter.should_show_progress(user_id):
         return False
-    
+
     current_time = time.time()
     # Импорт здесь для избежания циклических зависимостей
     from .state import user_states
+
     state = user_states.get(user_id)
     if not state:
         return False
-    
+
     operation_time = current_time - state.current_operation_start
     progress_indicator = get_progress_indicator(operation_time)
-    
+
     # Добавляем информацию о времени выполнения
     if operation_time > 5:
         progress_text = f"{base_text}\n\n⏱️ Выполняется уже {int(operation_time)} сек..."
     else:
         progress_text = base_text
-    
-    return await edit_status_message(message, progress_text, user_id) 
+
+    return await edit_status_message(message, progress_text, user_id)

@@ -12,9 +12,4 @@ from .input_handler import InputHandler
 from .display_manager import DisplayManager
 from .solution_processor import SolutionProcessor
 
-__all__ = [
-    'LatexRenderer',
-    'InputHandler',
-    'DisplayManager', 
-    'SolutionProcessor'
-] 
+__all__ = ["LatexRenderer", "InputHandler", "DisplayManager", "SolutionProcessor"]

@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from telegram.ext import ContextTypes
 
 from core.engine import TransformationEngine
-from core.history import SolutionHistory  
+from core.history import SolutionHistory
 from core.types import SolutionStep, Transformation
 
 from .state import user_states, UserState
@@ -29,9 +29,9 @@ async def start(update: "Update", context: "ContextTypes.DEFAULT_TYPE") -> None:
         return
     user_id = update.effective_user.id
     logger.info(f"Пользователь {user_id} запустил бота")
-    
+
     user_states[user_id] = UserState()
-    
+
     if update.message:
         await update.message.reply_text(
             "Привет! Я помогу вам решить математическую задачу пошагово. "
@@ -46,7 +46,7 @@ async def help_command(update: "Update", context: "ContextTypes.DEFAULT_TYPE") -
         return
     user_id = update.effective_user.id
     logger.info(f"Пользователь {user_id} запросил помощь")
-    
+
     if update.message:
         await update.message.reply_text(
             "Я помогаю решать математические задачи пошагово.\n\n"
@@ -65,9 +65,9 @@ async def cancel(update: "Update", context: "ContextTypes.DEFAULT_TYPE") -> None
         return
     user_id = update.effective_user.id
     logger.info(f"Пользователь {user_id} отменил текущее решение")
-    
+
     user_states[user_id] = UserState()
-    
+
     if update.message:
         await update.message.reply_text(
             "Текущее решение отменено. Отправьте новую задачу."
@@ -80,30 +80,34 @@ async def show_history(update: "Update", context: "ContextTypes.DEFAULT_TYPE") -
         return
     user_id = update.effective_user.id
     logger.info(f"Пользователь {user_id} запросил историю")
-    
+
     state = user_states.get(user_id)
-    
+
     if not state or not state.history:
         logger.warning(f"История пуста для пользователя {user_id}")
         if update.message:
             await update.message.reply_text("История пуста. Начните решение задачи.")
         return
-    
+
     try:
         # Показываем упрощенную историю
         summary = state.history.get_full_history_summary()
         logger.info(f"Получена история решения: {len(summary['steps'])} шагов")
-        
-        history_text = f"📚 История решения задачи:\n'{state.history.original_task}'\n\n"
-        for i, step in enumerate(summary['steps'], 1):
+
+        history_text = (
+            f"📚 История решения задачи:\n'{state.history.original_task}'\n\n"
+        )
+        for i, step in enumerate(summary["steps"], 1):
             history_text += f"Шаг {i}: {step.get('expression', 'N/A')}\n"
-            if step.get('chosen_transformation'):
-                history_text += f"➡️ {step['chosen_transformation'].get('description', 'N/A')}\n"
+            if step.get("chosen_transformation"):
+                history_text += (
+                    f"➡️ {step['chosen_transformation'].get('description', 'N/A')}\n"
+                )
             history_text += "\n"
-        
+
         if update.message:
             await update.message.reply_text(history_text)
-            
+
     except Exception as e:
         logger.error(f"Ошибка при показе истории: {e}")
         if update.message:
@@ -117,7 +121,7 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
     user_id = update.effective_user.id
     task = update.message.text
     logger.info(f"Пользователь {user_id} отправил сообщение: {task}")
-    
+
     # Проверяем состояние ожидания ввода от пользователя
     state = user_states.get(user_id)
     if state:
@@ -130,43 +134,51 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
         elif state.waiting_for_user_result:
             await handle_user_transformation_result(update, user_id, task)
             return
-    
+
     # Отмечаем начало операции
     rate_limiter.start_operation(user_id)
-    
+
     # Отправляем начальный статус
-    status_message = await send_status_message(update, "🔄 Анализирую задачу...", force_update=True)
-    
+    status_message = await send_status_message(
+        update, "🔄 Анализирую задачу...", force_update=True
+    )
+
     try:
         # Инициализируем движок и историю
         if status_message:
-            await edit_status_message(status_message, "🧠 Генерирую возможные преобразования...", user_id)
-        
+            await edit_status_message(
+                status_message, "🧠 Генерирую возможные преобразования...", user_id
+            )
+
         engine = TransformationEngine(preview_mode=True)
         history = SolutionHistory(task)
         current_step = SolutionStep(expression=task)
-        
+
         # Сохраняем начальное состояние
         initial_step_id = history.add_step(
-            expression=task,
-            available_transformations=[]
+            expression=task, available_transformations=[]
         )
         logger.debug("Создана новая история решения")
-        
+
         # Генерируем возможные преобразования
         logger.info("Генерация возможных преобразований...")
         generation_result = engine.generate_transformations(current_step)
-        logger.info(f"Сгенерировано {len(generation_result.transformations)} преобразований")
-        
+        logger.info(
+            f"Сгенерировано {len(generation_result.transformations)} преобразований"
+        )
+
         # Обновляем начальный шаг с доступными преобразованиями
         if history.steps:
-            history.steps[0].available_transformations = [tr.__dict__ for tr in generation_result.transformations]
-        
+            history.steps[0].available_transformations = [
+                tr.__dict__ for tr in generation_result.transformations
+            ]
+
         # Проверяем, есть ли доступные преобразования
         if not generation_result.transformations:
             logger.warning(f"Не найдено ни одного варианта действия для задачи: {task}")
             if status_message:
-                await edit_status_message(status_message, 
+                await edit_status_message(
+                    status_message,
                     f"😕 К сожалению, я не смог найти подходящих преобразований для вашей задачи:\n\n"
                     f"`{task}`\n\n"
                     f"Возможные причины:\n"
@@ -176,33 +188,40 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
                     f"Попробуйте:\n"
                     f"• Переформулировать задачу\n"
                     f"• Проверить корректность LaTeX\n"
-                    f"• Отправить более сложное выражение", user_id, force_update=True)
+                    f"• Отправить более сложное выражение",
+                    user_id,
+                    force_update=True,
+                )
             return
-        
+
         # Обновляем состояние пользователя
         user_states[user_id] = UserState(
             history=history,
             current_step=current_step,
-            available_transformations=generation_result.transformations
+            available_transformations=generation_result.transformations,
         )
-        
+
         # Подготавливаем изображение
         if status_message:
-            await edit_status_message(status_message, "📊 Подготавливаю визуализацию...", user_id)
-        
+            await edit_status_message(
+                status_message, "📊 Подготавливаю визуализацию...", user_id
+            )
+
         img = render_transformations_image(task, generation_result.transformations)
-        
+
         # Удаляем статус и отправляем результат
         if status_message:
             await status_message.delete()
-        
+
         await update.message.reply_photo(
             photo=img,
             caption="Начинаем решение. Выберите преобразование:",
-            reply_markup=get_transformations_keyboard(generation_result.transformations, initial_step_id)
+            reply_markup=get_transformations_keyboard(
+                generation_result.transformations, initial_step_id
+            ),
         )
         logger.info("Задача успешно инициализирована")
-        
+
     except Exception as e:
         logger.error(f"Ошибка при обработке задачи: {e}")
         error_message = (
@@ -210,14 +229,18 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
             "Пожалуйста, проверьте корректность LaTeX-синтаксиса и попробуйте снова.\n\n"
             f"Детали ошибки: {str(e)}"
         )
-        
+
         if status_message:
-            await edit_status_message(status_message, error_message, user_id, force_update=True)
+            await edit_status_message(
+                status_message, error_message, user_id, force_update=True
+            )
         else:
             await update.message.reply_text(error_message)
 
 
-async def handle_transformation_choice(update: "Update", context: "ContextTypes.DEFAULT_TYPE") -> None:
+async def handle_transformation_choice(
+    update: "Update", context: "ContextTypes.DEFAULT_TYPE"
+) -> None:
     """Обработчик выбора преобразования."""
     if not update.callback_query:
         return
@@ -226,16 +249,16 @@ async def handle_transformation_choice(update: "Update", context: "ContextTypes.
         return
     user_id = query.from_user.id
     logger.info(f"Пользователь {user_id} выбрал преобразование")
-    
+
     state = user_states.get(user_id)
-    
+
     if not state or not state.history:
         logger.warning(f"Нет активного состояния для пользователя {user_id}")
         await query.answer("Ошибка: начните новое решение")
         return
-    
+
     try:
-        # Базовая логика для демонстрации 
+        # Базовая логика для демонстрации
         await query.answer("🔧 Модуль handlers создан и работает!")
         if query.message:
             await query.message.reply_text(
@@ -254,44 +277,60 @@ async def handle_transformation_choice(update: "Update", context: "ContextTypes.
                 "• Базовые callback'ы\n\n"
                 "🚀 Рефакторинг почти завершен!"
             )
-        
+
     except Exception as e:
         logger.error(f"Ошибка при обработке выбора преобразования: {e}")
         await query.answer("❌ Произошла ошибка при обработке преобразования")
 
 
 # Заглушки для остальных обработчиков - будут реализованы по мере необходимости
-async def handle_custom_transformation(update: "Update", user_id: int, custom_description: str) -> None:
+async def handle_custom_transformation(
+    update: "Update", user_id: int, custom_description: str
+) -> None:
     """Обработчик пользовательского преобразования."""
     if update.message:
-        await update.message.reply_text("🔧 handle_custom_transformation еще не реализована полностью в handlers.py")
+        await update.message.reply_text(
+            "🔧 handle_custom_transformation еще не реализована полностью в handlers.py"
+        )
 
 
-async def handle_user_suggestion(update: "Update", user_id: int, user_suggestion: str) -> None:
+async def handle_user_suggestion(
+    update: "Update", user_id: int, user_suggestion: str
+) -> None:
     """Обработчик предложения пользователя."""
     if update.message:
-        await update.message.reply_text("🔧 handle_user_suggestion еще не реализована полностью в handlers.py")
+        await update.message.reply_text(
+            "🔧 handle_user_suggestion еще не реализована полностью в handlers.py"
+        )
 
 
-async def handle_user_transformation_result(update: "Update", user_id: int, user_input: str) -> None:
+async def handle_user_transformation_result(
+    update: "Update", user_id: int, user_input: str
+) -> None:
     """Обработчик результата пользовательского преобразования."""
     if update.message:
-        await update.message.reply_text("🔧 handle_user_transformation_result еще не реализована полностью в handlers.py")
+        await update.message.reply_text(
+            "🔧 handle_user_transformation_result еще не реализована полностью в handlers.py"
+        )
 
 
 async def show_final_history(update_or_query: Any, history: SolutionHistory) -> None:
     """Показ финальной истории решения."""
     try:
-        if hasattr(update_or_query, 'message') and update_or_query.message:
+        if hasattr(update_or_query, "message") and update_or_query.message:
             # Проверяем, что message имеет метод reply_text
-            if hasattr(update_or_query.message, 'reply_text'):
-                await update_or_query.message.reply_text("📚 История решения (упрощенная версия)")
+            if hasattr(update_or_query.message, "reply_text"):
+                await update_or_query.message.reply_text(
+                    "📚 История решения (упрощенная версия)"
+                )
             else:
                 logger.warning("Message не поддерживает reply_text")
         else:
             # Проверяем, что update_or_query имеет метод reply_text
-            if hasattr(update_or_query, 'reply_text'):
-                await update_or_query.reply_text("📚 История решения (упрощенная версия)")
+            if hasattr(update_or_query, "reply_text"):
+                await update_or_query.reply_text(
+                    "📚 История решения (упрощенная версия)"
+                )
             else:
                 logger.warning("update_or_query не поддерживает reply_text")
     except Exception as e:

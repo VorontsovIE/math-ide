@@ -13,6 +13,7 @@ from core.types import SolutionStep, Transformation
 @dataclass
 class UserState:
     """Состояние пользователя в боте."""
+
     history: Optional[SolutionHistory] = None
     current_step: Optional[SolutionStep] = None
     available_transformations: List[Transformation] = field(default_factory=list)
@@ -20,8 +21,12 @@ class UserState:
     status_update_count: int = 0  # Счетчик обновлений статуса в текущей минуте
     status_reset_time: float = 0.0  # Время сброса счетчика обновлений
     current_operation_start: float = 0.0  # Время начала текущей операции
-    waiting_for_custom_transformation: bool = False  # Ожидание ввода пользовательского преобразования
-    custom_transformation_target_step_id: Optional[str] = None  # ID шага для применения пользовательского преобразования
+    waiting_for_custom_transformation: bool = (
+        False  # Ожидание ввода пользовательского преобразования
+    )
+    custom_transformation_target_step_id: Optional[str] = (
+        None  # ID шага для применения пользовательского преобразования
+    )
     # Новые поля для проверки преобразований
     waiting_for_user_suggestion: bool = False  # Ожидание предложения пользователя
     waiting_for_user_result: bool = False  # Ожидание результата от пользователя
@@ -55,4 +60,4 @@ def update_user_state(user_id: int, **kwargs: Any) -> None:
     if state:
         for key, value in kwargs.items():
             if hasattr(state, key):
-                setattr(state, key, value) 
+                setattr(state, key, value)

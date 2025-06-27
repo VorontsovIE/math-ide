@@ -2,7 +2,7 @@
 Пакет engines содержит специализированные компоненты для обработки математических преобразований.
 Каждый компонент отвечает за свою область:
 - TransformationGenerator: генерация преобразований
-- TransformationApplier: применение преобразований  
+- TransformationApplier: применение преобразований
 - SolutionChecker: проверка завершённости решения
 - ProgressAnalyzer: анализ прогресса решения
 - TransformationVerifier: верификация преобразований
@@ -17,10 +17,10 @@ from .transformation_verifier import TransformationVerifier
 from .branching_analyzer import BranchingAnalyzer
 
 __all__ = [
-    'TransformationGenerator',
-    'TransformationApplier', 
-    'SolutionChecker',
-    'ProgressAnalyzer',
-    'TransformationVerifier',
-    'BranchingAnalyzer'
-] 
+    "TransformationGenerator",
+    "TransformationApplier",
+    "SolutionChecker",
+    "ProgressAnalyzer",
+    "TransformationVerifier",
+    "BranchingAnalyzer",
+]

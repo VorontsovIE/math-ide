@@ -44,7 +44,7 @@ from .history import SolutionHistory, HistoryStep
 __all__ = [
     # Типы данных
     "BaseTransformationType",
-    "TransformationParameter", 
+    "TransformationParameter",
     "Transformation",
     "SolutionStep",
     "GenerationResult",
@@ -53,12 +53,11 @@ __all__ = [
     "ProgressAnalysisResult",
     "VerificationResult",
     "get_transformation_types_markdown",
-    
     # Исключения
     "MathIDEError",
     "GPTError",
     "GPTConnectionError",
-    "GPTRateLimitError", 
+    "GPTRateLimitError",
     "GPTInvalidResponseError",
     "ParseError",
     "JSONParseError",
@@ -72,9 +71,8 @@ __all__ = [
     "HistoryError",
     "StepNotFoundError",
     "InvalidStepError",
-    
     # Основные классы
     "TransformationEngine",
-    "SolutionHistory", 
+    "SolutionHistory",
     "HistoryStep",
-] 
+]

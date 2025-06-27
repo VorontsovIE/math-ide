@@ -109,3 +109,15 @@ dev = [
     "mypy>=1.16.1",
     "pytest>=8.4.1",
 ]
+
+[tool.flake8]
+max-line-length = 120
+extend-ignore = ["E501"]
+exclude = [
+    ".git",
+    "__pycache__",
+    ".venv",
+    "build",
+    "dist",
+    "*.egg-info"
+]
