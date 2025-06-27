@@ -6,7 +6,6 @@
 import logging
 import os
 
-from telegram import Update
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
@@ -51,7 +50,7 @@ def run_bot(token: str) -> None:
     logger.info("Все обработчики зарегистрированы")
 
     # Запускаем бота
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    application.run_polling()
 
 
 if __name__ == "__main__":
