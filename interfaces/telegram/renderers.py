@@ -28,6 +28,12 @@ plt.rcParams.update(
 )
 
 
+def contains_cyrillic(text: str) -> bool:
+    """Проверяет, содержит ли текст кириллические символы."""
+    cyrillic_pattern = re.compile(r'[а-яё]', re.IGNORECASE)
+    return bool(cyrillic_pattern.search(text))
+
+
 def extract_math_expression(text: str) -> str:
     """Извлекает математическое выражение из текста, убирая русские слова."""
     # Паттерны для поиска математических выражений
@@ -200,15 +206,42 @@ def render_transformations_image(
                 transform=ax.transAxes,
             )
 
-            ax.text(
-                0.1,
-                y_pos,
-                tr.description,
-                horizontalalignment="left",
-                verticalalignment="center",
-                fontsize=12,
-                transform=ax.transAxes,
-            )
+            # Отображаем описание как обычный текст (не LaTeX)
+            description_text = tr.description
+            if contains_cyrillic(description_text):
+                # Если описание содержит кириллицу, отображаем как обычный текст
+                ax.text(
+                    0.1,
+                    y_pos,
+                    description_text,
+                    horizontalalignment="left",
+                    verticalalignment="center",
+                    fontsize=12,
+                    transform=ax.transAxes,
+                )
+            else:
+                # Если описание на английском, можно попробовать LaTeX
+                try:
+                    ax.text(
+                        0.1,
+                        y_pos,
+                        f"${description_text}$",
+                        horizontalalignment="left",
+                        verticalalignment="center",
+                        fontsize=12,
+                        transform=ax.transAxes,
+                    )
+                except Exception:
+                    # Если LaTeX не работает, отображаем как обычный текст
+                    ax.text(
+                        0.1,
+                        y_pos,
+                        description_text,
+                        horizontalalignment="left",
+                        verticalalignment="center",
+                        fontsize=12,
+                        transform=ax.transAxes,
+                    )
 
             # Стрелка
             ax.text(
