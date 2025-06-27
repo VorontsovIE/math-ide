@@ -141,7 +141,6 @@ def render_transformations_image(
             color="gray",
             linestyle="-",
             alpha=0.5,
-            transform=ax.transAxes,
         )
 
         # Отображаем доступные преобразования
