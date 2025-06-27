@@ -16,7 +16,7 @@ from core.types import SolutionStep
 
 from .keyboards import get_transformations_keyboard
 from .rate_limiter import rate_limiter
-from .renderers import render_transformations_image
+from .renderers import render_transformations_image, extract_math_expression
 from .state import UserState, user_states
 from .utils import edit_status_message, send_status_message
 
@@ -122,6 +122,11 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
     task = update.message.text
     logger.info(f"Пользователь {user_id} отправил сообщение: {task}")
 
+    # Извлекаем математическое выражение из текста
+    cleaned_task = extract_math_expression(task)
+    if cleaned_task != task:
+        logger.info(f"Извлечено математическое выражение: {cleaned_task}")
+    
     # Проверяем состояние ожидания ввода от пользователя
     state = user_states.get(user_id)
     if state:
@@ -157,12 +162,12 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
         client = GPTClient()
         prompt_manager = PromptManager()
         engine = TransformationGenerator(client, prompt_manager, preview_mode=True)
-        history = SolutionHistory(task)
-        current_step = SolutionStep(expression=task)
+        history = SolutionHistory(cleaned_task)
+        current_step = SolutionStep(expression=cleaned_task)
 
         # Сохраняем начальное состояние
         initial_step_id = history.add_step(
-            expression=task, available_transformations=[]
+            expression=cleaned_task, available_transformations=[]
         )
         logger.debug("Создана новая история решения")
 
@@ -181,12 +186,12 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
 
         # Проверяем, есть ли доступные преобразования
         if not generation_result.transformations:
-            logger.warning(f"Не найдено ни одного варианта действия для задачи: {task}")
+            logger.warning(f"Не найдено ни одного варианта действия для задачи: {cleaned_task}")
             if status_message:
                 await edit_status_message(
                     status_message,
                     f"😕 К сожалению, я не смог найти подходящих преобразований для вашей задачи:\n\n"
-                    f"`{task}`\n\n"
+                    f"`{cleaned_task}`\n\n"
                     f"Возможные причины:\n"
                     f"• Задача уже решена или слишком простая\n"
                     f"• Нестандартный формат выражения\n"
@@ -213,7 +218,7 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
                 status_message, "📊 Подготавливаю визуализацию...", user_id
             )
 
-        img = render_transformations_image(task, generation_result.transformations)
+        img = render_transformations_image(cleaned_task, generation_result.transformations)
 
         # Удаляем статус и отправляем результат
         if status_message:
