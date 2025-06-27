@@ -29,25 +29,18 @@ def load_env_files() -> bool:
     return False
 
 def main() -> None:
-    """Точка входа для запуска бота."""
+    """Точка входа для запуска Math IDE."""
     # Загружаем переменные окружения
     load_env_files()
-    
-    # Получаем токен из переменной окружения
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
-    if not token:
-        print("Ошибка: не задан TELEGRAM_BOT_TOKEN")
-        print("Создайте файл .env на основе .env.example и укажите токен бота")
-        sys.exit(1)
     
     # Проверяем наличие OPENAI_API_KEY
     if not os.getenv("OPENAI_API_KEY"):
         print("Предупреждение: не задан OPENAI_API_KEY")
         print("Укажите OPENAI_API_KEY в файле .env для работы с GPT")
     
-    # Импортируем и запускаем бота
-    from interfaces.telegram_bot import run_bot
-    run_bot(token)
+    # Импортируем и запускаем CLI
+    from interfaces.cli import cli
+    cli()
 
 if __name__ == "__main__":
     main() 

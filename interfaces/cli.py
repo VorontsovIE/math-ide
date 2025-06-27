@@ -5,10 +5,13 @@ from rich.console import Console
 from rich.panel import Panel
 from typing import Optional, List
 
-from core.engine import TransformationEngine
+from core.engines.transformation_generator import TransformationGenerator
+from core.engines.transformation_applier import TransformationApplier
+from core.engines.solution_checker import SolutionChecker
 from core.history import SolutionHistory
 from core.types import SolutionStep, Transformation, SolutionType
 from core.gpt_client import GPTClient
+from core.prompts import PromptManager
 
 from .cli_components.display_manager import DisplayManager
 from .cli_components.input_handler import InputHandler
@@ -34,13 +37,26 @@ def solve(problem: str, model: str, debug: bool) -> None:
     try:
         # Initialize components
         gpt_client = GPTClient(model=model)
-        engine = TransformationEngine(model=model)
+        prompt_manager = PromptManager()
+        
+        # Initialize engines
+        transformation_generator = TransformationGenerator(gpt_client, prompt_manager)
+        transformation_applier = TransformationApplier(gpt_client, prompt_manager)
+        solution_checker = SolutionChecker(gpt_client, prompt_manager)
+        
         history = SolutionHistory(problem)
         
         latex_renderer = LatexRenderer()
         display_manager = DisplayManager(console, latex_renderer)
         input_handler = InputHandler(console)
-        solution_processor = SolutionProcessor(engine, history, input_handler, display_manager)
+        solution_processor = SolutionProcessor(
+            transformation_generator, 
+            transformation_applier, 
+            solution_checker,
+            history, 
+            input_handler, 
+            display_manager
+        )
         
         display_manager.show_welcome()
         display_manager.show_problem(problem)
@@ -50,13 +66,13 @@ def solve(problem: str, model: str, debug: bool) -> None:
         while True:
             try:
                 # Check if solved
-                is_solved = engine.check_solution_completeness(current_problem, problem)
+                is_solved = solution_checker.check_solution_completeness(current_problem, problem)
                 if is_solved.is_solved:
                     display_manager.show_completion_message()
                     break
                 
                 # Generate transformations
-                transformations = engine.generate_transformations(current_problem)
+                transformations = transformation_generator.generate_transformations(current_problem)
                 if not transformations or not transformations.transformations:
                     display_manager.show_error("Не удалось сгенерировать трансформации")
                     break
@@ -83,16 +99,14 @@ def solve(problem: str, model: str, debug: bool) -> None:
                     continue
                 
                 # Apply transformation
-                result = engine.apply_transformation(current_problem, selected_transformation)
-                if not result or not result.is_valid:
-                    display_manager.show_error("Не удалось применить преобразование")
-                    continue
-                
-                # Create step and add to history
-                step = SolutionStep(
+                current_step = SolutionStep(
                     expression=current_problem,
                     solution_type=SolutionType.SINGLE
                 )
+                result = transformation_applier.apply_transformation(current_step, selected_transformation)
+                if not result or not result.is_valid:
+                    display_manager.show_error("Не удалось применить преобразование")
+                    continue
                 
                 # Add step to history
                 history.add_step(
@@ -173,13 +187,26 @@ def interactive() -> None:
     try:
         # Initialize components
         gpt_client = GPTClient()
-        engine = TransformationEngine()
+        prompt_manager = PromptManager()
+        
+        # Initialize engines
+        transformation_generator = TransformationGenerator(gpt_client, prompt_manager)
+        transformation_applier = TransformationApplier(gpt_client, prompt_manager)
+        solution_checker = SolutionChecker(gpt_client, prompt_manager)
+        
         history = SolutionHistory()
         
         latex_renderer = LatexRenderer()
         display_manager = DisplayManager(console, latex_renderer)
         input_handler = InputHandler(console)
-        solution_processor = SolutionProcessor(engine, history, input_handler, display_manager)
+        solution_processor = SolutionProcessor(
+            transformation_generator, 
+            transformation_applier, 
+            solution_checker,
+            history, 
+            input_handler, 
+            display_manager
+        )
         
         while True:
             try:
@@ -237,7 +264,13 @@ def auto(problem: str, steps: Optional[int], model: str) -> None:
     """Automatically solve problem without user interaction."""
     try:
         gpt_client = GPTClient(model=model)
-        engine = TransformationEngine(model=model)
+        prompt_manager = PromptManager()
+        
+        # Initialize engines
+        transformation_generator = TransformationGenerator(gpt_client, prompt_manager)
+        transformation_applier = TransformationApplier(gpt_client, prompt_manager)
+        solution_checker = SolutionChecker(gpt_client, prompt_manager)
+        
         history = SolutionHistory(problem)
         
         latex_renderer = LatexRenderer()
@@ -251,14 +284,20 @@ def auto(problem: str, steps: Optional[int], model: str) -> None:
         max_steps = steps or 10
         
         while step_count < max_steps:
+            # Create current step
+            current_step = SolutionStep(
+                expression=current_problem,
+                solution_type=SolutionType.SINGLE
+            )
+            
             # Check if solved
-            is_solved = engine.check_solution_completeness(current_problem, problem)
+            is_solved = solution_checker.check_solution_completeness(current_step, problem)
             if is_solved.is_solved:
                 display_manager.show_completion_message()
                 break
             
             # Generate and apply best transformation
-            transformations = engine.generate_transformations(current_problem)
+            transformations = transformation_generator.generate_transformations(current_step)
             if not transformations or not transformations.transformations:
                 display_manager.show_error("Не удалось сгенерировать трансформации")
                 break
@@ -275,16 +314,10 @@ def auto(problem: str, steps: Optional[int], model: str) -> None:
                     display_manager.show_info("Нет доступных непараметризованных трансформаций")
                     break
             
-            result = engine.apply_transformation(current_problem, best_transformation)
+            result = transformation_applier.apply_transformation(current_step, best_transformation)
             if not result or not result.is_valid:
                 display_manager.show_error("Не удалось применить трансформацию")
                 break
-            
-            # Create and save step
-            step = SolutionStep(
-                expression=current_problem,
-                solution_type=SolutionType.SINGLE
-            )
             
             # Add to history
             history.add_step(

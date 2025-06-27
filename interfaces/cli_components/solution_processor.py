@@ -5,7 +5,9 @@ from core.types import (
     SolutionStep, Transformation, TransformationParameter,
     ParameterType, SolutionType, GenerationResult
 )
-from core.engine import TransformationEngine
+from core.engines.transformation_generator import TransformationGenerator
+from core.engines.transformation_applier import TransformationApplier
+from core.engines.solution_checker import SolutionChecker
 from core.history import SolutionHistory
 from .input_handler import InputHandler
 from .display_manager import DisplayManager
@@ -14,9 +16,16 @@ from .display_manager import DisplayManager
 class SolutionProcessor:
     """Handles solution processing workflow."""
     
-    def __init__(self, engine: TransformationEngine, history: SolutionHistory,
-                 input_handler: InputHandler, display_manager: DisplayManager) -> None:
-        self.engine = engine
+    def __init__(self, 
+                 transformation_generator: TransformationGenerator,
+                 transformation_applier: TransformationApplier,
+                 solution_checker: SolutionChecker,
+                 history: SolutionHistory,
+                 input_handler: InputHandler, 
+                 display_manager: DisplayManager) -> None:
+        self.transformation_generator = transformation_generator
+        self.transformation_applier = transformation_applier
+        self.solution_checker = solution_checker
         self.history = history
         self.input_handler = input_handler
         self.display_manager = display_manager
@@ -27,14 +36,20 @@ class SolutionProcessor:
         Returns True if solution should continue, False if complete or cancelled.
         """
         try:
+            # Create current step
+            current_step = SolutionStep(
+                expression=problem,
+                solution_type=SolutionType.SINGLE
+            )
+            
             # Check if problem is already solved
-            is_solved = self.engine.check_solution_completeness(problem)
-            if is_solved:
+            is_solved = self.solution_checker.check_solution_completeness(current_step, problem)
+            if is_solved.is_solved:
                 self.display_manager.show_completion_message()
                 return False
             
             # Generate transformations  
-            transformations_result = self.engine.generate_transformations(problem)
+            transformations_result = self.transformation_generator.generate_transformations(current_step)
             if not transformations_result or not transformations_result.transformations:
                 self.display_manager.show_error("Не удалось сгенерировать трансформации")
                 return False
@@ -56,16 +71,10 @@ class SolutionProcessor:
                 selected_transformation.parameters = parameters
             
             # Apply transformation
-            result = self.engine.apply_transformation(problem, selected_transformation)
-            if not result:
+            result = self.transformation_applier.apply_transformation(current_step, selected_transformation)
+            if not result or not result.is_valid:
                 self.display_manager.show_error("Не удалось применить трансформацию")
                 return False
-            
-            # Create and save solution step
-            step = SolutionStep(
-                expression=problem,
-                solution_type=SolutionType.SINGLE
-            )
             
             # Add step to history using the simplified API
             self.history.add_step(
