@@ -36,23 +36,62 @@ def contains_cyrillic(text: str) -> bool:
 
 def extract_math_expression(text: str) -> str:
     """Извлекает математическое выражение из текста, убирая русские слова."""
-    # Паттерны для поиска математических выражений
-    math_patterns = [
-        r'[0-9+\-*/()=<>≤≥≠±√∫∑∏∞θαβγδεζηθικλμνξοπρστυφχψω]+',  # Базовые математические символы
-        r'[a-zA-Z]+[0-9+\-*/()=<>≤≥≠±√∫∑∏∞θαβγδεζηθικλμνξοπρστυφχψω]*',  # Переменные с математическими символами
-        r'[0-9]+\s*[+\-*/]\s*[0-9]+',  # Простые арифметические операции
-        r'[a-zA-Z]+\s*[+\-*/=]\s*[0-9a-zA-Z]+',  # Уравнения с переменными
+    
+    # Сначала проверяем LaTeX блоки
+    latex_patterns = [
+        r'\$\$(.*?)\$\$',  # Блоки $$...$$
+        r'\$(.*?)\$',      # Блоки $...$
     ]
     
-    # Ищем математические выражения
-    math_expressions = []
-    for pattern in math_patterns:
-        matches = re.findall(pattern, text)
-        math_expressions.extend(matches)
+    for pattern in latex_patterns:
+        matches = re.findall(pattern, text, re.DOTALL)
+        if matches:
+            # Возвращаем самый длинный LaTeX блок
+            return max(matches, key=len).strip()
     
-    if math_expressions:
-        # Возвращаем самое длинное найденное выражение
-        return max(math_expressions, key=len)
+    # Ищем математические выражения без LaTeX блоков
+    # Используем более точный подход - ищем самый длинный непрерывный участок с математическими символами
+    
+    # Паттерн для поиска математических символов и переменных
+    math_char_pattern = r'[0-9a-zA-Z+\-*/=<>≤≥≠±√∫∑∏∞θαβγδεζηθικλμνξοπρστυφχψω\s(){}[\]]'
+    
+    # Находим все позиции математических символов
+    math_positions = []
+    for i, char in enumerate(text):
+        if re.match(math_char_pattern, char):
+            math_positions.append(i)
+    
+    if not math_positions:
+        return text
+    
+    # Ищем самый длинный непрерывный участок математических символов
+    max_length = 0
+    best_start = 0
+    best_end = 0
+    
+    start = math_positions[0]
+    for i in range(1, len(math_positions)):
+        if math_positions[i] != math_positions[i-1] + 1:
+            # Разрыв в последовательности
+            length = math_positions[i-1] - start + 1
+            if length > max_length:
+                max_length = length
+                best_start = start
+                best_end = math_positions[i-1]
+            start = math_positions[i]
+    
+    # Проверяем последний участок
+    length = math_positions[-1] - start + 1
+    if length > max_length:
+        max_length = length
+        best_start = start
+        best_end = math_positions[-1]
+    
+    if max_length > 2:  # Минимальная длина выражения
+        extracted = text[best_start:best_end + 1].strip()
+        # Убираем лишние пробелы
+        extracted = re.sub(r'\s+', ' ', extracted)
+        return extracted
     
     # Если ничего не найдено, возвращаем исходный текст
     return text
