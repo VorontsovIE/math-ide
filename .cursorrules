@@ -1,5 +1,9 @@
 {
   "terminal": {
-    "allowCommands": ["git", "python", "poetry"]
-  }
+    "allowCommands": ["git", "python", "poetry", "uv"]
+  },
+  "include": [
+    "docs/**/*",
+    ".cursor/rules/**/*"
+  ]
 }
