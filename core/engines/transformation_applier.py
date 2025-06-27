@@ -119,7 +119,7 @@ class TransformationApplier:
                 )
 
             # Проверяем обязательные поля
-            required_fields = ["result", "is_valid"]
+            required_fields = ["result_expression", "is_valid"]
             missing_fields = [
                 field for field in required_fields if field not in result_data
             ]
@@ -134,7 +134,7 @@ class TransformationApplier:
 
             # Создаём результат
             result = ApplyResult(
-                result=result_data["result"],
+                result=result_data["result_expression"],
                 is_valid=result_data["is_valid"],
                 explanation=result_data.get("explanation", ""),
                 errors=result_data.get("errors", []),
