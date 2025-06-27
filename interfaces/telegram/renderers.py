@@ -49,51 +49,105 @@ def extract_math_expression(text: str) -> str:
             # Возвращаем самый длинный LaTeX блок
             return max(matches, key=len).strip()
     
-    # Ищем математические выражения без LaTeX блоков
-    # Используем более точный подход - ищем самый длинный непрерывный участок с математическими символами
+    # Расширенный паттерн для поиска математических символов, включая LaTeX команды и спецсимволы
+    math_char_pattern = r'[0-9a-zA-Z+\-*/=<>≤≥≠±√∫∑∏∞θαβγδεζηθικλμνξοπρστυφχψω\s(){}[\],²³⁴⁵⁶⁷⁸⁹⁰¹₂₃₄₅₆₇₈₉₀×÷⋅]'
     
-    # Паттерн для поиска математических символов и переменных
-    math_char_pattern = r'[0-9a-zA-Z+\-*/=<>≤≥≠±√∫∑∏∞θαβγδεζηθικλμνξοπρστυφχψω\s(){}[\]]'
+    # Находим все участки с математическими символами и LaTeX-командами
+    math_spans = []
+    i = 0
+    while i < len(text):
+        # Пропускаем не-математические символы
+        if not re.match(math_char_pattern, text[i]):
+            i += 1
+            continue
+        start = i
+        while i < len(text):
+            char = text[i]
+            if char == '\\' and i + 1 < len(text):
+                j = i + 1
+                while j < len(text) and text[j].isalpha():
+                    j += 1
+                i = j
+            elif re.match(math_char_pattern, char):
+                i += 1
+            else:
+                break
+        end = i
+        # Добавляем только если длина > 1
+        if end - start > 1:
+            math_spans.append((start, end))
     
-    # Находим все позиции математических символов
-    math_positions = []
-    for i, char in enumerate(text):
-        if re.match(math_char_pattern, char):
-            math_positions.append(i)
+    if not math_spans:
+        return ""
     
-    if not math_positions:
-        return text
+    # Объединяем участки, если между ними только запятая/пробел/точка с запятой
+    merged_spans = [math_spans[0]]
+    for span in math_spans[1:]:
+        prev_start, prev_end = merged_spans[-1]
+        between = text[prev_end:span[0]]
+        if re.fullmatch(r'[\s,;]+', between):
+            # Объединяем
+            merged_spans[-1] = (prev_start, span[1])
+        else:
+            merged_spans.append(span)
     
-    # Ищем самый длинный непрерывный участок математических символов
-    max_length = 0
-    best_start = 0
-    best_end = 0
+    # Берём самый длинный объединённый участок
+    best_span = max(merged_spans, key=lambda s: s[1]-s[0])
+    extracted = text[best_span[0]:best_span[1]]
     
-    start = math_positions[0]
-    for i in range(1, len(math_positions)):
-        if math_positions[i] != math_positions[i-1] + 1:
-            # Разрыв в последовательности
-            length = math_positions[i-1] - start + 1
-            if length > max_length:
-                max_length = length
-                best_start = start
-                best_end = math_positions[i-1]
-            start = math_positions[i]
+    # Удаляем многобуквенные слова без \ в начале
+    words = extracted.split()
+    filtered_words = []
+    for word in words:
+        # Если слово начинается с \, оставляем его (LaTeX команда)
+        if word.startswith('\\'):
+            filtered_words.append(word)
+        # Если слово однобуквенное или содержит математические символы, оставляем
+        elif len(word) == 1 or re.search(r'[0-9+\-*/=<>≤≥≠±√∫∑∏∞θαβγδεζηθικλμνξοπρστυφχψω(){}[\],²³⁴⁵⁶⁷⁸⁹⁰¹₂₃₄₅₆₇₈₉₀×÷⋅]', word):
+            filtered_words.append(word)
+        # Иначе пропускаем (многобуквенное слово без \)
     
-    # Проверяем последний участок
-    length = math_positions[-1] - start + 1
-    if length > max_length:
-        max_length = length
-        best_start = start
-        best_end = math_positions[-1]
+    # Обрезаем пробелы и запятые по краям
+    result = ' '.join(filtered_words)
+    result = re.sub(r'^[\s,;]+|[\s,;]+$', '', result)
     
-    if max_length > 2:  # Минимальная длина выражения
-        extracted = text[best_start:best_end + 1].strip()
-        # Убираем лишние пробелы
-        extracted = re.sub(r'\s+', ' ', extracted)
-        return extracted
+    # Если после фильтрации формула пуста — возвращаем пустую строку
+    if not result or len(result) < 2:
+        return ""
     
-    # Если ничего не найдено, возвращаем исходный текст
+    result = re.sub(r'\s+', ' ', result)
+    result = convert_superscript_subscript_to_latex(result)
+    return result
+
+
+def convert_superscript_subscript_to_latex(text: str) -> str:
+    """Преобразует надстрочные и подстрочные символы в LaTeX формат."""
+    
+    # Словарь для преобразования надстрочных символов
+    superscript_map = {
+        '²': '^2', '³': '^3', '⁴': '^4', '⁵': '^5', '⁶': '^6',
+        '⁷': '^7', '⁸': '^8', '⁹': '^9', '⁰': '^0', '¹': '^1'
+    }
+    
+    # Словарь для преобразования подстрочных символов
+    subscript_map = {
+        '₂': '_2', '₃': '_3', '₄': '_4', '₅': '_5', '₆': '_6',
+        '₇': '_7', '₈': '_8', '₉': '_9', '₀': '_0', '₁': '_1'
+    }
+    
+    # Преобразуем надстрочные символы
+    for sup_char, latex_char in superscript_map.items():
+        text = text.replace(sup_char, latex_char)
+    
+    # Преобразуем подстрочные символы
+    for sub_char, latex_char in subscript_map.items():
+        text = text.replace(sub_char, latex_char)
+    
+    # Обрабатываем последовательные надстрочные/подстрочные символы
+    # Например: ³² → ^{32}
+    text = re.sub(r'\^(\d+)\^(\d+)', r'^{\1\2}', text)
+    text = re.sub(r'_(\d+)_(\d+)', r'_{\1\2}', text)
+    
     return text
 
 
@@ -108,17 +162,35 @@ def fix_latex_expression(latex_expr: str) -> str:
     # Исправляем проблему с неполными командами \\frac
     latex_expr = latex_expr.replace("\\rac{", "\\frac{")
 
-    # Исправляем другие распространенные проблемы
+    # Исправляем другие распространенные проблемы с тригонометрическими функциями
     latex_expr = (
         latex_expr.replace("\\sin{", "\\sin(")
         .replace("\\cos{", "\\cos(")
         .replace("\\tan{", "\\tan(")
+        .replace("\\cot{", "\\cot(")
+        .replace("\\sec{", "\\sec(")
+        .replace("\\csc{", "\\csc(")
+    )
+    
+    # Исправляем проблемы с логарифмами
+    latex_expr = (
+        latex_expr.replace("\\log{", "\\log(")
+        .replace("\\ln{", "\\ln(")
+    )
+    
+    # Исправляем проблемы с корнями
+    latex_expr = (
+        latex_expr.replace("\\sqrt{", "\\sqrt(")
+        .replace("\\cbrt{", "\\cbrt(")
+    )
+    
+    # Исправляем проблемы с пределами
+    latex_expr = (
+        latex_expr.replace("\\lim{", "\\lim(")
     )
     
     # Экранируем специальные символы, которые могут вызвать проблемы в LaTeX
     # но только если они не являются частью LaTeX команд
-    import re
-    
     def escape_special_chars(match):
         char = match.group(0)
         # Не экранируем символы, которые уже являются частью LaTeX команд
