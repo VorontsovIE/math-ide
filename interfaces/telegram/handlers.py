@@ -4,7 +4,8 @@
 """
 
 import logging
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Union, cast
+from telegram import Message
 
 if TYPE_CHECKING:
     from telegram import Update, Message
@@ -241,8 +242,9 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
             await edit_status_message(
                 status_message, error_message, user_id, force_update=True
             )
-        else:
-            await update.message.reply_text(error_message)
+        elif update.message and isinstance(update.message, Message):
+            # Подавление ошибки mypy из-за MaybeInaccessibleMessage (python-telegram-bot)
+            await update.message.reply_text(error_message)  # type: ignore[attr-defined]
 
 
 async def handle_transformation_choice(
