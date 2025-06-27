@@ -66,7 +66,7 @@ def fix_latex_expression(latex_expr: str) -> str:
     # Удаляем лишние пробелы и переводы строк
     latex_expr = " ".join(latex_expr.split())
 
-    # Исправляем проблему с неполными командами \frac
+    # Исправляем проблему с неполными командами \\frac
     latex_expr = latex_expr.replace("\\rac{", "\\frac{")
 
     # Исправляем другие распространенные проблемы
@@ -80,19 +80,19 @@ def fix_latex_expression(latex_expr: str) -> str:
     # но только если они не являются частью LaTeX команд
     import re
     
-    # Экранируем символы, которые могут быть интерпретированы как LaTeX команды
-    # но только если они не являются частью существующих команд
     def escape_special_chars(match):
-        text = match.group(0)
-        # Если это уже LaTeX команда, не экранируем
-        if text.startswith('\\'):
-            return text
+        char = match.group(0)
+        # Не экранируем символы, которые уже являются частью LaTeX команд
+        if match.start() > 0 and latex_expr[match.start()-1] == '\\':
+            return char
         # Экранируем специальные символы
-        return text.replace('_', '\\_').replace('^', '\\^{}').replace('%', '\\%')
+        if char in ['_', '^', '%', '&', '#', '{', '}']:
+            return f"\\{char}"
+        return char
     
-    # Применяем экранирование только к отдельным символам, не к командам
-    latex_expr = re.sub(r'\\[a-zA-Z]+|[^\\_^%]+', escape_special_chars, latex_expr)
-
+    # Экранируем специальные символы, но не в LaTeX командах
+    latex_expr = re.sub(r'[_^%&#{}]', escape_special_chars, latex_expr)
+    
     return latex_expr
 
 
@@ -159,9 +159,6 @@ def render_transformations_image(
         fig, ax = plt.subplots(figsize=(12, fig_height))
         ax.axis("off")
 
-        # Исправляем LaTeX в текущем выражении
-        cleaned_current = fix_latex_expression(current_expression)
-
         # Отображаем текущее выражение вверху
         ax.text(
             0.5,
@@ -174,28 +171,17 @@ def render_transformations_image(
             transform=ax.transAxes,
         )
 
-        # Отображаем математическое выражение с правильной обработкой LaTeX
-        try:
-            ax.text(
-                0.5,
-                0.88,
-                f"${cleaned_current}$",
-                horizontalalignment="center",
-                verticalalignment="top",
-                fontsize=16,
-                transform=ax.transAxes,
-            )
-        except Exception:
-            # Если LaTeX не работает, отображаем как обычный текст
-            ax.text(
-                0.5,
-                0.88,
-                cleaned_current,
-                horizontalalignment="center",
-                verticalalignment="top",
-                fontsize=16,
-                transform=ax.transAxes,
-            )
+        # Отображаем математическое выражение как обычный текст (НЕ LaTeX)
+        ax.text(
+            0.5,
+            0.88,
+            current_expression,
+            horizontalalignment="center",
+            verticalalignment="top",
+            fontsize=16,
+            transform=ax.transAxes,
+            usetex=False,
+        )
 
         # Добавляем разделительную линию
         ax.axhline(
@@ -236,9 +222,8 @@ def render_transformations_image(
                 transform=ax.transAxes,
             )
 
-            # Отображаем описание как обычный текст (не LaTeX)
+            # Отображаем описание как обычный текст (НЕ LaTeX)
             description_text = tr.description
-            # Всегда отображаем описание как обычный текст, так как оно может содержать кириллицу
             ax.text(
                 0.1,
                 y_pos,
@@ -261,30 +246,18 @@ def render_transformations_image(
                 transform=ax.transAxes,
             )
 
-            # Предварительный результат
+            # Предварительный результат - отображаем как обычный текст
             if tr.preview_result:
-                cleaned_preview = fix_latex_expression(tr.preview_result)
-                try:
-                    ax.text(
-                        0.8,
-                        y_pos,
-                        f"${cleaned_preview}$",
-                        horizontalalignment="left",
-                        verticalalignment="center",
-                        fontsize=11,
-                        transform=ax.transAxes,
-                    )
-                except Exception:
-                    # Если LaTeX не рендерится, показываем как текст
-                    ax.text(
-                        0.8,
-                        y_pos,
-                        cleaned_preview,
-                        horizontalalignment="left",
-                        verticalalignment="center",
-                        fontsize=11,
-                        transform=ax.transAxes,
-                    )
+                ax.text(
+                    0.8,
+                    y_pos,
+                    tr.preview_result,
+                    horizontalalignment="left",
+                    verticalalignment="center",
+                    fontsize=11,
+                    transform=ax.transAxes,
+                    usetex=False,
+                )
 
         # Сохраняем в BytesIO
         img_buffer = io.BytesIO()
@@ -297,7 +270,7 @@ def render_transformations_image(
         return img_buffer
 
     except Exception as e:
-        logger.error(f"Ошибка при рендеринге изображения с преобразованиями: {e}")
+        logger.error(f"Ошибка при рендеринге изображения с преобразованиями: {e}", exc_info=True)
         # Возвращаем простое изображение с текстом
         fig, ax = plt.subplots(figsize=(10, 6))
         ax.text(
@@ -308,6 +281,7 @@ def render_transformations_image(
             verticalalignment="center",
             fontsize=12,
             transform=ax.transAxes,
+            usetex=False,
         )
         ax.axis("off")
 
