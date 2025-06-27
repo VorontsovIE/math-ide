@@ -4,9 +4,9 @@ from typing import List, Optional
 from core.types import (
     SolutionStep,
     Transformation,
-    ParameterDefinition,
     ParameterType,
     SolutionType,
+    TransformationParameter,
 )
 from core.engines.transformation_generator import TransformationGenerator
 from core.engines.transformation_applier import TransformationApplier
@@ -123,7 +123,7 @@ class SolutionProcessor:
 
     def _collect_transformation_parameters(
         self, transformation: Transformation
-    ) -> Optional[List[ParameterDefinition]]:
+    ) -> Optional[List[TransformationParameter]]:
         """Collect parameters for parameterized transformation."""
         if not transformation.parameter_definitions:
             return []
@@ -153,7 +153,9 @@ class SolutionProcessor:
                 if value == "":  # User cancelled or empty value
                     return None
 
-                parameters.append(param_def)
+                parameters.append(
+                    TransformationParameter(name=param_def.name, value=value)
+                )
 
             except KeyboardInterrupt:
                 self.display_manager.show_info("Ввод параметров отменён")

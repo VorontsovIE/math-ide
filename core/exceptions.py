@@ -16,6 +16,12 @@ class GPTError(MathIDEError):
     pass
 
 
+class GPTClientError(GPTError):
+    """Общая ошибка клиента GPT API."""
+
+    pass
+
+
 class GPTConnectionError(GPTError):
     """Ошибка подключения к GPT API."""
 
@@ -24,6 +30,12 @@ class GPTConnectionError(GPTError):
 
 class GPTRateLimitError(GPTError):
     """Превышен лимит запросов к GPT API."""
+
+    pass
+
+
+class GPTServiceError(GPTError):
+    """Ошибка сервиса GPT API."""
 
     pass
 

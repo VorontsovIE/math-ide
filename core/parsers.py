@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 def fix_latex_escapes_in_json(json_content: str) -> str:
-    """
+    r"""
     Исправляет экранирование обратных слэшей в LaTeX-выражениях в JSON.
 
     Проблема: GPT возвращает \sin, \cos и т.д., но в JSON это должно быть \\sin, \\cos
@@ -77,14 +77,14 @@ def fix_latex_escapes_in_json(json_content: str) -> str:
             return marker
 
         for cmd in latex_commands:
-            pattern = rf"\\\\{cmd}"
+            pattern = rf"\\\\{cmd}"  # noqa: W605
             if pattern in content:
                 marker = create_marker()
                 temp_markers[marker] = f"\\\\{cmd}"
                 content = content.replace(pattern, marker)
 
         for cmd in latex_commands:
-            pattern = rf"(?<!\\)\\{cmd}(?![a-zA-Z])"
+            pattern = rf"(?<!\\)\\{cmd}(?![a-zA-Z])"  # noqa: W605
             content = re.sub(pattern, rf"\\\\{cmd}", content)
 
         for marker, replacement in temp_markers.items():

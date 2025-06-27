@@ -10,10 +10,10 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from core.engine import TransformationEngine
-from core.types import (
-    Transformation,
-    ParameterDefinition,
+from core.types import (  # noqa: E402
     ParameterType,
+    ParameterDefinition,
+    Transformation,
 )
 
 

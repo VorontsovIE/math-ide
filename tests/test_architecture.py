@@ -6,10 +6,11 @@
 
 import sys
 import os
-from typing import List
+from typing import List, Tuple
 
 # Добавляем корневую директорию в sys.path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
 
 def _test_import(
     module_path: str, items: List[str], description: str
@@ -289,46 +290,31 @@ def run_architecture_tests() -> None:
     print("🔍 ОПЦИОНАЛЬНЫЕ ТЕСТЫ (интерфейсы):")
     print("-" * 40)
 
-    optional_passed = 0
-    optional_failed = 0
-
     for test_func, args in optional_tests:
         success, message = test_func(*args)
         print(message)
-        if success:
-            optional_passed += 1
-        else:
-            optional_failed += 1
 
-    # Выводим результаты
     print()
-    print("=" * 60)
-    print("📊 РЕЗУЛЬТАТЫ ТЕСТИРОВАНИЯ:")
-    print(f"• Основные тесты: {passed} пройдено, {failed} провалено")
-    print(
-        f"• Опциональные тесты: {optional_passed} пройдено, {optional_failed} провалено"
-    )
-    print()
+    print("📊 РЕЗУЛЬТАТЫ:")
+    print("-" * 40)
+    print(f"✅ Успешно: {passed}")
+    print(f"❌ Ошибок: {failed}")
+    print(f"📈 Процент успеха: {(passed / (passed + failed) * 100):.1f}%")
 
     if failed == 0:
-        print("🎉 ВСЕ ОСНОВНЫЕ ТЕСТЫ ПРОЙДЕНЫ УСПЕШНО!")
-        print("🏆 МОДУЛЬНАЯ АРХИТЕКТУРА ПОЛНОСТЬЮ ФУНКЦИОНАЛЬНА!")
         print()
-        if optional_failed > 0:
-            print(
-                "ℹ️  Некоторые интерфейсы требуют установки дополнительных зависимостей."
-            )
-            print("   Для полной функциональности выполните: poetry install")
+        print("🎉 ВСЕ ОСНОВНЫЕ ТЕСТЫ ПРОШЛИ УСПЕШНО!")
+        print("🚀 Архитектура MathIDE готова к работе!")
+    else:
         print()
-        print("🚀 ПРОЕКТ ГОТОВ К ИСПОЛЬЗОВАНИЮ И РАЗВИТИЮ!")
-
-    return failed == 0
+        print("⚠️ Обнаружены проблемы в архитектуре.")
+        print("🔧 Требуется исправление перед использованием.")
 
 
 def main():
     """Главная функция для запуска как скрипта."""
-    success = run_architecture_tests()
-    sys.exit(0 if success else 1)
+    run_architecture_tests()
+    sys.exit(0 if run_architecture_tests() else 1)
 
 
 if __name__ == "__main__":

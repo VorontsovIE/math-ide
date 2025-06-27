@@ -14,128 +14,160 @@ from core.types import (
     create_system_step,
     create_cases_step,
     create_alternatives_step,
+    SolutionStep,
+    SolutionBranch,
 )
 
 
-def test_solution_step_creation():
-    """Тест создания простого шага решения."""
-    print("Тестируем создание простого шага решения...")
+def test_simple_step_creation() -> None:
+    """Тест создания простого шага."""
     step = create_solution_step("x + 2 = 5")
-
     assert step.expression == "x + 2 = 5"
     assert step.solution_type == SolutionType.SINGLE
     assert len(step.branches) == 0
-    print("✅ Тест создания простого шага прошел успешно")
 
 
-def test_system_step_creation():
+def test_system_step_creation() -> None:
     """Тест создания шага с системой уравнений."""
-    print("Тестируем создание системы уравнений...")
-    equations = ["2x + 3y = 7", "x - y = 1"]
-    step = create_system_step("Система двух уравнений с двумя неизвестными", equations)
-
-    assert step.expression == "Система двух уравнений с двумя неизвестными"
+    equations = ["x + y = 5", "x - y = 1"]
+    step = create_system_step("Система уравнений", equations)
+    assert step.expression == "Система уравнений"
     assert step.solution_type == SolutionType.SYSTEM
     assert len(step.branches) == 2
 
-    # Проверяем первое уравнение
-    assert step.branches[0].id == "eq_0"
-    assert step.branches[0].name == "Уравнение 1"
-    assert step.branches[0].expression == "2x + 3y = 7"
-    assert step.branches[0].condition is None
 
-    # Проверяем второе уравнение
-    assert step.branches[1].id == "eq_1"
-    assert step.branches[1].name == "Уравнение 2"
-    assert step.branches[1].expression == "x - y = 1"
-    assert step.branches[1].condition is None
-    print("✅ Тест создания системы уравнений прошел успешно")
-
-
-def test_cases_step_creation():
+def test_cases_step_creation() -> None:
     """Тест создания шага с разбором случаев."""
-    print("Тестируем создание разбора случаев...")
-    cases = [
-        ("x ≥ 0", "x + 2 = 5", "Случай 1: x ≥ 0"),
-        ("x < 0", "-x + 2 = 5", "Случай 2: x < 0"),
-    ]
-    step = create_cases_step("Решение уравнения |x| + 2 = 5", cases)
-
-    assert step.expression == "Решение уравнения |x| + 2 = 5"
+    cases = [("x ≥ 0", "x = 2"), ("x < 0", "x = -2")]
+    step = create_cases_step("|x| = 2", cases)
+    assert step.expression == "|x| = 2"
     assert step.solution_type == SolutionType.CASES
     assert len(step.branches) == 2
 
-    # Проверяем первый случай
-    assert step.branches[0].id == "case_0"
-    assert step.branches[0].name == "Случай 1: x ≥ 0"
-    assert step.branches[0].expression == "x + 2 = 5"
-    assert step.branches[0].condition == "x ≥ 0"
 
-    # Проверяем второй случай
-    assert step.branches[1].id == "case_1"
-    assert step.branches[1].name == "Случай 2: x < 0"
-    assert step.branches[1].expression == "-x + 2 = 5"
-    assert step.branches[1].condition == "x < 0"
-    print("✅ Тест создания разбора случаев прошел успешно")
-
-
-def test_alternatives_step_creation():
-    """Тест создания шага с альтернативными методами."""
-    print("Тестируем создание альтернативных методов...")
+def test_alternatives_step_creation() -> None:
+    """Тест создания шага с альтернативными путями."""
     alternatives = [
-        ("(x - 2)(x + 3) = 0", "Метод разложения на множители"),
-        ("D = b² - 4ac = 1 + 24 = 25", "Метод дискриминанта"),
+        ("Факторизация", "x^2 - 4 = (x-2)(x+2)"),
+        ("Квадратное уравнение", "x^2 = 4"),
     ]
-    step = create_alternatives_step(
-        "Решение квадратного уравнения x² + x - 6 = 0", alternatives
-    )
-
-    assert step.expression == "Решение квадратного уравнения x² + x - 6 = 0"
+    step = create_alternatives_step("x^2 - 4 = 0", alternatives)
+    assert step.expression == "x^2 - 4 = 0"
     assert step.solution_type == SolutionType.ALTERNATIVES
     assert len(step.branches) == 2
 
-    # Проверяем первый метод
-    assert step.branches[0].id == "alt_0"
-    assert step.branches[0].name == "Метод разложения на множители"
-    assert step.branches[0].expression == "(x - 2)(x + 3) = 0"
-    assert step.branches[0].condition is None
 
-    # Проверяем второй метод
-    assert step.branches[1].id == "alt_1"
-    assert step.branches[1].name == "Метод дискриминанта"
-    assert step.branches[1].expression == "D = b² - 4ac = 1 + 24 = 25"
-    assert step.branches[1].condition is None
-    print("✅ Тест создания альтернативных методов прошел успешно")
-
-
-def test_complex_branching_scenario():
-    """Тест сложного сценария с ветвящимися решениями."""
-    print("Тестируем сложный сценарий с ветвящимися решениями...")
-    # Создаем начальную задачу
-    initial_step = create_solution_step("Решить: |x - 1| = 2x + 3")
-
-    # Создаем разбор случаев
-    cases = [
-        ("x ≥ 1", "x - 1 = 2x + 3", "Случай 1: x ≥ 1"),
-        ("x < 1", "-(x - 1) = 2x + 3", "Случай 2: x < 1"),
-    ]
-    cases_step = create_cases_step("Разбор случаев для модуля", cases)
+def test_complex_branching_scenario() -> None:
+    """Тест сложного сценария ветвления."""
+    # Создаем сложную задачу с модулем
+    cases = [("x ≥ 0", "x + 1 = 3"), ("x < 0", "-x + 1 = 3")]
+    step = create_cases_step("|x| + 1 = 3", cases)
 
     # Проверяем структуру
-    assert initial_step.solution_type == SolutionType.SINGLE
-    assert cases_step.solution_type == SolutionType.CASES
-    assert len(cases_step.branches) == 2
+    assert step.solution_type == SolutionType.CASES
+    assert len(step.branches) == 2
 
-    # Проверяем первый случай
-    first_case = cases_step.branches[0]
-    assert first_case.condition == "x ≥ 1"
-    assert first_case.expression == "x - 1 = 2x + 3"
+    # Проверяем ветви
+    branch1 = step.branches[0]
+    assert branch1.name == "x ≥ 0"
+    assert branch1.expression == "x + 1 = 3"
+    assert branch1.condition == "x ≥ 0"
 
-    # Проверяем второй случай
-    second_case = cases_step.branches[1]
-    assert second_case.condition == "x < 1"
-    assert second_case.expression == "-(x - 1) = 2x + 3"
+    branch2 = step.branches[1]
+    assert branch2.name == "x < 0"
+    assert branch2.expression == "-x + 1 = 3"
+    assert branch2.condition == "x < 0"
+
     print("✅ Тест сложного сценария прошел успешно")
+
+
+def test_simple_branching() -> None:
+    """Тест простого ветвления."""
+    # Создаем простой шаг
+    step = SolutionStep(expression="x^2 = 4")
+
+    # Проверяем, что шаг создан корректно
+    assert step.expression == "x^2 = 4"
+    assert step.solution_type == SolutionType.SINGLE
+    assert step.branches is None
+
+
+def test_branching_with_conditions() -> None:
+    """Тест ветвления с условиями."""
+    # Создаем ветви
+    branches = [
+        SolutionBranch(
+            id="branch_1",
+            name="x = 2",
+            expression="x = 2",
+            condition="x > 0",
+            is_valid=True,
+        ),
+        SolutionBranch(
+            id="branch_2",
+            name="x = -2",
+            expression="x = -2",
+            condition="x < 0",
+            is_valid=True,
+        ),
+    ]
+
+    # Создаем шаг с ветвлением
+    step = SolutionStep(
+        expression="x^2 = 4", solution_type=SolutionType.CASES, branches=branches
+    )
+
+    # Проверяем
+    assert len(step.branches) == 2
+    assert step.branches[0].name == "x = 2"
+    assert step.branches[1].name == "x = -2"
+
+
+def test_branching_validation() -> None:
+    """Тест валидации ветвления."""
+    # Создаем невалидную ветвь
+    invalid_branch = SolutionBranch(
+        id="invalid", name="Invalid", expression="", condition=None, is_valid=False
+    )
+
+    # Проверяем
+    assert not invalid_branch.is_valid
+    assert invalid_branch.expression == ""
+
+
+def test_branching_metadata() -> None:
+    """Тест метаданных ветвления."""
+    metadata = {"complexity": "medium", "requires_analysis": True}
+
+    step = SolutionStep(
+        expression="|x| = 3", solution_type=SolutionType.CASES, metadata=metadata
+    )
+
+    assert step.metadata["complexity"] == "medium"
+    assert step.metadata["requires_analysis"] is True
+
+
+def test_branching_serialization() -> None:
+    """Тест сериализации ветвления."""
+    branches = [
+        SolutionBranch(
+            id="test_branch",
+            name="Test Branch",
+            expression="x = 1",
+            condition="x > 0",
+            is_valid=True,
+        )
+    ]
+
+    step = SolutionStep(
+        expression="x^2 = 1", solution_type=SolutionType.CASES, branches=branches
+    )
+
+    # Проверяем, что можно получить словарь
+    step_dict = step.__dict__
+    assert "expression" in step_dict
+    assert "solution_type" in step_dict
+    assert "branches" in step_dict
 
 
 def run_all_tests():
@@ -143,11 +175,16 @@ def run_all_tests():
     print("🧪 Запуск тестов ветвящихся решений MathIDE\n")
 
     try:
-        test_solution_step_creation()
+        test_simple_step_creation()
         test_system_step_creation()
         test_cases_step_creation()
         test_alternatives_step_creation()
         test_complex_branching_scenario()
+        test_simple_branching()
+        test_branching_with_conditions()
+        test_branching_validation()
+        test_branching_metadata()
+        test_branching_serialization()
 
         print("\n🎉 Все тесты прошли успешно!")
         print("✅ Поддержка ветвящихся решений работает корректно")

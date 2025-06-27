@@ -274,7 +274,7 @@ class TestTransformationEngine:
     def test_apply_transformation_with_parameters(self):
         """Тест применения преобразования с параметрами."""
         engine = TransformationEngine(preview_mode=True)
-        
+
         # Создаем преобразование с параметрами
         transformation = Transformation(
             description="Умножить на коэффициент",
@@ -285,15 +285,15 @@ class TestTransformationEngine:
                     name="COEFFICIENT",
                     prompt="Введите коэффициент для умножения:",
                     param_type=ParameterType.NUMBER,
-                    default_value=2
+                    default_value=2,
                 )
             ],
-            requires_user_input=True
+            requires_user_input=True,
         )
-        
+
         # Применяем преобразование
         result = engine.apply_transformation("x + 1", transformation)
-        
+
         # Проверяем результат
         assert result.is_valid is True
         assert "2x + 2" in result.result or "x*2 + 1*2" in result.result

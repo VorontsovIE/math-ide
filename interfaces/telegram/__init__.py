@@ -14,7 +14,12 @@ from .state import (
 from .rate_limiter import RateLimiter, rate_limiter
 
 # Временно комментируем импорт renderers из-за зависимости matplotlib
-# from .renderers import render_latex_to_image, render_transformations_image, fix_latex_expression, check_and_suggest_rollback
+# from .renderers import (
+#     render_latex_to_image,
+#     render_transformations_image,
+#     fix_latex_expression,
+#     check_and_suggest_rollback
+# )
 
 from .utils import (
     send_status_message,

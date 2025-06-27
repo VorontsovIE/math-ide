@@ -9,8 +9,8 @@ import os
 # Добавляем корневую директорию в sys.path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-import pytest
-from core.types import (
+import pytest  # noqa: E402
+from core.types import (  # noqa: E402
     SolutionType,
     SolutionBranch,
     create_solution_step,

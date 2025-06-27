@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 
 if TYPE_CHECKING:
     from core.types import Transformation
+    from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 
 logger = logging.getLogger(__name__)
 

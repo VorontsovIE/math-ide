@@ -226,9 +226,13 @@ class DisplayManager:
 
     def display_solution_complete(self, explanation: str, result: str) -> None:
         """Отображает сообщение о завершении решения."""
+        content = (
+            f"[green]Задача решена![/green]\n{explanation}\n\n"
+            f"Итоговый результат:\n{self.latex_renderer.render_latex(result)}"
+        )
         self.console.print(
             Panel.fit(
-                f"[green]Задача решена![/green]\n{explanation}\n\nИтоговый результат:\n{self.latex_renderer.render_latex(result)}",
+                content,
                 border_style="green",
             )
         )
@@ -238,7 +242,8 @@ class DisplayManager:
         self.console.print(
             Panel.fit(
                 "[bold blue]Math IDE - Интерактивный решатель математических задач[/bold blue]\n"
-                "Система пошагового решения с поддержкой ветвящихся решений и параметризованных трансформаций",
+                "Система пошагового решения с поддержкой ветвящихся решений и "
+                "параметризованных трансформаций",
                 border_style="blue",
             )
         )

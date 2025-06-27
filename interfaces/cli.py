@@ -69,8 +69,11 @@ def solve(problem: str, model: str, debug: bool) -> None:
         while True:
             try:
                 # Check if solved
+                current_step = SolutionStep(
+                    expression=current_problem, solution_type=SolutionType.SINGLE
+                )
                 is_solved = solution_checker.check_solution_completeness(
-                    current_problem, problem
+                    current_step, problem
                 )
                 if is_solved.is_solved:
                     display_manager.show_completion_message()
@@ -78,7 +81,7 @@ def solve(problem: str, model: str, debug: bool) -> None:
 
                 # Generate transformations
                 transformations = transformation_generator.generate_transformations(
-                    current_problem
+                    current_step
                 )
                 if not transformations or not transformations.transformations:
                     display_manager.show_error("Не удалось сгенерировать трансформации")
@@ -110,9 +113,6 @@ def solve(problem: str, model: str, debug: bool) -> None:
                     continue
 
                 # Apply transformation
-                current_step = SolutionStep(
-                    expression=current_problem, solution_type=SolutionType.SINGLE
-                )
                 result = transformation_applier.apply_transformation(
                     current_step, selected_transformation
                 )

@@ -18,6 +18,7 @@ from .state import user_states, UserState
 from .rate_limiter import rate_limiter
 from .utils import send_status_message, edit_status_message
 from .keyboards import get_transformations_keyboard
+from .renderers import render_transformations_image
 
 logger = logging.getLogger(__name__)
 
@@ -149,7 +150,13 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
                 status_message, "🧠 Генерирую возможные преобразования...", user_id
             )
 
-        engine = TransformationGenerator(preview_mode=True)
+        # Создаем временные объекты для демонстрации
+        from core.gpt_client import GPTClient
+        from core.prompts import PromptManager
+
+        client = GPTClient()
+        prompt_manager = PromptManager()
+        engine = TransformationGenerator(client, prompt_manager, preview_mode=True)
         history = SolutionHistory(task)
         current_step = SolutionStep(expression=task)
 
