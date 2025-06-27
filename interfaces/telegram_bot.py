@@ -15,12 +15,12 @@ from telegram.ext import (
 )
 
 from .telegram.handlers import (
-    start_command,
+    start,
     help_command,
     cancel,
     show_history,
-    handle_message,
-    handle_callback_query,
+    handle_task,
+    handle_transformation_choice,
 )
 
 logger = logging.getLogger(__name__)
@@ -34,17 +34,17 @@ def run_bot(token: str) -> None:
     application = Application.builder().token(token).build()
 
     # Регистрируем обработчики команд
-    application.add_handler(CommandHandler("start", start_command))
+    application.add_handler(CommandHandler("start", start))
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("cancel", cancel))
     application.add_handler(CommandHandler("history", show_history))
 
     # Обработчик callback-запросов (кнопки)
-    application.add_handler(CallbackQueryHandler(handle_callback_query))
+    application.add_handler(CallbackQueryHandler(handle_transformation_choice))
 
     # Обработчик текстовых сообщений (задачи)
     application.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message)
+        MessageHandler(filters.TEXT & ~filters.COMMAND, handle_task)
     )
 
     logger.info("Все обработчики зарегистрированы")

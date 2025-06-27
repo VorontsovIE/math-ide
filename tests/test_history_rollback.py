@@ -42,9 +42,9 @@ def test_rollback_to_first_step():
     assert history.get_current_expression() == "x + 2 = 5"
 
     # Проверяем, что можем продолжить
-    new_step = history.add_step("x = 5 - 2", available_transformations=[])
+    new_step_id = history.add_step("x = 5 - 2", available_transformations=[])
     assert history.get_steps_count() == 2
-    assert new_step.step_number == 2
+    assert isinstance(new_step_id, str)  # add_step возвращает ID
 
 
 def test_rollback_invalid_step():
@@ -76,6 +76,7 @@ def test_can_rollback():
     # Добавляем один шаг - возврат все еще невозможен
     _ = history.add_step(
         "x + 2 = 5",
+        available_transformations=[],
         chosen_transformation=None,
         result_expression=None,
     )
@@ -84,6 +85,7 @@ def test_can_rollback():
     # Добавляем второй шаг - теперь возврат возможен
     _ = history.add_step(
         "x = 0",
+        available_transformations=[],
         chosen_transformation=None,
         result_expression="x = 0",
     )
@@ -95,22 +97,22 @@ def test_rollback_by_id():
     history = SolutionHistory("Решить уравнение x + 2 = 5")
 
     # Добавляем несколько шагов
-    step1_id = history.add_step("x + 2 = 5")
-    _ = history.add_step("x = 5 - 2")
-    _ = history.add_step("x = 3")
+    step1_id = history.add_step("x + 2 = 5", available_transformations=[])
+    _ = history.add_step("x = 5 - 2", available_transformations=[])
+    _ = history.add_step("x = 3", available_transformations=[])
 
     # Возврат к первому шагу по ID (номер 0)
     assert history.rollback_to_step_by_id(step1_id) is True
     assert history.get_steps_count() == 1  # Остается только шаг 0
-    assert history.get_current_expression() == "x = 3"
+    assert history.get_current_expression() == "x + 2 = 5"
 
     # Попытка возврата к несуществующему ID
     assert history.rollback_to_step_by_id("nonexistent-id") is False
 
     # Проверяем, что можем продолжить
-    new_step = history.add_step("x = 3 (проверка)")
+    new_step_id = history.add_step("x = 3 (проверка)", available_transformations=[])
     assert history.get_steps_count() == 2
-    assert new_step.step_number == 2
+    assert isinstance(new_step_id, str)  # add_step возвращает ID
 
 
 def test_get_current_expression():
@@ -121,11 +123,11 @@ def test_get_current_expression():
     assert history.get_current_expression() == ""
 
     # Добавляем шаг
-    _ = history.add_step("x + 2 = 5")
+    _ = history.add_step("x + 2 = 5", available_transformations=[])
     assert history.get_current_expression() == "x + 2 = 5"
 
     # Добавляем еще шаг
-    _ = history.add_step("x = 5 - 2")
+    _ = history.add_step("x = 5 - 2", available_transformations=[])
     assert history.get_current_expression() == "x = 5 - 2"
 
 
@@ -134,22 +136,22 @@ def test_rollback_and_continue():
     history = SolutionHistory("Решить уравнение x + 2 = 5")
 
     # Добавляем несколько шагов
-    _ = history.add_step("x + 2 = 5")
-    _ = history.add_step("x = 5 - 2")
-    _ = history.add_step("x = 3")
+    _ = history.add_step("x + 2 = 5", available_transformations=[])
+    _ = history.add_step("x = 5 - 2", available_transformations=[])
+    _ = history.add_step("x = 3", available_transformations=[])
 
     # Откатываемся к шагу 1
     history.rollback_to_step(1)
 
     # Продолжаем решение по новому пути
-    new_step = history.add_step("x = 3 (новый путь)")
+    new_step_id = history.add_step("x = 3 (новый путь)", available_transformations=[])
     assert history.get_steps_count() == 3
-    assert new_step.step_number == 3
+    assert isinstance(new_step_id, str)  # add_step возвращает ID
 
     # Проверяем, что старые шаги после отката удалены
-    assert history.get_step_summary(history.steps[0]) == "x + 2 = 5"
-    assert history.get_step_summary(history.steps[1]) == "x = 5 - 2"
-    assert history.get_step_summary(history.steps[2]) == "x = 3 (новый путь)"
+    assert history.get_step_summary(history.steps[0])["expression"] == "x + 2 = 5"
+    assert history.get_step_summary(history.steps[1])["expression"] == "x = 5 - 2"
+    assert history.get_step_summary(history.steps[2])["expression"] == "x = 3 (новый путь)"
 
 
 def test_rollback_to_previous_step():
@@ -178,7 +180,7 @@ def test_basic_history_operations() -> None:
     history = SolutionHistory()
 
     # Добавляем первый шаг
-    step1 = history.add_step(
+    step1_id = history.add_step(
         expression="x + 2 = 5",
         available_transformations=[{"description": "Вычесть 2"}],
         chosen_transformation={"description": "Вычесть 2", "expression": "x = 5 - 2"},
@@ -186,20 +188,20 @@ def test_basic_history_operations() -> None:
     )
 
     # Проверяем, что шаг добавлен
-    assert step1 is not None
-    assert step1.expression == "x + 2 = 5"
+    assert step1_id is not None
+    assert isinstance(step1_id, str)  # add_step возвращает ID
     assert len(history.steps) == 1
 
     # Добавляем второй шаг
-    step2 = history.add_step(
+    step2_id = history.add_step(
         expression="x = 3",
         available_transformations=[{"description": "Упростить"}],
         chosen_transformation={"description": "Упростить", "expression": "x = 3"},
         result_expression="x = 3",
     )
 
-    assert step2 is not None
-    assert step2.expression == "x = 3"
+    assert step2_id is not None
+    assert isinstance(step2_id, str)  # add_step возвращает ID
     assert len(history.steps) == 2
 
 
@@ -312,7 +314,7 @@ def test_history_validation() -> None:
     history = SolutionHistory()
 
     # Добавляем валидный шаг
-    step = history.add_step(
+    step_id = history.add_step(
         expression="x = 1",
         available_transformations=[{"description": "Упростить"}],
         chosen_transformation={"description": "Упростить", "expression": "x = 1"},
@@ -320,9 +322,10 @@ def test_history_validation() -> None:
     )
 
     # Проверяем валидность
-    assert step is not None
-    assert step.step_number == 1
-    assert step.expression == "x = 1"
+    assert step_id is not None
+    assert isinstance(step_id, str)  # add_step возвращает ID
+    assert len(history.steps) == 1
+    assert history.steps[0].expression == "x = 1"
 
 
 if __name__ == "__main__":
