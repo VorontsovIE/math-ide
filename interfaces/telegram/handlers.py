@@ -7,7 +7,7 @@ import logging
 from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
-    from telegram import Update, Message
+    from telegram import Update, Message, CallbackQuery
     from telegram.ext import ContextTypes
 
 from core.engines import TransformationGenerator
@@ -268,105 +268,185 @@ async def handle_transformation_choice(
     try:
         # Получаем данные из callback
         callback_data = query.data
-        if not callback_data or not callback_data.startswith("transform_"):
+        if not callback_data:
             await query.answer("Неверный формат данных")
             return
 
-        # Извлекаем индекс преобразования
-        try:
-            transform_index = int(callback_data.split("_")[2])
-        except (IndexError, ValueError):
-            await query.answer("Неверный индекс преобразования")
-            return
-
-        # Проверяем, что индекс в допустимых пределах
-        if not state.available_transformations or transform_index >= len(state.available_transformations):
-            await query.answer("Преобразование не найдено")
-            return
-
-        # Получаем выбранное преобразование
-        selected_transformation = state.available_transformations[transform_index]
-        
-        # Применяем преобразование
-        from core.engines.transformation_applier import TransformationApplier
-        from core.engines.transformation_generator import TransformationGenerator
-        from core.gpt_client import GPTClient
-        from core.prompts import PromptManager
-        
-        if not state.current_step:
-            await query.answer("❌ Ошибка: нет текущего шага")
-            return
-            
-        client = GPTClient()
-        prompt_manager = PromptManager()
-        applier = TransformationApplier(client, prompt_manager)
-        engine = TransformationGenerator(client, prompt_manager, preview_mode=True)
-        result = applier.apply_transformation(state.current_step, selected_transformation)
-        
-        if result.is_valid:
-            # Создаем новый шаг с результатом
-            new_step = SolutionStep(expression=result.result)
-            state.current_step = new_step
-            
-            # Добавляем шаг в историю
-            step_id = state.history.add_step(
-                expression=result.result,
-                chosen_transformation=selected_transformation.__dict__,
-                available_transformations=[]
-            )
-            
-            # Генерируем новые преобразования для следующего шага
-            logger.info("Генерация новых преобразований для следующего шага...")
-            generation_result = engine.generate_transformations(new_step)
-            
-            # Обновляем состояние с новыми преобразованиями
-            state.available_transformations = generation_result.transformations
-            
-            # Отправляем результат пользователю
-            await query.answer("✅ Преобразование применено!")
-            
-            if query.message:
-                # Если есть новые преобразования, показываем их
-                if generation_result.transformations:
-                    # Подготавливаем изображение с новыми преобразованиями
-                    img = render_transformations_image(result.result, generation_result.transformations)
-                    
-                    await query.message.reply_photo(
-                        photo=img,
-                        caption=f"🔧 **Применено преобразование:**\n"
-                                f"_{selected_transformation.description}_\n\n"
-                                f"📝 **Результат:**\n"
-                                f"`{result.result}`\n\n"
-                                f"🎯 **Выберите следующее преобразование:**",
-                        reply_markup=get_transformations_keyboard(
-                            [tr.__dict__ for tr in generation_result.transformations],
-                            step_id,
-                        ),
-                    )
-                else:
-                    # Если нет новых преобразований, показываем сообщение о завершении
-                    await query.message.reply_text(
-                        f"🔧 **Применено преобразование:**\n"
-                        f"_{selected_transformation.description}_\n\n"
-                        f"📝 **Результат:**\n"
-                        f"`{result.result}`\n\n"
-                        f"🎉 **Задача решена!**\n"
-                        f"Отправьте новую задачу для продолжения."
-                    )
+        # Обрабатываем разные типы callback данных
+        if callback_data.startswith("transform_"):
+            # Обработка выбора преобразования
+            await _handle_transform_choice(query, callback_data, state)
+        elif callback_data.startswith("back_"):
+            # Обработка кнопки "Назад"
+            await _handle_back_button(query, callback_data, state)
+        elif callback_data.startswith("refresh_"):
+            # Обработка кнопки "Обновить"
+            await _handle_refresh_button(query, callback_data, state)
         else:
-            await query.answer("❌ Ошибка при применении преобразования")
-            if query.message:
-                await query.message.reply_text(
-                    f"❌ **Ошибка:**\n"
-                    f"Не удалось применить преобразование:\n"
-                    f"_{selected_transformation.description}_\n\n"
-                    f"**Причина:** {result.explanation}\n\n"
-                    f"Попробуйте другое преобразование или отправьте новую задачу."
-            )
+            await query.answer("Неизвестный тип действия")
+            return
 
     except Exception as e:
         logger.error(f"Ошибка при обработке выбора преобразования: {e}")
         await query.answer("❌ Произошла ошибка при обработке преобразования")
+
+
+async def _handle_transform_choice(
+    query: "CallbackQuery", callback_data: str, state: UserState
+) -> None:
+    """Обработка выбора преобразования."""
+    # Извлекаем индекс преобразования
+    try:
+        transform_index = int(callback_data.split("_")[2])
+    except (IndexError, ValueError):
+        await query.answer("Неверный индекс преобразования")
+        return
+
+    # Проверяем, что индекс в допустимых пределах
+    if not state.available_transformations or transform_index >= len(state.available_transformations):
+        await query.answer("Преобразование не найдено")
+        return
+
+    # Получаем выбранное преобразование
+    selected_transformation = state.available_transformations[transform_index]
+    
+    # Применяем преобразование
+    from core.engines.transformation_applier import TransformationApplier
+    from core.engines.transformation_generator import TransformationGenerator
+    from core.gpt_client import GPTClient
+    from core.prompts import PromptManager
+    
+    if not state.current_step:
+        await query.answer("❌ Ошибка: нет текущего шага")
+        return
+        
+    client = GPTClient()
+    prompt_manager = PromptManager()
+    applier = TransformationApplier(client, prompt_manager)
+    engine = TransformationGenerator(client, prompt_manager, preview_mode=True)
+    result = applier.apply_transformation(state.current_step, selected_transformation)
+    
+    if result.is_valid:
+        # Создаем новый шаг с результатом
+        new_step = SolutionStep(expression=result.result)
+        state.current_step = new_step
+        
+        # Добавляем шаг в историю
+        step_id = state.history.add_step(
+            expression=result.result,
+            chosen_transformation=selected_transformation.__dict__,
+            available_transformations=[]
+        ) if state.history else "current"
+        
+        # Генерируем новые преобразования для следующего шага
+        logger.info("Генерация новых преобразований для следующего шага...")
+        generation_result = engine.generate_transformations(new_step)
+        
+        # Обновляем состояние с новыми преобразованиями
+        state.available_transformations = generation_result.transformations
+        
+        # Отправляем результат пользователю
+        await query.answer("✅ Преобразование применено!")
+        
+        if query.message:
+            # Если есть новые преобразования, показываем их
+            if generation_result.transformations:
+                # Подготавливаем изображение с новыми преобразованиями
+                img = render_transformations_image(result.result, generation_result.transformations)
+                
+                await query.message.reply_photo(
+                    photo=img,
+                    caption=f"🔧 **Применено преобразование:**\n"
+                            f"_{selected_transformation.description}_\n\n"
+                            f"📝 **Результат:**\n"
+                            f"`{result.result}`\n\n"
+                            f"🎯 **Выберите следующее преобразование:**",
+                    reply_markup=get_transformations_keyboard(
+                        [tr.__dict__ for tr in generation_result.transformations],
+                        step_id,
+                    ),
+                )
+            else:
+                # Если нет новых преобразований, показываем сообщение о завершении
+                await query.message.reply_text(
+                    f"🔧 **Применено преобразование:**\n"
+                    f"_{selected_transformation.description}_\n\n"
+                    f"📝 **Результат:**\n"
+                    f"`{result.result}`\n\n"
+                    f"🎉 **Задача решена!**\n"
+                    f"Отправьте новую задачу для продолжения."
+                )
+    else:
+        await query.answer("❌ Ошибка при применении преобразования")
+        if query.message:
+            await query.message.reply_text(
+                f"❌ **Ошибка:**\n"
+                f"Не удалось применить преобразование:\n"
+                f"_{selected_transformation.description}_\n\n"
+                f"**Причина:** {result.explanation}\n\n"
+                f"Попробуйте другое преобразование или отправьте новую задачу."
+            )
+
+
+async def _handle_back_button(
+    query: "CallbackQuery", callback_data: str, state: UserState
+) -> None:
+    """Обработка кнопки 'Назад'."""
+    await query.answer("◀️ Возврат к предыдущему шагу")
+    
+    # Пока что просто показываем сообщение
+    if query.message:
+        await query.message.reply_text(
+            "🔧 Функция 'Назад' пока не реализована.\n"
+            "Отправьте новую задачу для продолжения."
+        )
+
+
+async def _handle_refresh_button(
+    query: "CallbackQuery", callback_data: str, state: UserState
+) -> None:
+    """Обработка кнопки 'Обновить'."""
+    await query.answer("🔄 Обновление преобразований...")
+    
+    if not state.current_step:
+        await query.answer("❌ Ошибка: нет текущего шага")
+        return
+    
+    try:
+        # Генерируем новые преобразования
+        from core.engines.transformation_generator import TransformationGenerator
+        from core.gpt_client import GPTClient
+        from core.prompts import PromptManager
+        
+        client = GPTClient()
+        prompt_manager = PromptManager()
+        engine = TransformationGenerator(client, prompt_manager, preview_mode=True)
+        
+        generation_result = engine.generate_transformations(state.current_step)
+        state.available_transformations = generation_result.transformations
+        
+        if query.message:
+            # Подготавливаем изображение с новыми преобразованиями
+            img = render_transformations_image(state.current_step.expression, generation_result.transformations)
+            
+            await query.message.reply_photo(
+                photo=img,
+                caption=f"🔄 **Обновленные преобразования для:**\n"
+                        f"`{state.current_step.expression}`\n\n"
+                        f"🎯 **Выберите преобразование:**",
+                reply_markup=get_transformations_keyboard(
+                    [tr.__dict__ for tr in generation_result.transformations],
+                    state.history.get_current_step().id if state.history and state.history.get_current_step() else "current",
+                ),
+            )
+    except Exception as e:
+        logger.error(f"Ошибка при обновлении преобразований: {e}")
+        await query.answer("❌ Ошибка при обновлении")
+        if query.message:
+            await query.message.reply_text(
+                "❌ **Ошибка при обновлении преобразований**\n"
+                "Попробуйте еще раз или отправьте новую задачу."
+            )
 
 
 # Заглушки для остальных обработчиков - будут реализованы по мере необходимости
