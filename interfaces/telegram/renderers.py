@@ -75,6 +75,23 @@ def fix_latex_expression(latex_expr: str) -> str:
         .replace("\\cos{", "\\cos(")
         .replace("\\tan{", "\\tan(")
     )
+    
+    # Экранируем специальные символы, которые могут вызвать проблемы в LaTeX
+    # но только если они не являются частью LaTeX команд
+    import re
+    
+    # Экранируем символы, которые могут быть интерпретированы как LaTeX команды
+    # но только если они не являются частью существующих команд
+    def escape_special_chars(match):
+        text = match.group(0)
+        # Если это уже LaTeX команда, не экранируем
+        if text.startswith('\\'):
+            return text
+        # Экранируем специальные символы
+        return text.replace('_', '\\_').replace('^', '\\^{}').replace('%', '\\%')
+    
+    # Применяем экранирование только к отдельным символам, не к командам
+    latex_expr = re.sub(r'\\[a-zA-Z]+|[^\\_^%]+', escape_special_chars, latex_expr)
 
     return latex_expr
 
@@ -157,15 +174,28 @@ def render_transformations_image(
             transform=ax.transAxes,
         )
 
-        ax.text(
-            0.5,
-            0.88,
-            f"${cleaned_current}$",
-            horizontalalignment="center",
-            verticalalignment="top",
-            fontsize=16,
-            transform=ax.transAxes,
-        )
+        # Отображаем математическое выражение с правильной обработкой LaTeX
+        try:
+            ax.text(
+                0.5,
+                0.88,
+                f"${cleaned_current}$",
+                horizontalalignment="center",
+                verticalalignment="top",
+                fontsize=16,
+                transform=ax.transAxes,
+            )
+        except Exception:
+            # Если LaTeX не работает, отображаем как обычный текст
+            ax.text(
+                0.5,
+                0.88,
+                cleaned_current,
+                horizontalalignment="center",
+                verticalalignment="top",
+                fontsize=16,
+                transform=ax.transAxes,
+            )
 
         # Добавляем разделительную линию
         ax.axhline(
