@@ -271,9 +271,28 @@ class TestTransformationEngine:
         # Проверяем, что был сделан только 1 вызов для генерации
         assert mock_chat.call_count == 1
 
-    def test_apply_transformation_with_parameters(self):
+    @patch("core.gpt_client.GPTClient.chat_completion")
+    @patch("core.prompts.PromptManager.format_prompt")
+    def test_apply_transformation_with_parameters(self, mock_format, mock_chat):
         """Тест применения преобразования с параметрами."""
         engine = TransformationEngine(preview_mode=True)
+
+        # Мокаем форматирование промпта
+        mock_format.return_value = "Mocked prompt"
+
+        # Мокаем ответ GPT для применения преобразования
+        mock_response = GPTResponse(
+            content="""{
+                "result": "2x + 2",
+                "explanation": "Умножили x на 2 и 1 на 2",
+                "is_valid": true,
+                "mathematical_verification": "Проверка: 2(x + 1) = 2x + 2 ✓"
+            }""",
+            usage=GPTUsage(prompt_tokens=100, completion_tokens=50, total_tokens=150),
+            model="gpt-3.5-turbo",
+            finish_reason="stop",
+        )
+        mock_chat.return_value = mock_response
 
         # Создаем преобразование с параметрами
         transformation = Transformation(

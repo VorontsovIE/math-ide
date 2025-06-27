@@ -199,10 +199,13 @@ class SolutionHistory:
 
         Returns:
             bool: True если возврат успешен, False если шаг не найден
+
+        Raises:
+            ValueError: Если номер шага невалиден
         """
         # Проверяем, что номер шага валиден
         if step_number < 0 or step_number >= len(self.steps):
-            return False
+            raise ValueError(f"Невалидный номер шага: {step_number}")
 
         # Находим шаг по номеру
         target_step = None
@@ -245,7 +248,7 @@ class SolutionHistory:
         """
         current_step = self.get_current_step()
         if current_step is None:
-            return self.original_task
+            return ""  # Возвращаем пустую строку для пустой истории
 
         # Возвращаем результат, если он есть, иначе исходное выражение шага
         return current_step.result_expression or current_step.expression

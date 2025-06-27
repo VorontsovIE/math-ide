@@ -57,9 +57,23 @@ def test_rollback_invalid_step():
     history.add_step("x = 3", available_transformations=[])
 
     # Попытка возврата к несуществующим шагам
-    assert history.rollback_to_step(-1) is False  # Отрицательный номер
-    assert history.rollback_to_step(5) is False  # Слишком большой номер
-    assert history.rollback_to_step(10) is False  # Намного больший номер
+    try:
+        history.rollback_to_step(-1)  # Отрицательный номер
+        assert False, "Должно было возникнуть исключение ValueError"
+    except ValueError:
+        pass  # Ожидаемое поведение
+
+    try:
+        history.rollback_to_step(5)  # Слишком большой номер
+        assert False, "Должно было возникнуть исключение ValueError"
+    except ValueError:
+        pass  # Ожидаемое поведение
+
+    try:
+        history.rollback_to_step(10)  # Намного больший номер
+        assert False, "Должно было возникнуть исключение ValueError"
+    except ValueError:
+        pass  # Ожидаемое поведение
 
     # Состояние не изменилось
     assert history.get_steps_count() == 3
@@ -229,8 +243,9 @@ def test_rollback_operations() -> None:
 
     # Откатываемся к первому шагу
     history.rollback_to_step(1)
-    assert len(history.steps) == 1
+    assert len(history.steps) == 2  # Остаются шаги 0 и 1
     assert history.steps[0].expression == "x + 2 = 5"
+    assert history.steps[1].expression == "x = 3"
 
 
 def test_rollback_edge_cases() -> None:
@@ -305,8 +320,9 @@ def test_complex_rollback_scenario() -> None:
 
     # Откатываемся к первому шагу
     history.rollback_to_step(1)
-    assert len(history.steps) == 1
+    assert len(history.steps) == 2  # Остаются шаги 0 и 1
     assert history.steps[0].expression == "x + 2 = 5"
+    assert history.steps[1].expression == "x = 3"
 
 
 def test_history_validation() -> None:
