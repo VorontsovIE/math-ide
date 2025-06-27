@@ -3,8 +3,9 @@
 Содержит InputHandler для работы с различными типами ввода.
 """
 
+from typing import Any, List, Optional
+
 import click
-from typing import Optional, Any, List, cast
 from rich.console import Console
 
 from core.types import ParameterDefinition, ParameterType
@@ -93,9 +94,11 @@ class InputHandler:
             raise
 
     def _handle_text_parameter(self, param_def: ParameterDefinition) -> str:
-        """Обрабатывает параметр типа TEXT."""
+        """
+        Обрабатывает параметр типа TEXT.
+        """
         try:
-            value = cast(str, self.console.input(f"{param_def.prompt}: "))
+            value = self.console.input(f"{param_def.prompt}: ")
             return value
         except KeyboardInterrupt:
             return ""
@@ -113,7 +116,8 @@ class InputHandler:
         """
         while True:
             try:
-                choice = str(click.prompt(prompt, type=str)).strip().lower()
+                raw_choice = click.prompt(prompt, type=str)
+                choice: str = str(raw_choice).strip().lower()
 
                 if choices is None:
                     return choice
@@ -302,7 +306,7 @@ class InputHandler:
                 )
                 choice_num = int(choice) - 1
                 if 0 <= choice_num < len(param_def.options):
-                    return param_def.options[choice_num]
+                    return str(param_def.options[choice_num])
                 else:
                     self.console.print(
                         f"[red]Выберите число от 1 до {len(param_def.options)}[/red]"
@@ -315,7 +319,7 @@ class InputHandler:
     def get_text_parameter(self, param_def: ParameterDefinition) -> str:
         """Get text parameter value from user."""
         try:
-            value = cast(str, self.console.input(f"{param_def.prompt}: "))
+            value = self.console.input(f"{param_def.prompt}: ")
             return value
         except KeyboardInterrupt:
             return ""

@@ -1,16 +1,16 @@
 # branching_analyzer.py
 
 import logging
-from typing import Dict, Any
+from typing import Any, Dict
 
-from ..types import (
-    SolutionStep,
-    SolutionType,
-    SolutionBranch,
-)
+from ..gpt_client import GPTClient
 from ..parsers import safe_json_parse
 from ..prompts import PromptManager
-from ..gpt_client import GPTClient
+from ..types import (
+    SolutionBranch,
+    SolutionStep,
+    SolutionType,
+)
 
 # Настройка логирования
 logger = logging.getLogger(__name__)

@@ -3,14 +3,16 @@
 Содержит функции для создания изображений из LaTeX выражений.
 """
 
-import logging
 import io
-from typing import List, Optional, TYPE_CHECKING, Any
+import logging
+from typing import TYPE_CHECKING, Any, List, Optional
+
 import matplotlib.pyplot as plt
 
 if TYPE_CHECKING:
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
     from core.types import Transformation
-    from telegram import InlineKeyboardMarkup, InlineKeyboardButton
 
 logger = logging.getLogger(__name__)
 

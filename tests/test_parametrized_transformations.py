@@ -3,16 +3,10 @@
 Проверяет функциональность работы с параметрами преобразований.
 """
 
-import sys
-import os
-
-# Добавляем корневую директорию в sys.path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
 from core.engine import TransformationEngine
-from core.types import (  # noqa: E402
-    ParameterType,
+from core.types import (
     ParameterDefinition,
+    ParameterType,
     Transformation,
 )
 

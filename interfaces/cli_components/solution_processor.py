@@ -1,19 +1,21 @@
 """Solution processing logic for CLI interface."""
 
 from typing import List, Optional
+
+from core.engines.solution_checker import SolutionChecker
+from core.engines.transformation_applier import TransformationApplier
+from core.engines.transformation_generator import TransformationGenerator
+from core.history import SolutionHistory
 from core.types import (
-    SolutionStep,
-    Transformation,
     ParameterType,
+    SolutionStep,
     SolutionType,
+    Transformation,
     TransformationParameter,
 )
-from core.engines.transformation_generator import TransformationGenerator
-from core.engines.transformation_applier import TransformationApplier
-from core.engines.solution_checker import SolutionChecker
-from core.history import SolutionHistory
-from .input_handler import InputHandler
+
 from .display_manager import DisplayManager
+from .input_handler import InputHandler
 
 
 class SolutionProcessor:

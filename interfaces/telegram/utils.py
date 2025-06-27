@@ -5,7 +5,7 @@
 
 import logging
 import time
-from typing import Optional, TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from telegram import Message

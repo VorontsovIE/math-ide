@@ -1,20 +1,20 @@
 # transformation_generator.py
 
-import random
 import logging
-from typing import Dict, Any, List
+import random
+from typing import Any, Dict, List, cast
 
-from ..types import (
-    SolutionStep,
-    Transformation,
-    ParameterDefinition,
-    ParameterType,
-    GenerationResult,
-    get_transformation_types_markdown,
-)
+from ..gpt_client import GPTClient
 from ..parsers import safe_json_parse
 from ..prompts import PromptManager
-from ..gpt_client import GPTClient
+from ..types import (
+    GenerationResult,
+    ParameterDefinition,
+    ParameterType,
+    SolutionStep,
+    Transformation,
+    get_transformation_types_markdown,
+)
 
 # Настройка логирования
 logger = logging.getLogger(__name__)
@@ -104,6 +104,7 @@ class TransformationGenerator:
             # Преобразуем в объекты Transformation
             transformations = self._parse_transformations(transformations_data)
 
+            # Временно возвращаем пустой результат для диагностики
             logger.info("Сгенерировано %d преобразований", len(transformations))
 
             # Сортировка по полезности (good > neutral > bad)
@@ -147,7 +148,8 @@ class TransformationGenerator:
         try:
             parsed_data = safe_json_parse(json_content)
             if isinstance(parsed_data, list):
-                return parsed_data
+                # Используем cast для явного приведения типов
+                return cast(List[Dict[str, Any]], parsed_data)
             logger.error(
                 "Ожидался список преобразований, получен: %s", type(parsed_data)
             )

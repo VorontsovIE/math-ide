@@ -5,8 +5,9 @@
 
 import logging
 import time
-from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
+
 from openai import OpenAI
 
 from .exceptions import (
@@ -155,14 +156,12 @@ class GPTClient:
                     logger.error(f"GPT API ошибка: {str(e)}")
                     raise GPTClientError(f"Ошибка GPT API: {str(e)}")
 
-        # Если все попытки неудачны
         if last_error is not None:
             raise GPTClientError(
                 f"Не удалось выполнить запрос после {self.max_retries} попыток: {str(last_error)}"
             )
-        raise GPTClientError(
-            f"Не удалось выполнить запрос после {self.max_retries} попыток"
-        )
+        # Если last_error is None, это означает, что цикл не выполнился ни разу
+        raise GPTClientError("Не удалось выполнить запрос: цикл не выполнился")
 
     def generate_completion(self, prompt: str, temperature: float = 0.3) -> GPTResponse:
         """

@@ -1,17 +1,18 @@
 import unittest
 from unittest.mock import patch
+
 from core.engine import TransformationEngine
+from core.gpt_client import GPTResponse, GPTUsage
+from core.history import SolutionHistory
 from core.types import (
-    SolutionStep,
-    Transformation,
-    ParameterDefinition,
-    ParameterType,
-    GenerationResult,
     ApplyResult,
     CheckResult,
+    GenerationResult,
+    ParameterDefinition,
+    ParameterType,
+    SolutionStep,
+    Transformation,
 )
-from core.history import SolutionHistory
-from core.gpt_client import GPTResponse, GPTUsage
 
 
 class TestTransformationEngine:

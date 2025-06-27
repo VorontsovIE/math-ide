@@ -5,22 +5,23 @@
 
 import logging
 import os
+
 from telegram import Update
 from telegram.ext import (
     Application,
+    CallbackQueryHandler,
     CommandHandler,
     MessageHandler,
-    CallbackQueryHandler,
     filters,
 )
 
 from .telegram.handlers import (
-    start,
-    help_command,
     cancel,
-    show_history,
     handle_task,
     handle_transformation_choice,
+    help_command,
+    show_history,
+    start,
 )
 
 logger = logging.getLogger(__name__)

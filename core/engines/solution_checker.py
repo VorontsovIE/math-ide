@@ -1,15 +1,15 @@
 # solution_checker.py
 
 import logging
-from typing import Dict, Any
+from typing import Any, Dict
 
-from ..types import (
-    SolutionStep,
-    CheckResult,
-)
+from ..gpt_client import GPTClient
 from ..parsers import safe_json_parse
 from ..prompts import PromptManager
-from ..gpt_client import GPTClient
+from ..types import (
+    CheckResult,
+    SolutionStep,
+)
 
 # Настройка логирования
 logger = logging.getLogger(__name__)

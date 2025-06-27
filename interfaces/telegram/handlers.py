@@ -4,21 +4,21 @@
 """
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
-    from telegram import Update
+    from telegram import Update, Message
     from telegram.ext import ContextTypes
 
 from core.engines import TransformationGenerator
-from core.types import SolutionStep
 from core.history import SolutionHistory
+from core.types import SolutionStep
 
-from .state import user_states, UserState
-from .rate_limiter import rate_limiter
-from .utils import send_status_message, edit_status_message
 from .keyboards import get_transformations_keyboard
+from .rate_limiter import rate_limiter
 from .renderers import render_transformations_image
+from .state import UserState, user_states
+from .utils import edit_status_message, send_status_message
 
 logger = logging.getLogger(__name__)
 
@@ -223,7 +223,8 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
             photo=img,
             caption="Начинаем решение. Выберите преобразование:",
             reply_markup=get_transformations_keyboard(
-                generation_result.transformations, initial_step_id
+                [tr.__dict__ for tr in generation_result.transformations],
+                initial_step_id,
             ),
         )
         logger.info("Задача успешно инициализирована")
@@ -320,24 +321,18 @@ async def handle_user_transformation_result(
         )
 
 
-async def show_final_history(update_or_query: Any, history: SolutionHistory) -> None:
+async def show_final_history(
+    update_or_query: Union["Update", "Message"], history: SolutionHistory
+) -> None:
     """Показ финальной истории решения."""
     try:
         if hasattr(update_or_query, "message") and update_or_query.message:
-            # Проверяем, что message имеет метод reply_text
-            if hasattr(update_or_query.message, "reply_text"):
-                await update_or_query.message.reply_text(
-                    "📚 История решения (упрощенная версия)"
-                )
-            else:
-                logger.warning("Message не поддерживает reply_text")
+            await update_or_query.message.reply_text(
+                "📚 История решения (упрощенная версия)"
+            )
+        elif hasattr(update_or_query, "reply_text"):
+            await update_or_query.reply_text("📚 История решения (упрощенная версия)")
         else:
-            # Проверяем, что update_or_query имеет метод reply_text
-            if hasattr(update_or_query, "reply_text"):
-                await update_or_query.reply_text(
-                    "📚 История решения (упрощенная версия)"
-                )
-            else:
-                logger.warning("update_or_query не поддерживает reply_text")
+            logger.warning("Неподдерживаемый тип для show_final_history")
     except Exception as e:
         logger.error(f"Ошибка в show_final_history: {e}")

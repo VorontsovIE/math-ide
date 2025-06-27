@@ -9,12 +9,12 @@
 - BranchingAnalyzer: анализ ветвящихся решений
 """
 
-from .transformation_generator import TransformationGenerator
-from .transformation_applier import TransformationApplier
-from .solution_checker import SolutionChecker
-from .progress_analyzer import ProgressAnalyzer
-from .transformation_verifier import TransformationVerifier
 from .branching_analyzer import BranchingAnalyzer
+from .progress_analyzer import ProgressAnalyzer
+from .solution_checker import SolutionChecker
+from .transformation_applier import TransformationApplier
+from .transformation_generator import TransformationGenerator
+from .transformation_verifier import TransformationVerifier
 
 __all__ = [
     "TransformationGenerator",

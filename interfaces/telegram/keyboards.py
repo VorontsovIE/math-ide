@@ -3,9 +3,10 @@
 Содержит функции создания inline-клавиатур для различных взаимодействий.
 """
 
-from typing import List, Optional, Dict, Any
 import logging
-from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+from typing import Any, Dict, List, Optional
+
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 logger = logging.getLogger(__name__)
 

@@ -2,44 +2,44 @@
 Ядро MathIDE - основные компоненты для работы с математическими преобразованиями.
 """
 
-# Импортируем основные типы данных
-from .types import (
-    BaseTransformationType,
-    TransformationParameter,
-    Transformation,
-    SolutionStep,
-    GenerationResult,
-    ApplyResult,
-    CheckResult,
-    ProgressAnalysisResult,
-    VerificationResult,
-    get_transformation_types_markdown,
-)
+# Основные классы
+from .engine import TransformationEngine
 
 # Импортируем исключения
 from .exceptions import (
-    MathIDEError,
-    GPTError,
+    ExpressionValidationError,
     GPTConnectionError,
-    GPTRateLimitError,
+    GPTError,
     GPTInvalidResponseError,
-    ParseError,
+    GPTRateLimitError,
+    HistoryError,
+    InvalidStepError,
     JSONParseError,
     LaTeXParseError,
-    ValidationError,
-    TransformationValidationError,
-    ExpressionValidationError,
+    MathIDEError,
+    ParseError,
     PromptError,
-    PromptNotFoundError,
     PromptFormatError,
-    HistoryError,
+    PromptNotFoundError,
     StepNotFoundError,
-    InvalidStepError,
+    TransformationValidationError,
+    ValidationError,
 )
+from .history import HistoryStep, SolutionHistory
 
-# Основные классы
-from .engine import TransformationEngine
-from .history import SolutionHistory, HistoryStep
+# Импортируем основные типы данных
+from .types import (
+    ApplyResult,
+    BaseTransformationType,
+    CheckResult,
+    GenerationResult,
+    ProgressAnalysisResult,
+    SolutionStep,
+    Transformation,
+    TransformationParameter,
+    VerificationResult,
+    get_transformation_types_markdown,
+)
 
 __all__ = [
     # Типы данных

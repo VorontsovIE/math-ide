@@ -3,20 +3,21 @@
 Проверяет функциональность работы с системами уравнений, разбором случаев и альтернативными методами.
 """
 
-import sys
 import os
+import sys
 
 # Добавляем корневую директорию в sys.path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest  # noqa: E402
+
 from core.types import (  # noqa: E402
-    SolutionType,
     SolutionBranch,
+    SolutionType,
+    create_alternatives_step,
+    create_cases_step,
     create_solution_step,
     create_system_step,
-    create_cases_step,
-    create_alternatives_step,
 )
 
 

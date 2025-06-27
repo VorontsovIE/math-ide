@@ -1,12 +1,12 @@
 # progress_analyzer.py
 
 import logging
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
-from ..types import ProgressAnalysisResult
+from ..gpt_client import GPTClient
 from ..parsers import safe_json_parse
 from ..prompts import PromptManager
-from ..gpt_client import GPTClient
+from ..types import ProgressAnalysisResult
 
 logger = logging.getLogger(__name__)
 

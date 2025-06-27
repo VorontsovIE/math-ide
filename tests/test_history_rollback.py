@@ -165,7 +165,9 @@ def test_rollback_and_continue():
     # Проверяем, что старые шаги после отката удалены
     assert history.get_step_summary(history.steps[0])["expression"] == "x + 2 = 5"
     assert history.get_step_summary(history.steps[1])["expression"] == "x = 5 - 2"
-    assert history.get_step_summary(history.steps[2])["expression"] == "x = 3 (новый путь)"
+    assert (
+        history.get_step_summary(history.steps[2])["expression"] == "x = 3 (новый путь)"
+    )
 
 
 def test_rollback_to_previous_step():

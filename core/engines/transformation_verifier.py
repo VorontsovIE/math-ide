@@ -3,10 +3,10 @@
 import logging
 from typing import Optional
 
-from ..types import VerificationResult
+from ..gpt_client import GPTClient
 from ..parsers import safe_json_parse
 from ..prompts import PromptManager
-from ..gpt_client import GPTClient
+from ..types import VerificationResult
 
 logger = logging.getLogger(__name__)
 

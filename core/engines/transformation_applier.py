@@ -1,17 +1,17 @@
 # transformation_applier.py
 
 import logging
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
+from ..gpt_client import GPTClient
+from ..parsers import safe_json_parse
+from ..prompts import PromptManager
 from ..types import (
+    ApplyResult,
     SolutionStep,
     Transformation,
     TransformationParameter,
-    ApplyResult,
 )
-from ..parsers import safe_json_parse
-from ..prompts import PromptManager
-from ..gpt_client import GPTClient
 
 # Настройка логирования
 logger = logging.getLogger(__name__)

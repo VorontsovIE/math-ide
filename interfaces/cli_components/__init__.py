@@ -7,9 +7,9 @@
 - SolutionProcessor: основной цикл решения задач
 """
 
-from .latex_renderer import LatexRenderer
-from .input_handler import InputHandler
 from .display_manager import DisplayManager
+from .input_handler import InputHandler
+from .latex_renderer import LatexRenderer
 from .solution_processor import SolutionProcessor
 
 __all__ = ["LatexRenderer", "InputHandler", "DisplayManager", "SolutionProcessor"]

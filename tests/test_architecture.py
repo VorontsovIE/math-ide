@@ -4,8 +4,8 @@
 Проверяет корректность структуры проекта и импортов.
 """
 
-import sys
 import os
+import sys
 from typing import List, Tuple
 
 # Добавляем корневую директорию в sys.path

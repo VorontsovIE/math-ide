@@ -2,20 +2,14 @@
 Простые тесты для ветвящихся решений MathIDE.
 """
 
-import sys
-import os
-
-# Добавляем корневую директорию в sys.path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
 from core.types import (
+    SolutionBranch,
+    SolutionStep,
     SolutionType,
+    create_alternatives_step,
+    create_cases_step,
     create_solution_step,
     create_system_step,
-    create_cases_step,
-    create_alternatives_step,
-    SolutionStep,
-    SolutionBranch,
 )
 
 
@@ -38,7 +32,10 @@ def test_system_step_creation() -> None:
 
 def test_cases_step_creation() -> None:
     """Тест создания шага с разбором случаев."""
-    cases = [("x ≥ 0", "x = 2", "Случай 1: x ≥ 0"), ("x < 0", "x = -2", "Случай 2: x < 0")]
+    cases = [
+        ("x ≥ 0", "x = 2", "Случай 1: x ≥ 0"),
+        ("x < 0", "x = -2", "Случай 2: x < 0"),
+    ]
     step = create_cases_step("|x| = 2", cases)
     assert step.expression == "|x| = 2"
     assert step.solution_type == SolutionType.CASES
@@ -60,7 +57,10 @@ def test_alternatives_step_creation() -> None:
 def test_complex_branching_scenario() -> None:
     """Тест сложного сценария ветвления."""
     # Создаем сложную задачу с модулем
-    cases = [("x ≥ 0", "x + 1 = 3", "Случай 1: x ≥ 0"), ("x < 0", "-x + 1 = 3", "Случай 2: x < 0")]
+    cases = [
+        ("x ≥ 0", "x + 1 = 3", "Случай 1: x ≥ 0"),
+        ("x < 0", "-x + 1 = 3", "Случай 2: x < 0"),
+    ]
     step = create_cases_step("|x| + 1 = 3", cases)
 
     # Проверяем структуру

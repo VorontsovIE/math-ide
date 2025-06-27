@@ -765,7 +765,10 @@ docs = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "black" },
     { name = "coloredlogs" },
+    { name = "flake8" },
+    { name = "isort" },
     { name = "mypy" },
     { name = "pytest" },
 ]
@@ -796,7 +799,10 @@ provides-extras = ["dev", "docs"]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "black", specifier = ">=25.1.0" },
     { name = "coloredlogs", specifier = ">=15.0.1" },
+    { name = "flake8", specifier = ">=7.3.0" },
+    { name = "isort", specifier = ">=6.0.1" },
     { name = "mypy", specifier = ">=1.16.1" },
     { name = "pytest", specifier = ">=8.4.1" },
 ]

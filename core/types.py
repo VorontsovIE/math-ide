@@ -4,8 +4,8 @@
 """
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Any, Dict
 from enum import Enum
+from typing import Any, Dict, List, Optional
 
 
 class BaseTransformationType(Enum):

@@ -1,31 +1,31 @@
 # New refactored engine
 
 import logging
-from typing import List, Optional, Any, Dict, Union, Callable
-
-# Импортируем типы данных из отдельного модуля
-from .types import (
-    SolutionStep,
-    Transformation,
-    TransformationParameter,
-    ParameterDefinition,
-    GenerationResult,
-    ApplyResult,
-    CheckResult,
-    ProgressAnalysisResult,
-    VerificationResult,
-)
-from .prompts import PromptManager
-from .gpt_client import GPTClient
+from typing import Any, Callable, Dict, List, Optional, Union
 
 # Импортируем новые компоненты
 from .engines import (
-    TransformationGenerator,
-    TransformationApplier,
-    SolutionChecker,
-    ProgressAnalyzer,
-    TransformationVerifier,
     BranchingAnalyzer,
+    ProgressAnalyzer,
+    SolutionChecker,
+    TransformationApplier,
+    TransformationGenerator,
+    TransformationVerifier,
+)
+from .gpt_client import GPTClient
+from .prompts import PromptManager
+
+# Импортируем типы данных из отдельного модуля
+from .types import (
+    ApplyResult,
+    CheckResult,
+    GenerationResult,
+    ParameterDefinition,
+    ProgressAnalysisResult,
+    SolutionStep,
+    Transformation,
+    TransformationParameter,
+    VerificationResult,
 )
 
 # Настройка логирования
