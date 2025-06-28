@@ -216,7 +216,7 @@ def render_transformations_images(
     """Рендерит два изображения: одно с текущим выражением, другое с преобразованиями."""
     try:
         # Первое изображение - только с выражением
-        expression_fig, expression_ax = plt.subplots(figsize=(8, 2))
+        expression_fig, expression_ax = plt.subplots(figsize=(8, 1.5))  # Немного уменьшаем высоту
         expression_ax.axis("off")
         expression_ax.text(
             0.5,
@@ -228,15 +228,15 @@ def render_transformations_images(
             transform=expression_ax.transAxes,
             usetex=True,
         )
-        plt.tight_layout(pad=0.1)
+        plt.tight_layout(pad=0.05)  # Уменьшаем отступы
 
-        # Сохраняем первое изображение
+        # Сохраняем первое изображение с меньшими отступами
         expression_buffer = io.BytesIO()
         plt.savefig(
             expression_buffer, 
             format="png", 
             bbox_inches="tight", 
-            pad_inches=0.05,
+            pad_inches=0.03,  # Уменьшаем отступы
             dpi=150, 
             facecolor="white"
         )
@@ -245,16 +245,17 @@ def render_transformations_images(
 
         # Второе изображение - с преобразованиями
         num_transformations = len(transformations)
-        fig_height = 1.5 + num_transformations * 0.6
+        # Умеренно уменьшаем высоту фигуры
+        fig_height = 1.2 + num_transformations * 0.5
 
         transformations_fig, transformations_ax = plt.subplots(figsize=(8, fig_height))
         transformations_ax.axis("off")
-        plt.tight_layout(pad=0.1)
+        plt.tight_layout(pad=0.05)  # Уменьшаем отступы
 
         # Отображаем каждое преобразование с нумерацией в скобках
         start_y = 0.9
         for idx, tr in enumerate(transformations):
-            y_pos = start_y - idx * 0.1
+            y_pos = start_y - idx * 0.09  # Немного уменьшаем отступ между элементами
 
             if tr.preview_result:
                 has_cyrillic = contains_cyrillic(tr.preview_result)
@@ -270,13 +271,13 @@ def render_transformations_images(
                     usetex=not has_cyrillic,
                 )
 
-        # Сохраняем второе изображение
+        # Сохраняем второе изображение с меньшими отступами
         transformations_buffer = io.BytesIO()
         plt.savefig(
             transformations_buffer, 
             format="png", 
             bbox_inches="tight", 
-            pad_inches=0.05,
+            pad_inches=0.03,  # Уменьшаем отступы
             dpi=150, 
             facecolor="white"
         )
@@ -290,7 +291,7 @@ def render_transformations_images(
         
         # Создаём простые изображения в случае ошибки
         # Первое изображение
-        error_fig1, error_ax1 = plt.subplots(figsize=(8, 2))
+        error_fig1, error_ax1 = plt.subplots(figsize=(8, 1.5))
         error_ax1.text(
             0.5,
             0.5,
@@ -302,29 +303,42 @@ def render_transformations_images(
             usetex=True,
         )
         error_ax1.axis("off")
-        plt.tight_layout(pad=0.1)
+        plt.tight_layout(pad=0.05)
 
         error_buffer1 = io.BytesIO()
-        plt.savefig(error_buffer1, format="png", bbox_inches="tight", pad_inches=0.05, dpi=150, facecolor="white")
+        plt.savefig(error_buffer1, format="png", bbox_inches="tight", pad_inches=0.03, dpi=150, facecolor="white")
         error_buffer1.seek(0)
         plt.close(error_fig1)
 
-        # Второе изображение
-        error_fig2, error_ax2 = plt.subplots(figsize=(8, 4))
-        error_ax2.text(
-            0.5,
-            0.5,
-            f"{len(transformations)} transformations available",
-            horizontalalignment="center",
-            verticalalignment="center",
-            fontsize=12,
-            transform=error_ax2.transAxes,
-        )
+        # Второе изображение - показываем сами преобразования даже в случае ошибки
+        num_transformations = len(transformations)
+        fig_height = 1.2 + num_transformations * 0.5
+
+        error_fig2, error_ax2 = plt.subplots(figsize=(8, fig_height))
         error_ax2.axis("off")
-        plt.tight_layout(pad=0.1)
+        plt.tight_layout(pad=0.05)
+
+        # Отображаем каждое преобразование
+        start_y = 0.9
+        for idx, tr in enumerate(transformations):
+            y_pos = start_y - idx * 0.09
+
+            if tr.preview_result:
+                has_cyrillic = contains_cyrillic(tr.preview_result)
+                result_text = f"({idx + 1}) ${tr.preview_result}$"
+                error_ax2.text(
+                    0.05,
+                    y_pos,
+                    result_text,
+                    horizontalalignment="left",
+                    verticalalignment="center",
+                    fontsize=12,
+                    transform=error_ax2.transAxes,
+                    usetex=not has_cyrillic,
+                )
 
         error_buffer2 = io.BytesIO()
-        plt.savefig(error_buffer2, format="png", bbox_inches="tight", pad_inches=0.05, dpi=150, facecolor="white")
+        plt.savefig(error_buffer2, format="png", bbox_inches="tight", pad_inches=0.03, dpi=150, facecolor="white")
         error_buffer2.seek(0)
         plt.close(error_fig2)
 
