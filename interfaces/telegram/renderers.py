@@ -190,7 +190,7 @@ def render_transformations_image(
         # Вычисляем размер изображения на основе количества преобразований
         num_transformations = len(transformations)
         fig_height = (
-            2 + num_transformations * 0.8
+            1.5 + num_transformations * 0.6
         )  # Базовая высота + высота для каждого преобразования
 
         fig, ax = plt.subplots(figsize=(12, fig_height))
@@ -200,18 +200,6 @@ def render_transformations_image(
         ax.text(
             0.5,
             0.95,
-            "Current expression:",
-            horizontalalignment="center",
-            verticalalignment="top",
-            fontsize=14,
-            fontweight="bold",
-            transform=ax.transAxes,
-        )
-
-        # Отображаем математическое выражение как обычный текст (НЕ LaTeX)
-        ax.text(
-            0.5,
-            0.88,
             current_expression,
             horizontalalignment="center",
             verticalalignment="top",
@@ -222,7 +210,7 @@ def render_transformations_image(
 
         # Добавляем разделительную линию
         ax.axhline(
-            y=0.82,
+            y=0.85,
             xmin=0.1,
             xmax=0.9,
             color="gray",
@@ -230,68 +218,21 @@ def render_transformations_image(
             alpha=0.5,
         )
 
-        # Отображаем доступные преобразования
-        ax.text(
-            0.5,
-            0.78,
-            "Available actions:",
-            horizontalalignment="center",
-            verticalalignment="top",
-            fontsize=14,
-            fontweight="bold",
-            transform=ax.transAxes,
-        )
-
-        # Отображаем каждое преобразование
-        start_y = 0.72
+        # Отображаем каждое преобразование с нумерацией в скобках
+        start_y = 0.75
         for idx, tr in enumerate(transformations):
-            y_pos = start_y - idx * 0.12
+            y_pos = start_y - idx * 0.1
 
-            # Номер и описание преобразования
-            ax.text(
-                0.05,
-                y_pos,
-                f"{idx + 1}.",
-                horizontalalignment="left",
-                verticalalignment="center",
-                fontsize=12,
-                fontweight="bold",
-                transform=ax.transAxes,
-            )
-
-            # Отображаем описание как обычный текст (НЕ LaTeX)
-            description_text = tr.description
-            ax.text(
-                0.1,
-                y_pos,
-                description_text,
-                horizontalalignment="left",
-                verticalalignment="center",
-                fontsize=12,
-                transform=ax.transAxes,
-            )
-
-            # Стрелка
-            ax.text(
-                0.75,
-                y_pos,
-                "→",
-                horizontalalignment="center",
-                verticalalignment="center",
-                fontsize=14,
-                fontweight="bold",
-                transform=ax.transAxes,
-            )
-
-            # Предварительный результат - отображаем как обычный текст
+            # Номер в скобках и результат
             if tr.preview_result:
+                result_text = f"({idx + 1}) {tr.preview_result}"
                 ax.text(
-                    0.8,
+                    0.1,
                     y_pos,
-                    tr.preview_result,
+                    result_text,
                     horizontalalignment="left",
                     verticalalignment="center",
-                    fontsize=11,
+                    fontsize=12,
                     transform=ax.transAxes,
                     usetex=False,
                 )
@@ -313,7 +254,7 @@ def render_transformations_image(
         ax.text(
             0.5,
             0.5,
-            f"Current expression:\n{current_expression}\n\nAvailable {len(transformations)} transformations",
+            f"{current_expression}\n\n---\n{len(transformations)} transformations available",
             horizontalalignment="center",
             verticalalignment="center",
             fontsize=12,
