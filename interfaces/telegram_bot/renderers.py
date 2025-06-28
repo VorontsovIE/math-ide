@@ -21,7 +21,9 @@ logger = logging.getLogger(__name__)
 # Настройка matplotlib для корректного отображения LaTeX
 custom_preamble = {
     "text.usetex": True,
-    "text.latex.preamble": r"\usepackage{amsmath} \usepackage{amssymb}",
+    "font.family": "serif",
+    "font.serif": ["Computer Modern Roman"],
+    "text.latex.preamble": r"\usepackage{amsmath} \usepackage{amssymb} \renewcommand{\familydefault}{\rmdefault}",
 }
 plt.rcParams.update(custom_preamble)
 
@@ -257,8 +259,8 @@ def render_transformations_images(
                     latex_lines.append(f"({idx + 1}) \\quad {tr.preview_result}")
             
             if latex_lines:
-                # Создаем многострочную формулу с нумерацией
-                latex_formula = r"\begin{align*}" + "\n" + r" \\".join(latex_lines) + "\n" + r"\end{align*}"
+                # Создаем простой список строк вместо окружения align*
+                latex_formula = " \\\\ ".join(latex_lines)
                 
                 # Логгируем формулу для отладки
                 logger.info(f"Создана LaTeX-формула для преобразований:")
@@ -271,11 +273,18 @@ def render_transformations_images(
                 logger.info(f"Содержит кириллицу: {has_cyrillic}")
                 
                 if not has_cyrillic:
-                    # Используем offsetbox для корректного рендеринга LaTeX
-                    logger.info("Используем offsetbox.AnchoredText для рендеринга")
-                    ob = offsetbox.AnchoredText(latex_formula, loc='center', prop=dict(size=12))
-                    ob.patch.set(alpha=0.0)  # Прозрачный фон
-                    transformations_ax.add_artist(ob)
+                    # Используем обычный text для простых LaTeX-формул
+                    logger.info("Используем ax.text для рендеринга простой формулы")
+                    transformations_ax.text(
+                        0.5,
+                        0.5,
+                        f"${latex_formula}$",
+                        horizontalalignment="center",
+                        verticalalignment="center",
+                        fontsize=12,
+                        transform=transformations_ax.transAxes,
+                        usetex=True,
+                    )
                 else:
                     # Для текста с кириллицей используем обычный текст
                     logger.info("Используем обычный текст (есть кириллица)")
@@ -365,8 +374,8 @@ def render_transformations_images(
                     latex_lines.append(f"({idx + 1}) \\quad {tr.preview_result}")
             
             if latex_lines:
-                # Создаем многострочную формулу с нумерацией
-                latex_formula = r"\begin{align*}" + "\n" + r" \\".join(latex_lines) + "\n" + r"\end{align*}"
+                # Создаем простой список строк вместо окружения align*
+                latex_formula = " \\\\ ".join(latex_lines)
                 
                 # Логгируем формулу для отладки (блок ошибок)
                 logger.info(f"Создана LaTeX-формула для преобразований (блок ошибок):")
@@ -379,11 +388,18 @@ def render_transformations_images(
                 logger.info(f"Содержит кириллицу (блок ошибок): {has_cyrillic}")
                 
                 if not has_cyrillic:
-                    # Используем offsetbox для корректного рендеринга LaTeX
-                    logger.info("Используем offsetbox.AnchoredText для рендеринга (блок ошибок)")
-                    ob = offsetbox.AnchoredText(latex_formula, loc='center', prop=dict(size=12))
-                    ob.patch.set(alpha=0.0)  # Прозрачный фон
-                    error_ax2.add_artist(ob)
+                    # Используем обычный text для простых LaTeX-формул
+                    logger.info("Используем ax.text для рендеринга простой формулы")
+                    error_ax2.text(
+                        0.5,
+                        0.5,
+                        f"${latex_formula}$",
+                        horizontalalignment="center",
+                        verticalalignment="center",
+                        fontsize=12,
+                        transform=error_ax2.transAxes,
+                        usetex=True,
+                    )
                 else:
                     # Для текста с кириллицей используем обычный текст
                     logger.info("Используем обычный текст (есть кириллица, блок ошибок)")
