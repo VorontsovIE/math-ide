@@ -8,6 +8,7 @@ import logging
 from typing import TYPE_CHECKING, Any, List, Optional
 
 import matplotlib.pyplot as plt
+import matplotlib.offsetbox as offsetbox
 import re
 
 if TYPE_CHECKING:
@@ -18,14 +19,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Настройка matplotlib для корректного отображения LaTeX
-plt.rcParams.update(
-    {
-        "text.usetex": True,
-        "font.family": "serif",
-        "font.serif": ["Computer Modern Roman"],
-        "text.latex.preamble": r"\usepackage{amsmath} \usepackage{amssymb}",
-    }
-)
+custom_preamble = {
+    "text.usetex": True,
+    "text.latex.preamble": r"\usepackage{amsmath} \usepackage{amssymb}",
+}
+plt.rcParams.update(custom_preamble)
 
 
 def contains_cyrillic(text: str) -> bool:
@@ -218,16 +216,14 @@ def render_transformations_images(
         # Первое изображение - только с выражением
         expression_fig, expression_ax = plt.subplots(figsize=(8, 1.5))  # Немного уменьшаем высоту
         expression_ax.axis("off")
-        expression_ax.text(
-            0.5,
-            0.5,
-            f"$${current_expression}$$",
-            horizontalalignment="center",
-            verticalalignment="center",
-            fontsize=16,
-            transform=expression_ax.transAxes,
-            usetex=True,
-        )
+        
+        # Используем offsetbox для корректного рендеринга LaTeX
+        latex_expression = f"${current_expression}$"
+        logger.info(f"Рендеринг первого изображения с выражением: {repr(latex_expression)}")
+        ob = offsetbox.AnchoredText(latex_expression, loc='center', prop=dict(size=16))
+        ob.patch.set(alpha=0.0)  # Прозрачный фон
+        expression_ax.add_artist(ob)
+        
         plt.tight_layout(pad=0.05)  # Уменьшаем отступы
 
         # Сохраняем первое изображение с меньшими отступами
@@ -245,31 +241,76 @@ def render_transformations_images(
 
         # Второе изображение - с преобразованиями
         num_transformations = len(transformations)
-        # Умеренно уменьшаем высоту фигуры
-        fig_height = 1.2 + num_transformations * 0.5
+        # Уменьшаем высоту, так как теперь все в одной формуле
+        fig_height = 1.0 + num_transformations * 0.3
 
         transformations_fig, transformations_ax = plt.subplots(figsize=(8, fig_height))
         transformations_ax.axis("off")
         plt.tight_layout(pad=0.05)  # Уменьшаем отступы
 
-        # Отображаем каждое преобразование с нумерацией в скобках
-        start_y = 0.9
-        for idx, tr in enumerate(transformations):
-            y_pos = start_y - idx * 0.09  # Немного уменьшаем отступ между элементами
-
-            if tr.preview_result:
-                has_cyrillic = contains_cyrillic(tr.preview_result)
-                result_text = f"({idx + 1}) ${tr.preview_result}$"
+        # Создаем единую многострочную LaTeX-формулу с нумерацией
+        if transformations:
+            # Собираем все преобразования в одну формулу
+            latex_lines = []
+            for idx, tr in enumerate(transformations):
+                if tr.preview_result:
+                    latex_lines.append(f"({idx + 1}) \\quad {tr.preview_result}")
+            
+            if latex_lines:
+                # Создаем многострочную формулу с нумерацией
+                latex_formula = r"\begin{align*}" + "\n" + r" \\".join(latex_lines) + "\n" + r"\end{align*}"
+                
+                # Логгируем формулу для отладки
+                logger.info(f"Создана LaTeX-формула для преобразований:")
+                logger.info(f"Количество строк: {len(latex_lines)}")
+                logger.info(f"Строки: {latex_lines}")
+                logger.info(f"Финальная формула: {repr(latex_formula)}")
+                
+                # Проверяем на кириллицу
+                has_cyrillic = any(contains_cyrillic(tr.preview_result) for tr in transformations if tr.preview_result)
+                logger.info(f"Содержит кириллицу: {has_cyrillic}")
+                
+                if not has_cyrillic:
+                    # Используем offsetbox для корректного рендеринга LaTeX
+                    logger.info("Используем offsetbox.AnchoredText для рендеринга")
+                    ob = offsetbox.AnchoredText(latex_formula, loc='center', prop=dict(size=12))
+                    ob.patch.set(alpha=0.0)  # Прозрачный фон
+                    transformations_ax.add_artist(ob)
+                else:
+                    # Для текста с кириллицей используем обычный текст
+                    logger.info("Используем обычный текст (есть кириллица)")
+                    transformations_ax.text(
+                        0.5,
+                        0.5,
+                        latex_formula,
+                        horizontalalignment="center",
+                        verticalalignment="center",
+                        fontsize=12,
+                        transform=transformations_ax.transAxes,
+                        usetex=False,
+                    )
+            else:
+                # Если нет преобразований с результатами
                 transformations_ax.text(
-                    0.05,
-                    y_pos,
-                    result_text,
-                    horizontalalignment="left",
+                    0.5,
+                    0.5,
+                    "Нет доступных преобразований",
+                    horizontalalignment="center",
                     verticalalignment="center",
                     fontsize=12,
                     transform=transformations_ax.transAxes,
-                    usetex=not has_cyrillic,
                 )
+        else:
+            # Если нет преобразований вообще
+            transformations_ax.text(
+                0.5,
+                0.5,
+                "Нет доступных преобразований",
+                horizontalalignment="center",
+                verticalalignment="center",
+                fontsize=12,
+                transform=transformations_ax.transAxes,
+            )
 
         # Сохраняем второе изображение с меньшими отступами
         transformations_buffer = io.BytesIO()
@@ -292,16 +333,13 @@ def render_transformations_images(
         # Создаём простые изображения в случае ошибки
         # Первое изображение
         error_fig1, error_ax1 = plt.subplots(figsize=(8, 1.5))
-        error_ax1.text(
-            0.5,
-            0.5,
-            f"$${current_expression}$$",
-            horizontalalignment="center",
-            verticalalignment="center",
-            fontsize=14,
-            transform=error_ax1.transAxes,
-            usetex=True,
-        )
+        
+        # Используем offsetbox для корректного рендеринга LaTeX
+        latex_expression = f"${current_expression}$"
+        ob = offsetbox.AnchoredText(latex_expression, loc='center', prop=dict(size=14))
+        ob.patch.set(alpha=0.0)  # Прозрачный фон
+        error_ax1.add_artist(ob)
+        
         error_ax1.axis("off")
         plt.tight_layout(pad=0.05)
 
@@ -312,30 +350,75 @@ def render_transformations_images(
 
         # Второе изображение - показываем сами преобразования даже в случае ошибки
         num_transformations = len(transformations)
-        fig_height = 1.2 + num_transformations * 0.5
+        fig_height = 1.0 + num_transformations * 0.3
 
         error_fig2, error_ax2 = plt.subplots(figsize=(8, fig_height))
         error_ax2.axis("off")
         plt.tight_layout(pad=0.05)
 
-        # Отображаем каждое преобразование
-        start_y = 0.9
-        for idx, tr in enumerate(transformations):
-            y_pos = start_y - idx * 0.09
-
-            if tr.preview_result:
-                has_cyrillic = contains_cyrillic(tr.preview_result)
-                result_text = f"({idx + 1}) ${tr.preview_result}$"
+        # Создаем единую многострочную LaTeX-формулу с нумерацией
+        if transformations:
+            # Собираем все преобразования в одну формулу
+            latex_lines = []
+            for idx, tr in enumerate(transformations):
+                if tr.preview_result:
+                    latex_lines.append(f"({idx + 1}) \\quad {tr.preview_result}")
+            
+            if latex_lines:
+                # Создаем многострочную формулу с нумерацией
+                latex_formula = r"\begin{align*}" + "\n" + r" \\".join(latex_lines) + "\n" + r"\end{align*}"
+                
+                # Логгируем формулу для отладки (блок ошибок)
+                logger.info(f"Создана LaTeX-формула для преобразований (блок ошибок):")
+                logger.info(f"Количество строк: {len(latex_lines)}")
+                logger.info(f"Строки: {latex_lines}")
+                logger.info(f"Финальная формула: {repr(latex_formula)}")
+                
+                # Проверяем на кириллицу
+                has_cyrillic = any(contains_cyrillic(tr.preview_result) for tr in transformations if tr.preview_result)
+                logger.info(f"Содержит кириллицу (блок ошибок): {has_cyrillic}")
+                
+                if not has_cyrillic:
+                    # Используем offsetbox для корректного рендеринга LaTeX
+                    logger.info("Используем offsetbox.AnchoredText для рендеринга (блок ошибок)")
+                    ob = offsetbox.AnchoredText(latex_formula, loc='center', prop=dict(size=12))
+                    ob.patch.set(alpha=0.0)  # Прозрачный фон
+                    error_ax2.add_artist(ob)
+                else:
+                    # Для текста с кириллицей используем обычный текст
+                    logger.info("Используем обычный текст (есть кириллица, блок ошибок)")
+                    error_ax2.text(
+                        0.5,
+                        0.5,
+                        latex_formula,
+                        horizontalalignment="center",
+                        verticalalignment="center",
+                        fontsize=12,
+                        transform=error_ax2.transAxes,
+                        usetex=False,
+                    )
+            else:
+                # Если нет преобразований с результатами
                 error_ax2.text(
-                    0.05,
-                    y_pos,
-                    result_text,
-                    horizontalalignment="left",
+                    0.5,
+                    0.5,
+                    "Нет доступных преобразований",
+                    horizontalalignment="center",
                     verticalalignment="center",
                     fontsize=12,
                     transform=error_ax2.transAxes,
-                    usetex=not has_cyrillic,
                 )
+        else:
+            # Если нет преобразований вообще
+            error_ax2.text(
+                0.5,
+                0.5,
+                "Нет доступных преобразований",
+                horizontalalignment="center",
+                verticalalignment="center",
+                fontsize=12,
+                transform=error_ax2.transAxes,
+            )
 
         error_buffer2 = io.BytesIO()
         plt.savefig(error_buffer2, format="png", bbox_inches="tight", pad_inches=0.03, dpi=150, facecolor="white")
