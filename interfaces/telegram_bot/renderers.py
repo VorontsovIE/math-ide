@@ -79,11 +79,15 @@ def convert_superscript_subscript_to_latex(text: str) -> str:
 
 def fix_latex_expression(latex_expr: str) -> str:
     """Исправляет распространенные проблемы в LaTeX-выражениях."""
+    logger.info(f"Начальная обработка LaTeX: '{latex_expr}'")
+    
     # Сначала извлекаем математическое выражение
     latex_expr = extract_math_expression(latex_expr)
+    logger.info(f"После извлечения выражения: '{latex_expr}'")
     
     # Удаляем лишние пробелы и переводы строк
     latex_expr = " ".join(latex_expr.split())
+    logger.info(f"После удаления лишних пробелов: '{latex_expr}'")
 
     # Исправляем проблему с неполными командами \\frac
     latex_expr = latex_expr.replace("\\rac{", "\\frac{")
@@ -115,6 +119,8 @@ def fix_latex_expression(latex_expr: str) -> str:
         latex_expr.replace("\\lim{", "\\lim(")
     )
     
+    logger.info(f"После исправления команд: '{latex_expr}'")
+    
     # Экранируем специальные символы, которые могут вызвать проблемы в LaTeX
     # но только если они не являются частью LaTeX команд
     def escape_special_chars(match):
@@ -122,46 +128,65 @@ def fix_latex_expression(latex_expr: str) -> str:
         # Не экранируем символы, которые уже являются частью LaTeX команд
         if match.start() > 0 and latex_expr[match.start()-1] == '\\':
             return char
-        # Экранируем специальные символы
-        if char in ['_', '^', '%', '&', '#', '{', '}']:
-            return f"\\{char}"
+        # Экранируем специальные символы 
+        # (убрал ^ и _, так как они часто используются в формулах именно как спецсимволы)
+        if char in ['%', '{', '}', '&', '#']:
+            escaped = f"\\{char}"
+            logger.debug(f"Экранирование символа '{char}' -> '{escaped}'")
+            return escaped
         return char
     
-    # Экранируем специальные символы, но не в LaTeX командах
-    latex_expr = re.sub(r'[_^%&#{}]', escape_special_chars, latex_expr)
+    # Экранируем специальные символы, но не в LaTeX командах (убрал ^ и _ из паттерна)
+    latex_expr = re.sub(r'[%&#{}]', escape_special_chars, latex_expr)
     
+    logger.info(f"Финальное LaTeX выражение: '{latex_expr}'")
     return latex_expr
 
 
 def render_latex_to_image(latex_expression: str) -> io.BytesIO:
     """Рендерит LaTeX-выражение в изображение."""
+    logger.info(f"Начало рендеринга LaTeX: '{latex_expression}'")
+    
     try:
         # Исправляем проблемы с LaTeX
+        logger.info("Применяем fix_latex_expression...")
         cleaned_expression = fix_latex_expression(latex_expression)
+        logger.info(f"Очищенное выражение: '{cleaned_expression}'")
 
         # Создаём фигуру matplotlib
+        logger.info("Создаём matplotlib фигуру...")
         fig, ax = plt.subplots(figsize=(10, 2))
+        
+        display_text = f"${cleaned_expression}$"
+        logger.info(f"Текст для отображения: '{display_text}'")
+        
         ax.text(
             0.5,
             0.5,
-            f"${cleaned_expression}$",
+            display_text,
             horizontalalignment="center",
             verticalalignment="center",
             fontsize=16,
             transform=ax.transAxes,
+            usetex=True,
         )
         ax.axis("off")
         plt.tight_layout(pad=0.1)
 
         # Сохраняем в BytesIO
+        logger.info("Сохраняем изображение...")
         img_buffer = io.BytesIO()
         plt.savefig(img_buffer, format="png", bbox_inches="tight", pad_inches=0.05, dpi=150)
         img_buffer.seek(0)
         plt.close(fig)
-
+        
+        logger.info("Рендеринг LaTeX успешно завершён")
         return img_buffer
+        
     except Exception as e:
-        logger.error(f"Ошибка при рендеринге LaTeX: {e}")
+        logger.error(f"Ошибка при рендеринге LaTeX: {e}", exc_info=True)
+        logger.info("Пробуем создать простое текстовое изображение...")
+        
         # Возвращаем простое текстовое изображение в случае ошибки
         fig, ax = plt.subplots(figsize=(10, 2))
         ax.text(
@@ -180,116 +205,130 @@ def render_latex_to_image(latex_expression: str) -> io.BytesIO:
         plt.savefig(img_buffer, format="png", bbox_inches="tight", pad_inches=0.05, dpi=150)
         img_buffer.seek(0)
         plt.close(fig)
-
+        
+        logger.info("Создано простое текстовое изображение")
         return img_buffer
 
 
-def render_transformations_image(
+def render_transformations_images(
     current_expression: str, transformations: "List[Transformation]"
-) -> io.BytesIO:
-    """Рендерит изображение с текущим выражением и всеми доступными преобразованиями."""
+) -> tuple[io.BytesIO, io.BytesIO]:
+    """Рендерит два изображения: одно с текущим выражением, другое с преобразованиями."""
     try:
-        # Вычисляем размер изображения на основе количества преобразований
-        num_transformations = len(transformations)
-        fig_height = (
-            1.5 + num_transformations * 0.6
-        )  # Базовая высота + высота для каждого преобразования
-
-        fig, ax = plt.subplots(figsize=(8, fig_height))
-        ax.axis("off")
-        
-        # Настраиваем tight_layout для автоматического удаления полей
-        plt.tight_layout(pad=0.1)
-
-        # Отображаем текущее выражение вверху
-        ax.text(
+        # Первое изображение - только с выражением
+        expression_fig, expression_ax = plt.subplots(figsize=(8, 2))
+        expression_ax.axis("off")
+        expression_ax.text(
             0.5,
-            0.95,
+            0.5,
             f"$${current_expression}$$",
             horizontalalignment="center",
-            verticalalignment="top",
+            verticalalignment="center",
             fontsize=16,
-            transform=ax.transAxes,
+            transform=expression_ax.transAxes,
             usetex=True,
         )
+        plt.tight_layout(pad=0.1)
 
-        # Добавляем разделительную линию
-        ax.axhline(
-            y=0.85,
-            xmin=0.1,
-            xmax=0.9,
-            color="gray",
-            linestyle="-",
-            alpha=0.5,
+        # Сохраняем первое изображение
+        expression_buffer = io.BytesIO()
+        plt.savefig(
+            expression_buffer, 
+            format="png", 
+            bbox_inches="tight", 
+            pad_inches=0.05,
+            dpi=150, 
+            facecolor="white"
         )
+        expression_buffer.seek(0)
+        plt.close(expression_fig)
+
+        # Второе изображение - с преобразованиями
+        num_transformations = len(transformations)
+        fig_height = 1.5 + num_transformations * 0.6
+
+        transformations_fig, transformations_ax = plt.subplots(figsize=(8, fig_height))
+        transformations_ax.axis("off")
+        plt.tight_layout(pad=0.1)
 
         # Отображаем каждое преобразование с нумерацией в скобках
-        start_y = 0.75
+        start_y = 0.9
         for idx, tr in enumerate(transformations):
             y_pos = start_y - idx * 0.1
 
-            # Номер в скобках и результат
             if tr.preview_result:
-                # Проверяем, содержит ли результат кириллицу
                 has_cyrillic = contains_cyrillic(tr.preview_result)
                 result_text = f"({idx + 1}) ${tr.preview_result}$"
-                ax.text(
+                transformations_ax.text(
                     0.05,
                     y_pos,
                     result_text,
                     horizontalalignment="left",
                     verticalalignment="center",
                     fontsize=12,
-                    transform=ax.transAxes,
-                    usetex=not has_cyrillic,  # Отключаем usetex для текста с кириллицей
+                    transform=transformations_ax.transAxes,
+                    usetex=not has_cyrillic,
                 )
 
-        # Сохраняем в BytesIO с минимальными полями
-        img_buffer = io.BytesIO()
+        # Сохраняем второе изображение
+        transformations_buffer = io.BytesIO()
         plt.savefig(
-            img_buffer, 
+            transformations_buffer, 
             format="png", 
             bbox_inches="tight", 
-            pad_inches=0.05,  # Минимальные отступы
+            pad_inches=0.05,
             dpi=150, 
             facecolor="white"
         )
-        img_buffer.seek(0)
-        plt.close(fig)
+        transformations_buffer.seek(0)
+        plt.close(transformations_fig)
 
-        return img_buffer
+        return expression_buffer, transformations_buffer
 
     except Exception as e:
-        logger.error(f"Ошибка при рендеринге изображения с преобразованиями: {e}", exc_info=True)
-        # Возвращаем простое изображение с текстом
-        fig, ax = plt.subplots(figsize=(10, 6))
-        ax.text(
+        logger.error(f"Ошибка при рендеринге изображений: {e}", exc_info=True)
+        
+        # Создаём простые изображения в случае ошибки
+        # Первое изображение
+        error_fig1, error_ax1 = plt.subplots(figsize=(8, 2))
+        error_ax1.text(
             0.5,
             0.5,
-            f"$${current_expression}$$\n\n---\n{len(transformations)} transformations available",
+            f"$${current_expression}$$",
+            horizontalalignment="center",
+            verticalalignment="center",
+            fontsize=14,
+            transform=error_ax1.transAxes,
+            usetex=True,
+        )
+        error_ax1.axis("off")
+        plt.tight_layout(pad=0.1)
+
+        error_buffer1 = io.BytesIO()
+        plt.savefig(error_buffer1, format="png", bbox_inches="tight", pad_inches=0.05, dpi=150, facecolor="white")
+        error_buffer1.seek(0)
+        plt.close(error_fig1)
+
+        # Второе изображение
+        error_fig2, error_ax2 = plt.subplots(figsize=(8, 4))
+        error_ax2.text(
+            0.5,
+            0.5,
+            f"{len(transformations)} transformations available",
             horizontalalignment="center",
             verticalalignment="center",
             fontsize=12,
-            transform=ax.transAxes,
-            usetex=True,
+            transform=error_ax2.transAxes,
         )
-        ax.axis("off")
+        error_ax2.axis("off")
         plt.tight_layout(pad=0.1)
 
-        img_buffer = io.BytesIO()
-        plt.savefig(
-            img_buffer, 
-            format="png", 
-            bbox_inches="tight", 
-            pad_inches=0.05,  # Минимальные отступы
-            dpi=150, 
-            facecolor="white"
-        )
-        img_buffer.seek(0)
-        plt.close(fig)
+        error_buffer2 = io.BytesIO()
+        plt.savefig(error_buffer2, format="png", bbox_inches="tight", pad_inches=0.05, dpi=150, facecolor="white")
+        error_buffer2.seek(0)
+        plt.close(error_fig2)
 
-        return img_buffer
-
+        return error_buffer1, error_buffer2
 
 async def check_and_suggest_rollback(
     engine: Any,
