@@ -1,5 +1,14 @@
 #!/bin/bash
-set -e
+
+# Скрипт деплоя Math IDE на VPS-сервер
+# Использование: ./deploy.sh [опции]
+# Опции:
+#   --env-file PATH    Путь к файлу с переменными окружения
+#   --branch BRANCH    Ветка для деплоя (по умолчанию: main)
+#   --service-name NAME Имя systemd сервиса (по умолчанию: math-ide)
+#   --user USER        Пользователь для запуска сервиса (по умолчанию: $USER)
+
+set -e  # Выход при ошибке
 
 # Цвета для вывода
 RED='\033[0;31m'
@@ -8,139 +17,235 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# Логирование
-log() {
-    echo -e "${GREEN}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"
+# Функции для вывода
+log_info() {
+    echo -e "${BLUE}[INFO]${NC} $1"
 }
 
-warn() {
-    echo -e "${YELLOW}[$(date +'%Y-%m-%d %H:%M:%S')] WARNING:${NC} $1"
+log_success() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
 }
 
-error() {
-    echo -e "${RED}[$(date +'%Y-%m-%d %H:%M:%S')] ERROR:${NC} $1"
+log_warning() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
 }
 
-# Проверка запуска от root
-if [[ $EUID -eq 0 ]]; then
-   error "Не запускайте этот скрипт от имени root!"
-   exit 1
-fi
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
 
-# Проверка ОС
-if [ ! -f /etc/os-release ]; then
-    error "Неизвестная операционная система"
-    exit 1
-fi
+# Параметры по умолчанию
+ENV_FILE=""
+BRANCH="main"
+SERVICE_NAME="math-ide"
+SERVICE_USER="$USER"
+DEPLOY_DIR="/opt/math-ide"
+SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 
-. /etc/os-release
-if [[ "$ID" != "ubuntu" ]]; then
-    error "Этот скрипт предназначен только для Ubuntu"
-    exit 1
-fi
+# Парсинг аргументов
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --env-file)
+            ENV_FILE="$2"
+            shift 2
+            ;;
+        --branch)
+            BRANCH="$2"
+            shift 2
+            ;;
+        --service-name)
+            SERVICE_NAME="$2"
+            shift 2
+            ;;
+        --user)
+            SERVICE_USER="$2"
+            shift 2
+            ;;
+        --help)
+            echo "Использование: $0 [опции]"
+            echo "Опции:"
+            echo "  --env-file PATH    Путь к файлу с переменными окружения"
+            echo "  --branch BRANCH    Ветка для деплоя (по умолчанию: main)"
+            echo "  --service-name NAME Имя systemd сервиса (по умолчанию: math-ide)"
+            echo "  --user USER        Пользователь для запуска сервиса (по умолчанию: \$USER)"
+            echo "  --help             Показать эту справку"
+            exit 0
+            ;;
+        *)
+            log_error "Неизвестная опция: $1"
+            exit 1
+            ;;
+    esac
+done
 
-log "🚀 Начинаю деплой MathIDE на Ubuntu VPS"
+# Проверка наличия uv
+check_uv() {
+    if ! command -v uv &> /dev/null; then
+        log_error "uv не установлен. Установите uv: https://docs.astral.sh/uv/getting-started/installation/"
+        exit 1
+    fi
+    log_success "uv найден: $(uv --version)"
+}
 
-# Обновление системы
-log "📦 Обновление системы..."
-sudo apt update && sudo apt upgrade -y
+# Проверка наличия git
+check_git() {
+    if ! command -v git &> /dev/null; then
+        log_error "git не установлен"
+        exit 1
+    fi
+    log_success "git найден: $(git --version)"
+}
 
-# Установка Python 3.10+
-log "🐍 Проверка и установка Python..."
-if ! command -v python3 &> /dev/null; then
-    sudo apt install -y python3 python3-pip python3-venv
-fi
+# Создание директории для деплоя
+create_deploy_dir() {
+    log_info "Создание директории для деплоя: $DEPLOY_DIR"
+    sudo mkdir -p "$DEPLOY_DIR"
+    sudo chown "$SERVICE_USER:$SERVICE_USER" "$DEPLOY_DIR"
+}
 
-PYTHON_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-if [[ "$(echo "$PYTHON_VERSION >= 3.10" | bc -l)" != "1" ]]; then
-    error "Требуется Python 3.10 или выше. Найден: $PYTHON_VERSION"
-    exit 1
-fi
+# Клонирование/обновление репозитория
+update_repository() {
+    log_info "Обновление репозитория в $DEPLOY_DIR"
+    
+    if [ -d "$DEPLOY_DIR/.git" ]; then
+        log_info "Репозиторий уже существует, обновляем..."
+        cd "$DEPLOY_DIR"
+        git fetch origin
+        git checkout "$BRANCH"
+        git pull origin "$BRANCH"
+    else
+        log_info "Клонируем репозиторий..."
+        git clone -b "$BRANCH" https://github.com/your-username/math-ide.git "$DEPLOY_DIR"
+        cd "$DEPLOY_DIR"
+    fi
+    
+    log_success "Репозиторий обновлен"
+}
 
-# Установка uv
-log "⚡ Установка uv..."
-if ! command -v uv &> /dev/null; then
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-    source $HOME/.local/bin/env
-fi
+# Настройка переменных окружения
+setup_environment() {
+    log_info "Настройка переменных окружения"
+    
+    if [ -n "$ENV_FILE" ] && [ -f "$ENV_FILE" ]; then
+        log_info "Копирование файла окружения: $ENV_FILE"
+        cp "$ENV_FILE" "$DEPLOY_DIR/.env"
+        log_success "Файл окружения скопирован"
+    elif [ -f "$DEPLOY_DIR/docs/env.example" ]; then
+        log_warning "Файл окружения не указан, копируем пример"
+        cp "$DEPLOY_DIR/docs/env.example" "$DEPLOY_DIR/.env"
+        log_warning "Не забудьте настроить переменные в $DEPLOY_DIR/.env"
+    else
+        log_error "Файл окружения не найден и пример недоступен"
+        exit 1
+    fi
+    
+    # Устанавливаем права на файл окружения
+    chmod 600 "$DEPLOY_DIR/.env"
+}
 
-# Создание директории для приложения
-APP_DIR="/opt/math-ide"
-log "📁 Создание директории приложения: $APP_DIR"
-sudo mkdir -p $APP_DIR
-sudo chown $USER:$USER $APP_DIR
+# Установка зависимостей с uv
+install_dependencies() {
+    log_info "Установка зависимостей с uv"
+    cd "$DEPLOY_DIR"
+    
+    # Создаем виртуальное окружение и устанавливаем зависимости
+    uv sync
+    
+    log_success "Зависимости установлены"
+}
 
-# Клонирование или обновление репозитория
-if [ -d "$APP_DIR/.git" ]; then
-    log "🔄 Обновление существующего репозитория..."
-    cd $APP_DIR
-    git pull origin main
-else
-    log "📥 Клонирование репозитория..."
-    # Предполагаем, что репозиторий уже склонирован локально
-    cp -r . $APP_DIR/
-    cd $APP_DIR
-fi
-
-# Установка зависимостей
-log "📦 Установка зависимостей..."
-uv sync --dev
-
-# Создание .env файла если он не существует
-if [ ! -f "$APP_DIR/.env" ]; then
-    log "⚙️ Создание файла конфигурации..."
-    cp docs/env.example .env
-    warn "⚠️ Пожалуйста, отредактируйте файл .env и добавьте необходимые API ключи:"
-    warn "   - TELEGRAM_BOT_TOKEN"
-    warn "   - OPENAI_API_KEY"
-    echo
-    read -p "Нажмите Enter после редактирования .env файла..."
-fi
-
-# Создание systemd сервиса для Telegram бота
-log "🔧 Создание systemd сервиса..."
-sudo tee /etc/systemd/system/math-ide-bot.service > /dev/null <<EOF
+# Создание systemd сервиса
+create_systemd_service() {
+    log_info "Создание systemd сервиса: $SERVICE_NAME"
+    
+    cat > /tmp/"$SERVICE_NAME".service << EOF
 [Unit]
-Description=MathIDE Telegram Bot
+Description=Math IDE Telegram Bot
 After=network.target
+Wants=network.target
 
 [Service]
 Type=simple
-User=$USER
-WorkingDirectory=$APP_DIR
-Environment=PATH=$APP_DIR/.venv/bin
-ExecStart=$APP_DIR/.venv/bin/python -m interfaces
+User=$SERVICE_USER
+Group=$SERVICE_USER
+WorkingDirectory=$DEPLOY_DIR
+Environment=PATH=$DEPLOY_DIR/.venv/bin
+ExecStart=$DEPLOY_DIR/.venv/bin/python -m interfaces.telegram_bot
 Restart=always
-RestartSec=3
+RestartSec=10
 StandardOutput=journal
 StandardError=journal
+
+# Переменные окружения
+EnvironmentFile=$DEPLOY_DIR/.env
+
+# Ограничения безопасности
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=$DEPLOY_DIR
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
-# Перезагрузка systemd и запуск сервиса
-log "🚀 Запуск сервиса..."
-sudo systemctl daemon-reload
-sudo systemctl enable math-ide-bot
-sudo systemctl start math-ide-bot
+    # Копируем файл сервиса
+    sudo cp /tmp/"$SERVICE_NAME".service "$SERVICE_FILE"
+    rm /tmp/"$SERVICE_NAME".service
+    
+    # Перезагружаем systemd и включаем сервис
+    sudo systemctl daemon-reload
+    sudo systemctl enable "$SERVICE_NAME"
+    
+    log_success "Systemd сервис создан и включен"
+}
 
-# Проверка статуса
-log "✅ Проверка статуса сервиса..."
-if sudo systemctl is-active --quiet math-ide-bot; then
-    log "🎉 MathIDE успешно развернут и запущен!"
-    log "📊 Статус сервиса: $(sudo systemctl is-active math-ide-bot)"
-    log "📝 Логи: sudo journalctl -u math-ide-bot -f"
-else
-    error "❌ Сервис не запустился. Проверьте логи: sudo journalctl -u math-ide-bot -f"
-    exit 1
-fi
+# Запуск сервиса
+start_service() {
+    log_info "Запуск сервиса $SERVICE_NAME"
+    
+    sudo systemctl start "$SERVICE_NAME"
+    
+    # Проверяем статус
+    sleep 2
+    if sudo systemctl is-active --quiet "$SERVICE_NAME"; then
+        log_success "Сервис успешно запущен"
+        log_info "Статус сервиса:"
+        sudo systemctl status "$SERVICE_NAME" --no-pager -l
+    else
+        log_error "Ошибка запуска сервиса"
+        log_info "Логи сервиса:"
+        sudo journalctl -u "$SERVICE_NAME" --no-pager -l -n 20
+        exit 1
+    fi
+}
 
-log "🔧 Полезные команды:"
-echo "  • Статус: sudo systemctl status math-ide-bot"
-echo "  • Перезапуск: sudo systemctl restart math-ide-bot"
-echo "  • Остановка: sudo systemctl stop math-ide-bot"
-echo "  • Логи: sudo journalctl -u math-ide-bot -f"
-echo "  • Обновление: cd $APP_DIR && git pull && uv sync && sudo systemctl restart math-ide-bot"
+# Основная функция деплоя
+main() {
+    log_info "Начинаем деплой Math IDE"
+    log_info "Ветка: $BRANCH"
+    log_info "Сервис: $SERVICE_NAME"
+    log_info "Пользователь: $SERVICE_USER"
+    log_info "Директория: $DEPLOY_DIR"
+    
+    # Проверки
+    check_uv
+    check_git
+    
+    # Выполнение деплоя
+    create_deploy_dir
+    update_repository
+    setup_environment
+    install_dependencies
+    create_systemd_service
+    start_service
+    
+    log_success "Деплой завершен успешно!"
+    log_info "Для просмотра логов используйте: sudo journalctl -u $SERVICE_NAME -f"
+    log_info "Для перезапуска сервиса: sudo systemctl restart $SERVICE_NAME"
+    log_info "Для остановки сервиса: sudo systemctl stop $SERVICE_NAME"
+}
 
-log "✨ Деплой завершен!" 
+# Запуск основной функции
+main "$@" 
