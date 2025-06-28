@@ -7,6 +7,6 @@
 # from .cli import MathIDECLI
 
 from .cli import cli
-from .telegram_bot import run_bot
+from .bot_runner import run_bot
 
 __all__: list[str] = ["cli", "run_bot"]
