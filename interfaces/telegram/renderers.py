@@ -35,87 +35,58 @@ def contains_cyrillic(text: str) -> bool:
 
 
 def extract_math_expression(text: str) -> str:
-    """Извлекает математическое выражение из текста, убирая русские слова."""
+    """Извлекает математическое выражение из текста согласно четким правилам."""
     
     # Сначала проверяем LaTeX блоки
     latex_patterns = [
         r'\$\$(.*?)\$\$',  # Блоки $$...$$
         r'\$(.*?)\$',      # Блоки $...$
     ]
-    
     for pattern in latex_patterns:
         matches = re.findall(pattern, text, re.DOTALL)
         if matches:
-            # Возвращаем самый длинный LaTeX блок
             return max(matches, key=len).strip()
     
-    # Расширенный паттерн для поиска математических символов, включая LaTeX команды и спецсимволы
-    math_char_pattern = r'[0-9a-zA-Z+\-*/=<>≤≥≠±√∫∑∏∞θαβγδεζηθικλμνξοπρστυφχψω\s(){}[\],²³⁴⁵⁶⁷⁸⁹⁰¹₂₃₄₅₆₇₈₉₀×÷⋅]'
+    # Токенизация: выделяем простейшие компоненты формулы
+    token_pattern = r'''(
+        \\[a-zA-Z]+ |         # LaTeX-команды
+        [a-zA-Z] |            # Буквы
+        [0-9]+(?:\.[0-9]+)? |# Числа
+        [+\-*/=<>^_,] |      # Операторы + запятая
+        [()\[\]{}] |        # Скобки
+        [²³⁴⁵⁶⁷⁸⁹⁰¹₂₃₄₅₆₇₈₉₀] # Надстрочные/подстрочные символы
+    )'''
+    tokens = [m.group(0) for m in re.finditer(token_pattern, text, re.VERBOSE)]
+    print(f"DEBUG: TOKENS: {tokens}")
     
-    # Находим все участки с математическими символами и LaTeX-командами
-    math_spans = []
-    i = 0
-    while i < len(text):
-        # Пропускаем не-математические символы
-        if not re.match(math_char_pattern, text[i]):
-            i += 1
-            continue
-        start = i
-        while i < len(text):
-            char = text[i]
-            if char == '\\' and i + 1 < len(text):
-                j = i + 1
-                while j < len(text) and text[j].isalpha():
-                    j += 1
-                i = j
-            elif re.match(math_char_pattern, char):
-                i += 1
-            else:
-                break
-        end = i
-        # Добавляем только если длина > 1
-        if end - start > 1:
-            math_spans.append((start, end))
+    # Собираем максимальную по длине подпоследовательность, содержащую хотя бы один оператор, LaTeX-команду или запятую
+    best = []
+    current = []
+    has_math = False
     
-    if not math_spans:
-        return ""
-    
-    # Объединяем участки, если между ними только запятая/пробел/точка с запятой
-    merged_spans = [math_spans[0]]
-    for span in math_spans[1:]:
-        prev_start, prev_end = merged_spans[-1]
-        between = text[prev_end:span[0]]
-        if re.fullmatch(r'[\s,;]+', between):
-            # Объединяем
-            merged_spans[-1] = (prev_start, span[1])
+    for t in tokens:
+        # Проверяем, является ли токен математическим (оператор, LaTeX-команда, запятая, надстрочные/подстрочные символы)
+        if re.match(r'[+\-*/=<>^_,]|\\[a-zA-Z]+|[²³⁴⁵⁶⁷⁸⁹⁰¹₂₃₄₅₆₇₈₉₀]', t):
+            current.append(t)
+            has_math = True
+        # Буквы, числа, скобки - добавляем только если уже есть математическое содержимое
+        elif re.match(r'[a-zA-Z0-9()\[\]{}]', t):
+            current.append(t)
         else:
-            merged_spans.append(span)
+            # Если встретили не-математический токен, сохраняем текущую последовательность если она содержит математику
+            if has_math and len(current) > len(best):
+                best = current[:]
+            current = []
+            has_math = False
     
-    # Берём самый длинный объединённый участок
-    best_span = max(merged_spans, key=lambda s: s[1]-s[0])
-    extracted = text[best_span[0]:best_span[1]]
+    # Проверяем последнюю последовательность
+    if has_math and len(current) > len(best):
+        best = current[:]
     
-    # Удаляем многобуквенные слова без \ в начале
-    words = extracted.split()
-    filtered_words = []
-    for word in words:
-        # Если слово начинается с \, оставляем его (LaTeX команда)
-        if word.startswith('\\'):
-            filtered_words.append(word)
-        # Если слово однобуквенное или содержит математические символы, оставляем
-        elif len(word) == 1 or re.search(r'[0-9+\-*/=<>≤≥≠±√∫∑∏∞θαβγδεζηθικλμνξοπρστυφχψω(){}[\],²³⁴⁵⁶⁷⁸⁹⁰¹₂₃₄₅₆₇₈₉₀×÷⋅]', word):
-            filtered_words.append(word)
-        # Иначе пропускаем (многобуквенное слово без \)
-    
+    result = ''.join(best)
     # Обрезаем пробелы и запятые по краям
-    result = ' '.join(filtered_words)
-    result = re.sub(r'^[\s,;]+|[\s,;]+$', '', result)
-    
-    # Если после фильтрации формула пуста — возвращаем пустую строку
-    if not result or len(result) < 2:
-        return ""
-    
-    result = re.sub(r'\s+', ' ', result)
+    result = result.strip(' ,;')
+    # Преобразуем надстрочные/подстрочные символы
     result = convert_superscript_subscript_to_latex(result)
     return result
 
