@@ -99,7 +99,8 @@ def fix_latex_expression(latex_expr: str) -> str:
     
     result = latex_expr
     for russian, english in replacements.items():
-        result = result.replace(russian, english)
+        # Используем replace только один раз для каждого слова
+        result = result.replace(russian, english, 1)
     
     return result
 
@@ -229,7 +230,7 @@ def render_transformations_images(
             
             if latex_lines:
                 # Создаем простой список строк вместо окружения align*
-                latex_formula = " \\\\ ".join(latex_lines)
+                latex_formula = " \\\\[1.5em] ".join(latex_lines)
                 
                 # Логгируем формулу для отладки
                 logger.info(f"Создана LaTeX-формула для преобразований:")
@@ -247,7 +248,7 @@ def render_transformations_images(
                     transformations_ax.text(
                         0.5,  # Возвращаем в центр
                         0.5,
-                        f"${latex_formula}$",
+                        f"${latex_formula}$",  # Возвращаем $...$ для простых формул
                         horizontalalignment="center",  # Возвращаем центрирование
                         verticalalignment="center",
                         fontsize=12,
@@ -349,17 +350,17 @@ def render_transformations_images(
             
             if latex_lines:
                 # Создаем простой список строк вместо окружения align*
-                latex_formula = " \\\\ ".join(latex_lines)
+                latex_formula = " \\\\[1.5em] ".join(latex_lines)
                 
-                # Логгируем формулу для отладки (блок ошибок)
-                logger.info(f"Создана LaTeX-формула для преобразований (блок ошибок):")
+                # Логгируем формулу для отладки
+                logger.info(f"Создана LaTeX-формула для преобразований:")
                 logger.info(f"Количество строк: {len(latex_lines)}")
                 logger.info(f"Строки: {latex_lines}")
                 logger.info(f"Финальная формула: {repr(latex_formula)}")
                 
                 # Проверяем на кириллицу после применения fix_latex_expression
                 has_cyrillic = any(contains_cyrillic(fix_latex_expression(tr.preview_result)) for tr in transformations if tr.preview_result)
-                logger.info(f"Содержит кириллицу (блок ошибок): {has_cyrillic}")
+                logger.info(f"Содержит кириллицу: {has_cyrillic}")
                 
                 if not has_cyrillic:
                     # Используем обычный text для простых LaTeX-формул
@@ -367,7 +368,7 @@ def render_transformations_images(
                     error_ax2.text(
                         0.5,  # Возвращаем в центр
                         0.5,
-                        f"${latex_formula}$",
+                        f"${latex_formula}$",  # Возвращаем $...$ для простых формул
                         horizontalalignment="center",  # Возвращаем центрирование
                         verticalalignment="center",
                         fontsize=12,
@@ -376,7 +377,7 @@ def render_transformations_images(
                     )
                 else:
                     # Для текста с кириллицей используем обычный текст
-                    logger.info("Используем обычный текст (есть кириллица, блок ошибок)")
+                    logger.info("Используем обычный текст (есть кириллица)")
                     error_ax2.text(
                         0.5,  # Возвращаем в центр
                         0.5,
