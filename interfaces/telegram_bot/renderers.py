@@ -78,69 +78,30 @@ def convert_superscript_subscript_to_latex(text: str) -> str:
 
 
 def fix_latex_expression(latex_expr: str) -> str:
-    """Исправляет распространенные проблемы в LaTeX-выражениях."""
-    logger.info(f"Начальная обработка LaTeX: '{latex_expr}'")
+    """
+    Исправляет LaTeX-выражение для корректного рендеринга.
+    """
+    # Заменяем русские слова на английские эквиваленты
+    replacements = {
+        'или': '\\text{ or }',
+        'и': '\\text{ and }',
+        'равно': '=',
+        'плюс': '+',
+        'минус': '-',
+        'умножить': '\\times',
+        'делить': '\\div',
+        'корень': '\\sqrt',
+        'степень': '^',
+        'дробь': '\\frac',
+        'квадрат': '^2',
+        'куб': '^3',
+    }
     
-    # Сначала извлекаем математическое выражение
-    latex_expr = extract_math_expression(latex_expr)
-    logger.info(f"После извлечения выражения: '{latex_expr}'")
+    result = latex_expr
+    for russian, english in replacements.items():
+        result = result.replace(russian, english)
     
-    # Удаляем лишние пробелы и переводы строк
-    latex_expr = " ".join(latex_expr.split())
-    logger.info(f"После удаления лишних пробелов: '{latex_expr}'")
-
-    # Исправляем проблему с неполными командами \\frac
-    latex_expr = latex_expr.replace("\\rac{", "\\frac{")
-
-    # Исправляем другие распространенные проблемы с тригонометрическими функциями
-    latex_expr = (
-        latex_expr.replace("\\sin{", "\\sin(")
-        .replace("\\cos{", "\\cos(")
-        .replace("\\tan{", "\\tan(")
-        .replace("\\cot{", "\\cot(")
-        .replace("\\sec{", "\\sec(")
-        .replace("\\csc{", "\\csc(")
-    )
-    
-    # Исправляем проблемы с логарифмами
-    latex_expr = (
-        latex_expr.replace("\\log{", "\\log(")
-        .replace("\\ln{", "\\ln(")
-    )
-    
-    # Исправляем проблемы с корнями
-    latex_expr = (
-        latex_expr.replace("\\sqrt{", "\\sqrt(")
-        .replace("\\cbrt{", "\\cbrt(")
-    )
-    
-    # Исправляем проблемы с пределами
-    latex_expr = (
-        latex_expr.replace("\\lim{", "\\lim(")
-    )
-    
-    logger.info(f"После исправления команд: '{latex_expr}'")
-    
-    # Экранируем специальные символы, которые могут вызвать проблемы в LaTeX
-    # но только если они не являются частью LaTeX команд
-    def escape_special_chars(match):
-        char = match.group(0)
-        # Не экранируем символы, которые уже являются частью LaTeX команд
-        if match.start() > 0 and latex_expr[match.start()-1] == '\\':
-            return char
-        # Экранируем специальные символы 
-        # (убрал ^ и _, так как они часто используются в формулах именно как спецсимволы)
-        if char in ['%', '{', '}', '&', '#']:
-            escaped = f"\\{char}"
-            logger.debug(f"Экранирование символа '{char}' -> '{escaped}'")
-            return escaped
-        return char
-    
-    # Экранируем специальные символы, но не в LaTeX командах (убрал ^ и _ из паттерна)
-    latex_expr = re.sub(r'[%&#{}]', escape_special_chars, latex_expr)
-    
-    logger.info(f"Финальное LaTeX выражение: '{latex_expr}'")
-    return latex_expr
+    return result
 
 
 def render_latex_to_image(latex_expression: str) -> io.BytesIO:
@@ -256,7 +217,15 @@ def render_transformations_images(
             latex_lines = []
             for idx, tr in enumerate(transformations):
                 if tr.preview_result:
-                    latex_lines.append(f"({idx + 1}) \\quad {tr.preview_result}")
+                    # Применяем fix_latex_expression для замены русских слов
+                    logger.info(f"Исходное преобразование {idx + 1}: {repr(tr.preview_result)}")
+                    fixed_result = fix_latex_expression(tr.preview_result)
+                    logger.info(f"Исправленное преобразование {idx + 1}: {repr(fixed_result)}")
+                    # Для первой строки добавляем \\hspace{-1.25em} чтобы убрать отступ
+                    if idx == 0:
+                        latex_lines.append(f"\\hspace{{-1.25em}}({idx + 1}) \\quad {fixed_result}")
+                    else:
+                        latex_lines.append(f"({idx + 1}) \\quad {fixed_result}")
             
             if latex_lines:
                 # Создаем простой список строк вместо окружения align*
@@ -268,18 +237,18 @@ def render_transformations_images(
                 logger.info(f"Строки: {latex_lines}")
                 logger.info(f"Финальная формула: {repr(latex_formula)}")
                 
-                # Проверяем на кириллицу
-                has_cyrillic = any(contains_cyrillic(tr.preview_result) for tr in transformations if tr.preview_result)
+                # Проверяем на кириллицу после применения fix_latex_expression
+                has_cyrillic = any(contains_cyrillic(fix_latex_expression(tr.preview_result)) for tr in transformations if tr.preview_result)
                 logger.info(f"Содержит кириллицу: {has_cyrillic}")
                 
                 if not has_cyrillic:
                     # Используем обычный text для простых LaTeX-формул
                     logger.info("Используем ax.text для рендеринга простой формулы")
                     transformations_ax.text(
-                        0.5,
+                        0.5,  # Возвращаем в центр
                         0.5,
                         f"${latex_formula}$",
-                        horizontalalignment="center",
+                        horizontalalignment="center",  # Возвращаем центрирование
                         verticalalignment="center",
                         fontsize=12,
                         transform=transformations_ax.transAxes,
@@ -289,10 +258,10 @@ def render_transformations_images(
                     # Для текста с кириллицей используем обычный текст
                     logger.info("Используем обычный текст (есть кириллица)")
                     transformations_ax.text(
-                        0.5,
+                        0.5,  # Возвращаем в центр
                         0.5,
                         latex_formula,
-                        horizontalalignment="center",
+                        horizontalalignment="center",  # Возвращаем центрирование
                         verticalalignment="center",
                         fontsize=12,
                         transform=transformations_ax.transAxes,
@@ -371,7 +340,12 @@ def render_transformations_images(
             latex_lines = []
             for idx, tr in enumerate(transformations):
                 if tr.preview_result:
-                    latex_lines.append(f"({idx + 1}) \\quad {tr.preview_result}")
+                    # Применяем fix_latex_expression для замены русских слов
+                    logger.info(f"Исходное преобразование {idx + 1}: {repr(tr.preview_result)}")
+                    fixed_result = fix_latex_expression(tr.preview_result)
+                    logger.info(f"Исправленное преобразование {idx + 1}: {repr(fixed_result)}")
+                    # Добавляем \\quad для всех строк для единообразия
+                    latex_lines.append(f"({idx + 1}) \\quad {fixed_result}")
             
             if latex_lines:
                 # Создаем простой список строк вместо окружения align*
@@ -383,18 +357,18 @@ def render_transformations_images(
                 logger.info(f"Строки: {latex_lines}")
                 logger.info(f"Финальная формула: {repr(latex_formula)}")
                 
-                # Проверяем на кириллицу
-                has_cyrillic = any(contains_cyrillic(tr.preview_result) for tr in transformations if tr.preview_result)
+                # Проверяем на кириллицу после применения fix_latex_expression
+                has_cyrillic = any(contains_cyrillic(fix_latex_expression(tr.preview_result)) for tr in transformations if tr.preview_result)
                 logger.info(f"Содержит кириллицу (блок ошибок): {has_cyrillic}")
                 
                 if not has_cyrillic:
                     # Используем обычный text для простых LaTeX-формул
                     logger.info("Используем ax.text для рендеринга простой формулы")
                     error_ax2.text(
-                        0.5,
+                        0.5,  # Возвращаем в центр
                         0.5,
                         f"${latex_formula}$",
-                        horizontalalignment="center",
+                        horizontalalignment="center",  # Возвращаем центрирование
                         verticalalignment="center",
                         fontsize=12,
                         transform=error_ax2.transAxes,
@@ -404,10 +378,10 @@ def render_transformations_images(
                     # Для текста с кириллицей используем обычный текст
                     logger.info("Используем обычный текст (есть кириллица, блок ошибок)")
                     error_ax2.text(
-                        0.5,
+                        0.5,  # Возвращаем в центр
                         0.5,
                         latex_formula,
-                        horizontalalignment="center",
+                        horizontalalignment="center",  # Возвращаем центрирование
                         verticalalignment="center",
                         fontsize=12,
                         transform=error_ax2.transAxes,
