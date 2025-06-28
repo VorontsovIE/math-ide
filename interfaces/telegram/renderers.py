@@ -35,59 +35,14 @@ def contains_cyrillic(text: str) -> bool:
 
 
 def extract_math_expression(text: str) -> str:
-    """Извлекает математическое выражение из текста согласно четким правилам."""
+    """Очищает и нормализует математическое выражение."""
     
-    # Сначала проверяем LaTeX блоки
-    latex_patterns = [
-        r'\$\$(.*?)\$\$',  # Блоки $$...$$
-        r'\$(.*?)\$',      # Блоки $...$
-    ]
-    for pattern in latex_patterns:
-        matches = re.findall(pattern, text, re.DOTALL)
-        if matches:
-            return max(matches, key=len).strip()
+    # Убираем пробелы по краям
+    result = text.strip()
     
-    # Токенизация: выделяем простейшие компоненты формулы
-    token_pattern = r'''(
-        \\[a-zA-Z]+ |         # LaTeX-команды
-        [a-zA-Z] |            # Буквы
-        [0-9]+(?:\.[0-9]+)? |# Числа
-        [+\-*/=<>^_,] |      # Операторы + запятая
-        [()\[\]{}] |        # Скобки
-        [²³⁴⁵⁶⁷⁸⁹⁰¹₂₃₄₅₆₇₈₉₀] # Надстрочные/подстрочные символы
-    )'''
-    tokens = [m.group(0) for m in re.finditer(token_pattern, text, re.VERBOSE)]
-    print(f"DEBUG: TOKENS: {tokens}")
-    
-    # Собираем максимальную по длине подпоследовательность, содержащую хотя бы один оператор, LaTeX-команду или запятую
-    best = []
-    current = []
-    has_math = False
-    
-    for t in tokens:
-        # Проверяем, является ли токен математическим (оператор, LaTeX-команда, запятая, надстрочные/подстрочные символы)
-        if re.match(r'[+\-*/=<>^_,]|\\[a-zA-Z]+|[²³⁴⁵⁶⁷⁸⁹⁰¹₂₃₄₅₆₇₈₉₀]', t):
-            current.append(t)
-            has_math = True
-        # Буквы, числа, скобки - добавляем только если уже есть математическое содержимое
-        elif re.match(r'[a-zA-Z0-9()\[\]{}]', t):
-            current.append(t)
-        else:
-            # Если встретили не-математический токен, сохраняем текущую последовательность если она содержит математику
-            if has_math and len(current) > len(best):
-                best = current[:]
-            current = []
-            has_math = False
-    
-    # Проверяем последнюю последовательность
-    if has_math and len(current) > len(best):
-        best = current[:]
-    
-    result = ''.join(best)
-    # Обрезаем пробелы и запятые по краям
-    result = result.strip(' ,;')
     # Преобразуем надстрочные/подстрочные символы
     result = convert_superscript_subscript_to_latex(result)
+    
     return result
 
 
