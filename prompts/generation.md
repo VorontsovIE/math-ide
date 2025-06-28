@@ -25,20 +25,30 @@
 1. **Формат ответа**: JSON-массив объектов с полями:
    ```json
    [
-     {{
+     {{{{
        "description": "Человекочитаемое описание преобразования на русском языке",
        "expression": "Результат применения преобразования в формате LaTeX",
        "type": "Тип преобразования из списка доступных",
        "requires_user_input": false,
        "parameter_definitions": [],
-       "metadata": {{
+       "metadata": {{{{
          "usefullness": "good|neutral|bad",
          "reasoning": "Краткое объяснение, почему это преобразование полезно, бесполезно или вредно",
          "mathematical_check": "Краткое подтверждение математической корректности"
-       }}
-     }}
+       }}}}
+     }}}}
    ]
    ```
+
+**ВАЖНО: Требования к полю expression:**
+- **ТОЛЬКО математические формулы** в формате LaTeX
+- **НЕ используй кириллический текст** в формулах
+- Если требуется пояснительный текст, используй **только английский язык**
+- Для текста в формулах используй команду `\text{{}}` с английскими словами
+- Примеры правильного использования:
+  - `\Delta = b^2 - 4ac = 1 > 0, \text{{ equation has two real roots}}`
+  - `x = \frac{{-b \pm \sqrt{{\Delta}}}}{{2a}}, \text{{ where }} \Delta = b^2 - 4ac`
+  - `\text{{Let }} u = x^2, \text{{ then }} u^2 - 3u + 2 = 0`
 
 ## Параметризованные преобразования
 
@@ -46,27 +56,27 @@
 
 **Формат параметризованного преобразования:**
 ```json
-{{
-  "description": "Умножить обе части на {{FACTOR}}",
-  "expression": "{{FACTOR}} \\cdot (выражение) = {{FACTOR}} \\cdot (правая_часть)",
+{{{{
+  "description": "Умножить обе части на {{{{FACTOR}}}}",
+  "expression": "{{{{FACTOR}}}} \\cdot (выражение) = {{{{FACTOR}}}} \\cdot (правая_часть)",
   "type": "multiply",
   "requires_user_input": true,
   "parameter_definitions": [
-    {{
+    {{{{
       "name": "FACTOR",
       "prompt": "На какое число умножить обе части?",
       "param_type": "number",
       "suggested_values": [2, 3, -1, 0.5],
       "default_value": 2,
       "validation_rule": "number != 0"
-    }}
+    }}}}
   ],
-  "metadata": {{
+  "metadata": {{{{
     "usefullness": "neutral",
     "reasoning": "Позволяет пользователю выбрать стратегию упрощения",
     "mathematical_check": "Умножение на ненулевое число сохраняет равенство"
-  }}
-}}
+  }}}}
+}}}}
 ```
 
 **Типы параметров:**
@@ -77,28 +87,28 @@
 
 **Пример с выбором:**
 ```json
-{{
-  "description": "Заменить {{TERM}} на его эквивалент",
-  "expression": "выражение с заменой {{TERM}} на {{REPLACEMENT}}",
+{{{{
+  "description": "Заменить {{{{TERM}}}} на его эквивалент",
+  "expression": "выражение с заменой {{{{TERM}}}} на {{{{REPLACEMENT}}}}",
   "type": "substitute",
   "requires_user_input": true,
   "parameter_definitions": [
-    {{
+    {{{{
       "name": "TERM",
       "prompt": "Какой термин заменить?",
       "param_type": "choice",
       "options": ["sin²(x)", "cos²(x)", "tan(x)"],
       "default_value": "sin²(x)"
-    }},
-    {{
+    }}}},
+    {{{{
       "name": "REPLACEMENT",
       "prompt": "На что заменить?",
       "param_type": "choice", 
       "options": ["1 - cos²(x)", "1 - sin²(x)", "sin(x)/cos(x)"],
       "default_value": "1 - cos²(x)"
-    }}
+    }}}}
   ]
-}}
+}}}}
 ```
 
 **Когда использовать параметры:**
@@ -133,61 +143,89 @@
 **Для уравнения 2(x + 1) = 4:**
 ```json
 [
-  {{
+  {{{{
     "description": "Раскрыть скобки в левой части",
     "expression": "2x + 2 = 4",
     "type": "expand",
-    "metadata": {{
+    "metadata": {{{{
       "difficulty": "elementary school",
       "usefullness": "good",
       "reasoning": "Слагаемые окажутся на едином уровне.",
       "mathematical_check": "2(x+1) = 2x + 2 по распределительному закону"
-    }}
-  }},
-  {{
+    }}}}
+  }}}},
+  {{{{
     "description": "Вычесть 2 из обеих частей",
     "expression": "2(x + 1) - 2 = 4 - 2",
     "type": "subtract",
-    "metadata": {{
+    "metadata": {{{{
       "difficulty": "elementary school",
       "usefullness": "good", 
       "reasoning": "Упрощает правую часть и выделяет x.",
       "mathematical_check": "Вычитание одинакового числа из обеих частей сохраняет равенство"
-    }}
-  }},
-  {{
+    }}}}
+  }}}},
+  {{{{
     "description": "Разделить обе части на 2",
     "expression": "\\frac{{2(x + 1)}}{{2}} = \\frac{{4}}{{2}}",
     "type": "divide",
-    "metadata": {{
+    "metadata": {{{{
       "difficulty": "elementary school",
       "usefullness": "good", 
       "reasoning": "Упрощает коэффициент при скобке.",
       "mathematical_check": "Деление обеих частей на 2≠0 сохраняет равенство"
-    }}
-  }},
-  {{
+    }}}}
+  }}}},
+  {{{{
     "description": "Умножить обе части на 3",
     "expression": "6(x + 1) = 12",
     "type": "multiply",
-    "metadata": {{
+    "metadata": {{{{
       "difficulty": "elementary school",
       "usefullness": "neutral", 
       "reasoning": "Структура уравнения не поменялась, но коэффициенты стали больше",
       "mathematical_check": "Умножение обеих частей на 3 сохраняет равенство"
-    }}
-  }},
-  {{
+    }}}}
+  }}}},
+  {{{{
     "description": "Переписать в виде 2(x + 1) - 4 = 0",
     "expression": "2(x + 1) - 4 = 0",
     "type": "subtract",
-    "metadata": {{
+    "metadata": {{{{
       "difficulty": "elementary school",
       "usefullness": "neutral", 
       "reasoning": "Приводит к стандартному виду уравнения равного нулю",
       "mathematical_check": "Вычитание 4 из обеих частей: 4-4=0"
-    }}
-  }}
+    }}}}
+  }}}}
+]
+```
+
+**Для квадратного уравнения x² - 3x + 2 = 0:**
+```json
+[
+  {{{{
+    "description": "Вычислить дискриминант",
+    "expression": "\\Delta = (-3)^2 - 4 \\cdot 1 \\cdot 2 = 9 - 8 = 1 > 0, \\text{{ equation has two real roots}}",
+    "type": "calculate",
+    "metadata": {{{{
+      "difficulty": "middle school",
+      "usefullness": "good",
+      "reasoning": "Определяет количество и тип корней уравнения.",
+      "mathematical_check": "\\Delta = b^2 - 4ac = (-3)^2 - 4(1)(2) = 9 - 8 = 1"
+    }}}}
+  }}}},
+  {{{{
+    "description": "Применить формулу корней",
+    "expression": "x = \\frac{{-(-3) \\pm \\sqrt{{1}}}}{{2 \\cdot 1}} = \\frac{{3 \\pm 1}}{{2}}",
+    "type": "solve",
+    "metadata": {{{{
+      "difficulty": "middle school",
+      "usefullness": "good",
+      "reasoning": "Находит конкретные значения корней.",
+      "mathematical_check": "x = \\frac{{-b \\pm \\sqrt{{\\Delta}}}}{{2a}} = \\frac{{3 \\pm 1}}{{2}}"
+    }}}}
+  }}}}
 ]
 ```
 
