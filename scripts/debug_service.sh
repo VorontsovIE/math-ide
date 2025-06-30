@@ -58,6 +58,32 @@ check_service_config() {
         log_error "Файл конфигурации сервиса не найден"
         return 1
     fi
+    
+    echo "=== Проверка systemd конфигурации в реальном времени ==="
+    echo "--- Параметры сервиса ---"
+    systemctl show "$SERVICE_NAME" --property=User,Group,WorkingDirectory,ExecStart,Environment,EnvironmentFile || true
+    echo
+    
+    echo "--- Проверка синтаксиса конфигурации ---"
+    systemd-analyze verify "/etc/systemd/system/$SERVICE_NAME.service" || true
+    echo
+    
+    echo "--- Тест запуска сервиса (dry-run) ==="
+    echo "Попытка запуска сервиса на 5 секунд:"
+    sudo systemctl start "$SERVICE_NAME"
+    sleep 2
+    if sudo systemctl is-active --quiet "$SERVICE_NAME"; then
+        log_success "Сервис запустился успешно!"
+        echo "Статус:"
+        sudo systemctl status "$SERVICE_NAME" --no-pager -l
+        echo "Останавливаем сервис..."
+        sudo systemctl stop "$SERVICE_NAME"
+    else
+        log_error "Сервис не запустился"
+        echo "Последние логи:"
+        sudo journalctl -u "$SERVICE_NAME" --no-pager -l -n 10
+    fi
+    echo
 }
 
 # Проверка статуса сервиса
@@ -176,6 +202,50 @@ test_command() {
         timeout 10s "$DEPLOY_DIR/.venv/bin/python" -m interfaces.telegram_bot --help 2>&1 || true
     else
         log_error "Python не найден для тестирования"
+    fi
+    echo
+    
+    echo "=== Сравнение контекстов выполнения ==="
+    echo "--- Контекст debug_service ---"
+    echo "Пользователь: $(whoami)"
+    echo "UID: $(id -u)"
+    echo "GID: $(id -g)"
+    echo "Группы: $(id -Gn)"
+    echo "Рабочая директория: $(pwd)"
+    echo "PATH: $PATH"
+    echo "HOME: $HOME"
+    echo
+    
+    echo "--- Контекст systemd ---"
+    SERVICE_USER_FROM_CONFIG=$(systemctl show "$SERVICE_NAME" --property=User --value 2>/dev/null || echo "")
+    if [ -n "$SERVICE_USER_FROM_CONFIG" ]; then
+        echo "Пользователь сервиса: $SERVICE_USER_FROM_CONFIG"
+        echo "UID пользователя сервиса: $(id -u "$SERVICE_USER_FROM_CONFIG" 2>/dev/null || echo "неизвестен")"
+        echo "GID пользователя сервиса: $(id -g "$SERVICE_USER_FROM_CONFIG" 2>/dev/null || echo "неизвестен")"
+        echo "Группы пользователя сервиса: $(id -Gn "$SERVICE_USER_FROM_CONFIG" 2>/dev/null || echo "неизвестны")"
+        echo "HOME пользователя сервиса: $(eval echo ~"$SERVICE_USER_FROM_CONFIG")"
+    fi
+    echo
+    
+    echo "=== Проверка доступности файлов для systemd ==="
+    SERVICE_USER_FROM_CONFIG=$(systemctl show "$SERVICE_NAME" --property=User --value 2>/dev/null || echo "")
+    if [ -n "$SERVICE_USER_FROM_CONFIG" ]; then
+        echo "Проверка доступа к файлам от имени пользователя сервиса:"
+        
+        # Проверяем доступ к основным файлам
+        echo "Python: $(sudo -u "$SERVICE_USER_FROM_CONFIG" test -x "$DEPLOY_DIR/.venv/bin/python" && echo "доступен" || echo "НЕ доступен")"
+        echo ".env файл: $(sudo -u "$SERVICE_USER_FROM_CONFIG" test -r "$DEPLOY_DIR/.env" && echo "доступен для чтения" || echo "НЕ доступен для чтения")"
+        echo "Рабочая директория: $(sudo -u "$SERVICE_USER_FROM_CONFIG" test -d "$DEPLOY_DIR" && echo "доступна" || echo "НЕ доступна")"
+        echo "Права на запись: $(sudo -u "$SERVICE_USER_FROM_CONFIG" test -w "$DEPLOY_DIR" && echo "есть" || echo "НЕТ")"
+    fi
+    echo
+    
+    echo "=== Тест запуска от имени пользователя сервиса ==="
+    SERVICE_USER_FROM_CONFIG=$(systemctl show "$SERVICE_NAME" --property=User --value 2>/dev/null || echo "")
+    if [ -n "$SERVICE_USER_FROM_CONFIG" ]; then
+        echo "Попытка запуска команды от имени $SERVICE_USER_FROM_CONFIG:"
+        cd "$DEPLOY_DIR"
+        sudo -u "$SERVICE_USER_FROM_CONFIG" timeout 5s "$DEPLOY_DIR/.venv/bin/python" -m interfaces.telegram_bot --help 2>&1 || echo "Команда завершилась с ошибкой"
     fi
     echo
 }
