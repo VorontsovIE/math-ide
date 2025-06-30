@@ -137,6 +137,23 @@ check_environment() {
     systemctl show "$SERVICE_NAME" --property=Environment --property=EnvironmentFile || true
     echo
     
+    echo "=== Путь к .env файлу ==="
+    ENV_FILE_PATH=$(systemctl show "$SERVICE_NAME" --property=EnvironmentFile --value 2>/dev/null || echo "")
+    if [ -n "$ENV_FILE_PATH" ]; then
+        log_info "Путь к .env файлу из systemd: $ENV_FILE_PATH"
+        if [ -f "$ENV_FILE_PATH" ]; then
+            log_success ".env файл существует по указанному пути"
+            echo "Размер: $(stat -c%s "$ENV_FILE_PATH") байт"
+            echo "Права: $(stat -c%a "$ENV_FILE_PATH")"
+            echo "Владелец: $(stat -c%U "$ENV_FILE_PATH")"
+        else
+            log_error ".env файл НЕ существует по указанному пути"
+        fi
+    else
+        log_warning "EnvironmentFile не указан в конфигурации systemd"
+    fi
+    echo
+    
     echo "=== Содержимое .env файла (без секретов) ==="
     if [ -f "$DEPLOY_DIR/.env" ]; then
         # Показываем только ключи, без значений
