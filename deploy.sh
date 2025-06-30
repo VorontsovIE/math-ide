@@ -119,6 +119,14 @@ create_deploy_dir() {
 update_repository() {
     log_info "Обновление репозитория в $DEPLOY_DIR"
     
+    # Сохраняем .env файл если он существует
+    ENV_BACKUP=""
+    if [ -f "$DEPLOY_DIR/.env" ]; then
+        ENV_BACKUP="/tmp/math-ide-env-backup-$(date +%Y%m%d-%H%M%S)"
+        cp "$DEPLOY_DIR/.env" "$ENV_BACKUP"
+        log_info "Создана резервная копия .env файла: $ENV_BACKUP"
+    fi
+    
     if [ -d "$DEPLOY_DIR/.git" ]; then
         log_info "Репозиторий уже существует, обновляем..."
         cd "$DEPLOY_DIR"
@@ -153,6 +161,25 @@ update_repository() {
         git clone -b "$BRANCH" https://github.com/your-username/math-ide.git "$DEPLOY_DIR"
         cd "$DEPLOY_DIR"
         log_success "Репозиторий склонирован"
+    fi
+    
+    # Восстанавливаем .env файл если он был сохранен
+    if [ -n "$ENV_BACKUP" ] && [ -f "$ENV_BACKUP" ]; then
+        if [ -f "$DEPLOY_DIR/.env" ]; then
+            # Сравниваем файлы
+            if ! cmp -s "$ENV_BACKUP" "$DEPLOY_DIR/.env"; then
+                log_info "Восстанавливаем .env файл из резервной копии"
+                cp "$ENV_BACKUP" "$DEPLOY_DIR/.env"
+                log_success ".env файл восстановлен"
+            else
+                log_info ".env файл не изменился, резервная копия не нужна"
+            fi
+        else
+            log_info "Восстанавливаем .env файл из резервной копии"
+            cp "$ENV_BACKUP" "$DEPLOY_DIR/.env"
+            log_success ".env файл восстановлен"
+        fi
+        rm "$ENV_BACKUP"
     fi
 }
 
