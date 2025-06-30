@@ -14,7 +14,7 @@ from dotenv import load_dotenv
 root_dir = Path(__file__).parent.parent.parent
 sys.path.append(str(root_dir))
 
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
+from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 
 from .handlers import (
     cancel,
@@ -92,12 +92,10 @@ def main() -> None:
     application.add_handler(CommandHandler("cancel", cancel))
     application.add_handler(CommandHandler("history", show_history))
 
-    # Добавляем обработчик для callback'ов (кнопки)
-    application.add_handler(
-        MessageHandler(filters.Regex(r"^callback:"), handle_transformation_choice)
-    )
+    # Обработчик callback-запросов (кнопки) - ИСПРАВЛЕНО
+    application.add_handler(CallbackQueryHandler(handle_transformation_choice))
 
-    # Добавляем обработчик для всех текстовых сообщений
+    # Обработчик текстовых сообщений (задачи)
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_task))
 
     # Добавляем обработчик ошибок
@@ -122,4 +120,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main() 
+    main()
