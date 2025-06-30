@@ -39,7 +39,7 @@ log_error() {
 ENV_FILE=""
 BRANCH="main"
 SERVICE_NAME="math-ide"
-SERVICE_USER="$USER"
+SERVICE_USER="${USER:-$(whoami)}"
 DEPLOY_DIR="/opt/math-ide"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
 FORCE_MODE=false

@@ -175,8 +175,20 @@ check_permissions() {
     ls -la "$DEPLOY_DIR" | head -10 || true
     echo
     
-    echo "=== Права пользователя сервиса ==="
-    id "$SERVICE_USER" || true
+    echo "=== Определение пользователя сервиса ==="
+    # Получаем пользователя из конфигурации systemd
+    SERVICE_USER_FROM_CONFIG=$(systemctl show "$SERVICE_NAME" --property=User --value 2>/dev/null || echo "")
+    if [ -n "$SERVICE_USER_FROM_CONFIG" ]; then
+        log_info "Пользователь сервиса из конфигурации: $SERVICE_USER_FROM_CONFIG"
+        echo "=== Права пользователя сервиса ==="
+        id "$SERVICE_USER_FROM_CONFIG" || true
+    else
+        log_warning "Не удалось определить пользователя сервиса из конфигурации"
+    fi
+    echo
+    
+    echo "=== Текущий пользователь ==="
+    whoami
     echo
 }
 
