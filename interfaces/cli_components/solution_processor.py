@@ -3,7 +3,6 @@
 from typing import List, Optional
 
 from core.engines.solution_checker import SolutionChecker
-from core.engines.transformation_applier import TransformationApplier
 from core.engines.transformation_generator import TransformationGenerator
 from core.history import SolutionHistory
 from core.types import (
@@ -24,14 +23,12 @@ class SolutionProcessor:
     def __init__(
         self,
         transformation_generator: TransformationGenerator,
-        transformation_applier: TransformationApplier,
         solution_checker: SolutionChecker,
         history: SolutionHistory,
         input_handler: InputHandler,
         display_manager: DisplayManager,
     ) -> None:
         self.transformation_generator = transformation_generator
-        self.transformation_applier = transformation_applier
         self.solution_checker = solution_checker
         self.history = history
         self.input_handler = input_handler
@@ -89,12 +86,11 @@ class SolutionProcessor:
                 selected_transformation.parameters = parameters
 
             # Apply transformation
-            result = self.transformation_applier.apply_transformation(
-                current_step, selected_transformation
-            )
-            if not result or not result.is_valid:
-                self.display_manager.show_error("Не удалось применить трансформацию")
+            if not selected_transformation.preview_result:
+                self.display_manager.show_error("Преобразование не содержит результата")
                 return False
+
+            result_expression = selected_transformation.preview_result
 
             # Add step to history using the simplified API
             self.history.add_step(
@@ -108,9 +104,9 @@ class SolutionProcessor:
                 ],
                 chosen_transformation={
                     "description": selected_transformation.description,
-                    "expression": result.result,
+                    "expression": result_expression,
                 },
-                result_expression=result.result,
+                result_expression=result_expression,
             )
 
             self.display_manager.show_info(

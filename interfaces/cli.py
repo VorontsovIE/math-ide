@@ -8,7 +8,6 @@ from rich.panel import Panel
 
 from core.engines import (
     SolutionChecker,
-    TransformationApplier,
     TransformationGenerator,
 )
 from core.gpt_client import GPTClient
@@ -45,7 +44,6 @@ def solve(problem: str, model: str, debug: bool) -> None:
 
         # Initialize engines
         transformation_generator = TransformationGenerator(gpt_client, prompt_manager)
-        transformation_applier = TransformationApplier(gpt_client, prompt_manager)
         solution_checker = SolutionChecker(gpt_client, prompt_manager)
 
         history = SolutionHistory(problem)
@@ -55,7 +53,6 @@ def solve(problem: str, model: str, debug: bool) -> None:
         input_handler = InputHandler(console)
         solution_processor = SolutionProcessor(
             transformation_generator,
-            transformation_applier,
             solution_checker,
             history,
             input_handler,
@@ -114,12 +111,11 @@ def solve(problem: str, model: str, debug: bool) -> None:
                     continue
 
                 # Apply transformation
-                result = transformation_applier.apply_transformation(
-                    current_step, selected_transformation
-                )
-                if not result or not result.is_valid:
-                    display_manager.show_error("Не удалось применить преобразование")
+                if not selected_transformation.preview_result:
+                    display_manager.show_error("Преобразование не содержит результата")
                     continue
+
+                result_expression = selected_transformation.preview_result
 
                 # Add step to history
                 history.add_step(
@@ -128,16 +124,16 @@ def solve(problem: str, model: str, debug: bool) -> None:
                         t.__dict__ for t in transformations.transformations
                     ],
                     chosen_transformation=selected_transformation.__dict__,
-                    result_expression=result.result,
+                    result_expression=result_expression,
                 )
 
                 # Show step result
                 display_manager.display_success_message(
-                    f"Применено: {selected_transformation.description}", result.result
+                    f"Применено: {selected_transformation.description}", result_expression
                 )
 
                 # Update current problem
-                current_problem = result.result
+                current_problem = result_expression
 
                 # Ask user what to do next
                 action = input_handler.get_user_choice(
@@ -212,7 +208,6 @@ def interactive() -> None:
 
         # Initialize engines
         transformation_generator = TransformationGenerator(gpt_client, prompt_manager)
-        transformation_applier = TransformationApplier(gpt_client, prompt_manager)
         solution_checker = SolutionChecker(gpt_client, prompt_manager)
 
         history = SolutionHistory()
@@ -222,7 +217,6 @@ def interactive() -> None:
         input_handler = InputHandler(console)
         solution_processor = SolutionProcessor(
             transformation_generator,
-            transformation_applier,
             solution_checker,
             history,
             input_handler,
@@ -293,7 +287,6 @@ def auto(problem: str, steps: Optional[int], model: str) -> None:
 
         # Initialize engines
         transformation_generator = TransformationGenerator(gpt_client, prompt_manager)
-        transformation_applier = TransformationApplier(gpt_client, prompt_manager)
         solution_checker = SolutionChecker(gpt_client, prompt_manager)
 
         history = SolutionHistory(problem)
@@ -346,12 +339,11 @@ def auto(problem: str, steps: Optional[int], model: str) -> None:
                     )
                     break
 
-            result = transformation_applier.apply_transformation(
-                current_step, best_transformation
-            )
-            if not result or not result.is_valid:
-                display_manager.show_error("Не удалось применить трансформацию")
+            if not best_transformation.preview_result:
+                display_manager.show_error("Преобразование не содержит результата")
                 break
+
+            result_expression = best_transformation.preview_result
 
             # Add to history
             history.add_step(
@@ -360,14 +352,14 @@ def auto(problem: str, steps: Optional[int], model: str) -> None:
                     t.__dict__ for t in transformations.transformations
                 ],
                 chosen_transformation=best_transformation.__dict__,
-                result_expression=result.result,
+                result_expression=result_expression,
             )
 
             display_manager.display_success_message(
-                f"Применено: {best_transformation.description}", result.result
+                f"Применено: {best_transformation.description}", result_expression
             )
 
-            current_problem = result.result
+            current_problem = result_expression
             step_count += 1
 
         # Show final solution

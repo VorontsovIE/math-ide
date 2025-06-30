@@ -5,7 +5,6 @@ from core.engine import TransformationEngine
 from core.gpt_client import GPTResponse, GPTUsage
 from core.history import SolutionHistory
 from core.types import (
-    ApplyResult,
     CheckResult,
     GenerationResult,
     ParameterDefinition,
@@ -30,7 +29,6 @@ class TestTransformationEngine:
         assert self.engine.prompt_manager is not None
         # Проверяем что компоненты инициализированы
         assert self.engine.generator is not None
-        assert self.engine.applier is not None
         assert self.engine.checker is not None
 
     @patch("core.gpt_client.GPTClient.chat_completion")
@@ -78,57 +76,6 @@ class TestTransformationEngine:
         assert isinstance(result, GenerationResult)
         # При ошибке возвращается пустой список преобразований
         assert len(result.transformations) == 0
-
-    @patch("core.gpt_client.GPTClient.chat_completion")
-    @patch("core.prompts.PromptManager.format_prompt")
-    def test_apply_transformation_success(self, mock_format, mock_chat):
-        """Тест успешного применения преобразования."""
-        # Мокаем форматирование промпта
-        mock_format.return_value = "Test prompt"
-
-        transformation = Transformation(
-            description="Раскрыть скобки", expression="2x + 2 = 4", type="expand"
-        )
-
-        # Мокаем ответ GPT
-        mock_response = GPTResponse(
-            content="""{
-                "result": "2x + 2 = 4",
-                "is_valid": true,
-                "explanation": "Применил распределительный закон"
-            }""",
-            usage=GPTUsage(prompt_tokens=100, completion_tokens=50, total_tokens=150),
-            model="gpt-3.5-turbo",
-            finish_reason="stop",
-        )
-        mock_chat.return_value = mock_response
-
-        result = self.engine.apply_transformation(self.sample_step, transformation)
-
-        assert isinstance(result, ApplyResult)
-        assert result.is_valid
-        assert result.result == "2x + 2 = 4"
-        assert "распределительный" in result.explanation
-
-    @patch("core.gpt_client.GPTClient.chat_completion")
-    @patch("core.prompts.PromptManager.format_prompt")
-    def test_apply_transformation_error(self, mock_format, mock_chat):
-        """Тест обработки ошибки при применении."""
-        # Мокаем форматирование промпта
-        mock_format.return_value = "Test prompt"
-
-        transformation = Transformation(
-            description="Раскрыть скобки", expression="2x + 2 = 4", type="expand"
-        )
-
-        # Мокаем ошибку API
-        mock_chat.side_effect = Exception("API Error")
-
-        result = self.engine.apply_transformation(self.sample_step, transformation)
-
-        assert isinstance(result, ApplyResult)
-        assert not result.is_valid
-        assert "ошибка" in result.explanation.lower()
 
     @patch("core.gpt_client.GPTClient.chat_completion")
     @patch("core.prompts.PromptManager.format_prompt")
@@ -232,7 +179,7 @@ class TestTransformationEngine:
             transformation.preview_result == "2x = 6"
         )  # Должен быть скопирован из expression
 
-        # Проверяем, что был сделан только 1 вызов для генерации (без дополнительных запросов)
+        # Проверяем, что был сделан только 1 вызов для генерации
         assert mock_chat.call_count == 1
 
     @patch("core.gpt_client.GPTClient.chat_completion")
@@ -271,53 +218,6 @@ class TestTransformationEngine:
 
         # Проверяем, что был сделан только 1 вызов для генерации
         assert mock_chat.call_count == 1
-
-    @patch("core.gpt_client.GPTClient.chat_completion")
-    @patch("core.prompts.PromptManager.format_prompt")
-    def test_apply_transformation_with_parameters(self, mock_format, mock_chat):
-        """Тест применения преобразования с параметрами."""
-        engine = TransformationEngine(preview_mode=True)
-
-        # Мокаем форматирование промпта
-        mock_format.return_value = "Mocked prompt"
-
-        # Мокаем ответ GPT для применения преобразования
-        mock_response = GPTResponse(
-            content="""{
-                "result": "2x + 2",
-                "explanation": "Умножили x на 2 и 1 на 2",
-                "is_valid": true,
-                "mathematical_verification": "Проверка: 2(x + 1) = 2x + 2 ✓"
-            }""",
-            usage=GPTUsage(prompt_tokens=100, completion_tokens=50, total_tokens=150),
-            model="gpt-3.5-turbo",
-            finish_reason="stop",
-        )
-        mock_chat.return_value = mock_response
-
-        # Создаем преобразование с параметрами
-        transformation = Transformation(
-            description="Умножить на коэффициент",
-            expression="x * {COEFFICIENT}",
-            type="multiply",
-            parameter_definitions=[
-                ParameterDefinition(
-                    name="COEFFICIENT",
-                    prompt="Введите коэффициент для умножения:",
-                    param_type=ParameterType.NUMBER,
-                    default_value=2,
-                )
-            ],
-            requires_user_input=True,
-        )
-
-        # Применяем преобразование
-        result = engine.apply_transformation("x + 1", transformation)
-
-        # Проверяем результат
-        assert result.is_valid is True
-        assert "2x + 2" in result.result or "x*2 + 1*2" in result.result
-        assert result.explanation != ""
 
 
 class TestSolutionHistory:

@@ -29,7 +29,6 @@ from .history import HistoryStep, SolutionHistory
 
 # Импортируем основные типы данных
 from .types import (
-    ApplyResult,
     BaseTransformationType,
     CheckResult,
     GenerationResult,
@@ -48,7 +47,6 @@ __all__ = [
     "Transformation",
     "SolutionStep",
     "GenerationResult",
-    "ApplyResult",
     "CheckResult",
     "ProgressAnalysisResult",
     "VerificationResult",
