@@ -320,8 +320,8 @@ create_systemd_service() {
         fi
     fi
     
-    # Создаем новый файл сервиса
-    cat > /tmp/"$SERVICE_NAME".service << EOF
+    # Создаем шаблон сервиса с переменными
+    cat > /tmp/"$SERVICE_NAME".service.template << 'EOF'
 [Unit]
 Description=Math IDE Telegram Bot
 After=network.target
@@ -329,15 +329,15 @@ Wants=network.target
 
 [Service]
 Type=simple
-User=$SERVICE_USER
-Group=$SERVICE_USER
-WorkingDirectory=$DEPLOY_DIR
-Environment=PATH=$DEPLOY_DIR/.venv/bin:/usr/local/bin:/usr/bin:/bin
-Environment=PYTHONPATH=$DEPLOY_DIR
+User=${SERVICE_USER}
+Group=${SERVICE_USER}
+WorkingDirectory=${DEPLOY_DIR}
+Environment=PATH=${DEPLOY_DIR}/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONPATH=${DEPLOY_DIR}
 Environment=PYTHONUNBUFFERED=1
 Environment=PYTHONDONTWRITEBYTECODE=1
-ExecStart=$DEPLOY_DIR/.venv/bin/python -m interfaces.telegram_bot
-ExecReload=/bin/kill -HUP \$MAINPID
+ExecStart=${DEPLOY_DIR}/.venv/bin/python -m interfaces.telegram_bot
+ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 RestartSec=10
 StartLimitInterval=60
@@ -347,14 +347,14 @@ StandardError=journal
 SyslogIdentifier=math-ide-bot
 
 # Переменные окружения
-EnvironmentFile=$DEPLOY_DIR/.env
+EnvironmentFile=${DEPLOY_DIR}/.env
 
 # Ограничения безопасности (уменьшены для отладки)
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=$DEPLOY_DIR
+ReadWritePaths=${DEPLOY_DIR}
 ReadWritePaths=/tmp
 
 # Таймауты
@@ -365,9 +365,18 @@ TimeoutStopSec=30
 WantedBy=multi-user.target
 EOF
 
+    # Подставляем переменные в шаблон
+    export SERVICE_USER DEPLOY_DIR
+    envsubst < /tmp/"$SERVICE_NAME".service.template > /tmp/"$SERVICE_NAME".service
+    
+    # Показываем созданную конфигурацию для отладки
+    log_info "Созданная конфигурация сервиса:"
+    cat /tmp/"$SERVICE_NAME".service
+    echo
+    
     # Копируем файл сервиса
     sudo cp /tmp/"$SERVICE_NAME".service "$SERVICE_FILE"
-    rm /tmp/"$SERVICE_NAME".service
+    rm /tmp/"$SERVICE_NAME".service.template /tmp/"$SERVICE_NAME".service
     
     # Перезагружаем systemd и включаем сервис
     sudo systemctl daemon-reload
