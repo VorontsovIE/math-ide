@@ -162,8 +162,8 @@ class TransformationGenerator:
 
         # Выбор и перемешивание топ-5
         top5 = transformations[:5]
-        if len(top5) > 1:
-            random.shuffle(top5)
+        # if len(top5) > 1:
+        #     random.shuffle(top5)
 
         logger.info("Отобрано %d лучших преобразований", len(top5))
 
