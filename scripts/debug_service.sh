@@ -186,6 +186,24 @@ check_environment() {
         grep -E '^[A-Z_]+=' "$DEPLOY_DIR/.env" | sed 's/=.*/=***/' || true
     fi
     echo
+
+    # Проверяем содержимое файла сервиса напрямую
+    echo "=== Проверка файла сервиса ==="
+    if [ -f "/etc/systemd/system/$SERVICE_NAME.service" ]; then
+        echo "Содержимое файла сервиса:"
+        cat "/etc/systemd/system/$SERVICE_NAME.service"
+        echo
+        
+        if grep -q "EnvironmentFile=" "/etc/systemd/system/$SERVICE_NAME.service"; then
+            echo "[SUCCESS] EnvironmentFile найден в файле сервиса"
+            grep "EnvironmentFile=" "/etc/systemd/system/$SERVICE_NAME.service"
+        else
+            echo "[ERROR] EnvironmentFile НЕ найден в файле сервиса!"
+        fi
+    else
+        echo "[ERROR] Файл сервиса не найден!"
+    fi
+    echo
 }
 
 # Тестовый запуск команды
