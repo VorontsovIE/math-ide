@@ -7,6 +7,7 @@
 #   --branch BRANCH    Ветка для деплоя (по умолчанию: main)
 #   --service-name NAME Имя systemd сервиса (по умолчанию: math-ide)
 #   --user USER        Пользователь для запуска сервиса (по умолчанию: $USER)
+#   --force            Автоматический режим без запросов пользователя
 
 set -e  # Выход при ошибке
 
@@ -41,6 +42,7 @@ SERVICE_NAME="math-ide"
 SERVICE_USER="$USER"
 DEPLOY_DIR="/opt/math-ide"
 SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
+FORCE_MODE=false
 
 # Парсинг аргументов
 while [[ $# -gt 0 ]]; do
@@ -61,6 +63,10 @@ while [[ $# -gt 0 ]]; do
             SERVICE_USER="$2"
             shift 2
             ;;
+        --force)
+            FORCE_MODE=true
+            shift
+            ;;
         --help)
             echo "Использование: $0 [опции]"
             echo "Опции:"
@@ -68,6 +74,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --branch BRANCH    Ветка для деплоя (по умолчанию: main)"
             echo "  --service-name NAME Имя systemd сервиса (по умолчанию: math-ide)"
             echo "  --user USER        Пользователь для запуска сервиса (по умолчанию: \$USER)"
+            echo "  --force            Автоматический режим без запросов пользователя"
             echo "  --help             Показать эту справку"
             exit 0
             ;;
@@ -99,8 +106,13 @@ check_git() {
 # Создание директории для деплоя
 create_deploy_dir() {
     log_info "Создание директории для деплоя: $DEPLOY_DIR"
-    sudo mkdir -p "$DEPLOY_DIR"
-    sudo chown "$SERVICE_USER:$SERVICE_USER" "$DEPLOY_DIR"
+    if [ ! -d "$DEPLOY_DIR" ]; then
+        sudo mkdir -p "$DEPLOY_DIR"
+        sudo chown "$SERVICE_USER:$SERVICE_USER" "$DEPLOY_DIR"
+        log_success "Директория создана"
+    else
+        log_info "Директория уже существует: $DEPLOY_DIR"
+    fi
 }
 
 # Клонирование/обновление репозитория
@@ -110,37 +122,91 @@ update_repository() {
     if [ -d "$DEPLOY_DIR/.git" ]; then
         log_info "Репозиторий уже существует, обновляем..."
         cd "$DEPLOY_DIR"
+        
+        # Сохраняем текущую ветку
+        CURRENT_BRANCH=$(git branch --show-current 2>/dev/null || echo "main")
+        
+        # Проверяем, есть ли изменения в рабочей директории
+        if ! git diff-index --quiet HEAD -- 2>/dev/null; then
+            log_warning "Обнаружены несохраненные изменения в репозитории"
+            log_warning "Выполняется stash изменений..."
+            git stash push -m "Auto-stash before deployment $(date)"
+        fi
+        
+        # Обновляем репозиторий
         git fetch origin
-        git checkout "$BRANCH"
+        git checkout "$BRANCH" 2>/dev/null || git checkout -b "$BRANCH" origin/"$BRANCH"
         git pull origin "$BRANCH"
+        
+        log_success "Репозиторий обновлен"
     else
         log_info "Клонируем репозиторий..."
+        # Проверяем, не пуста ли директория
+        if [ "$(ls -A "$DEPLOY_DIR" 2>/dev/null)" ]; then
+            log_warning "Директория $DEPLOY_DIR не пуста, но не содержит git репозиторий"
+            log_warning "Создаем резервную копию существующих файлов..."
+            BACKUP_DIR="/tmp/math-ide-backup-$(date +%Y%m%d-%H%M%S)"
+            sudo cp -r "$DEPLOY_DIR" "$BACKUP_DIR"
+            log_info "Резервная копия создана: $BACKUP_DIR"
+        fi
+        
         git clone -b "$BRANCH" https://github.com/your-username/math-ide.git "$DEPLOY_DIR"
         cd "$DEPLOY_DIR"
+        log_success "Репозиторий склонирован"
     fi
-    
-    log_success "Репозиторий обновлен"
 }
 
 # Настройка переменных окружения
 setup_environment() {
     log_info "Настройка переменных окружения"
     
-    if [ -n "$ENV_FILE" ] && [ -f "$ENV_FILE" ]; then
-        log_info "Копирование файла окружения: $ENV_FILE"
-        cp "$ENV_FILE" "$DEPLOY_DIR/.env"
-        log_success "Файл окружения скопирован"
-    elif [ -f "$DEPLOY_DIR/docs/env.example" ]; then
-        log_warning "Файл окружения не указан, копируем пример"
-        cp "$DEPLOY_DIR/docs/env.example" "$DEPLOY_DIR/.env"
-        log_warning "Не забудьте настроить переменные в $DEPLOY_DIR/.env"
+    # Проверяем, существует ли уже .env файл
+    if [ -f "$DEPLOY_DIR/.env" ]; then
+        log_info "Файл .env уже существует в $DEPLOY_DIR"
+        
+        # Если указан новый файл окружения, спрашиваем пользователя
+        if [ -n "$ENV_FILE" ] && [ -f "$ENV_FILE" ]; then
+            log_warning "Обнаружен существующий .env файл"
+            
+            if [ "$FORCE_MODE" = true ]; then
+                log_info "Автоматический режим: создание резервной копии и замена .env"
+                cp "$DEPLOY_DIR/.env" "$DEPLOY_DIR/.env.backup.$(date +%Y%m%d-%H%M%S)"
+                cp "$ENV_FILE" "$DEPLOY_DIR/.env"
+                log_success "Файл окружения обновлен"
+            else
+                read -p "Заменить существующий .env файл? (y/N): " -n 1 -r
+                echo
+                if [[ $REPLY =~ ^[Yy]$ ]]; then
+                    log_info "Создание резервной копии существующего .env..."
+                    cp "$DEPLOY_DIR/.env" "$DEPLOY_DIR/.env.backup.$(date +%Y%m%d-%H%M%S)"
+                    cp "$ENV_FILE" "$DEPLOY_DIR/.env"
+                    log_success "Файл окружения обновлен"
+                else
+                    log_info "Существующий .env файл сохранен"
+                fi
+            fi
+        else
+            log_info "Используется существующий .env файл"
+        fi
     else
-        log_error "Файл окружения не найден и пример недоступен"
-        exit 1
+        # Создаем новый .env файл
+        if [ -n "$ENV_FILE" ] && [ -f "$ENV_FILE" ]; then
+            log_info "Копирование файла окружения: $ENV_FILE"
+            cp "$ENV_FILE" "$DEPLOY_DIR/.env"
+            log_success "Файл окружения скопирован"
+        elif [ -f "$DEPLOY_DIR/docs/env.example" ]; then
+            log_warning "Файл окружения не указан, копируем пример"
+            cp "$DEPLOY_DIR/docs/env.example" "$DEPLOY_DIR/.env"
+            log_warning "Не забудьте настроить переменные в $DEPLOY_DIR/.env"
+        else
+            log_error "Файл окружения не найден и пример недоступен"
+            exit 1
+        fi
     fi
     
     # Устанавливаем права на файл окружения
     chmod 600 "$DEPLOY_DIR/.env"
+    log_success "Права доступа к .env файлу установлены"
 }
 
 # Установка зависимостей с uv
@@ -148,8 +214,24 @@ install_dependencies() {
     log_info "Установка зависимостей с uv"
     cd "$DEPLOY_DIR"
     
-    # Создаем виртуальное окружение и устанавливаем зависимости
-    uv sync
+    # Проверяем, существует ли виртуальное окружение
+    if [ -d ".venv" ]; then
+        log_info "Виртуальное окружение уже существует"
+        
+        # Проверяем, нужно ли обновить зависимости
+        if [ -f "pyproject.toml" ] && [ -f "uv.lock" ]; then
+            log_info "Проверяем актуальность зависимостей..."
+            uv sync
+        else
+            log_warning "Файлы pyproject.toml или uv.lock не найдены"
+            log_info "Пересоздаем виртуальное окружение..."
+            rm -rf .venv
+            uv sync
+        fi
+    else
+        log_info "Создаем виртуальное окружение и устанавливаем зависимости"
+        uv sync
+    fi
     
     log_success "Зависимости установлены"
 }
@@ -158,6 +240,29 @@ install_dependencies() {
 create_systemd_service() {
     log_info "Создание systemd сервиса: $SERVICE_NAME"
     
+    # Проверяем, существует ли уже сервис
+    if [ -f "$SERVICE_FILE" ]; then
+        log_info "Systemd сервис уже существует: $SERVICE_FILE"
+        
+        # Создаем резервную копию
+        BACKUP_SERVICE="$SERVICE_FILE.backup.$(date +%Y%m%d-%H%M%S)"
+        sudo cp "$SERVICE_FILE" "$BACKUP_SERVICE"
+        log_info "Создана резервная копия сервиса: $BACKUP_SERVICE"
+        
+        if [ "$FORCE_MODE" = true ]; then
+            log_info "Автоматический режим: замена существующего сервиса"
+        else
+            # Спрашиваем пользователя о замене
+            read -p "Заменить существующий systemd сервис? (y/N): " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                log_info "Существующий сервис сохранен"
+                return
+            fi
+        fi
+    fi
+    
+    # Создаем новый файл сервиса
     cat > /tmp/"$SERVICE_NAME".service << EOF
 [Unit]
 Description=Math IDE Telegram Bot
@@ -196,16 +301,29 @@ EOF
     
     # Перезагружаем systemd и включаем сервис
     sudo systemctl daemon-reload
-    sudo systemctl enable "$SERVICE_NAME"
     
-    log_success "Systemd сервис создан и включен"
+    # Включаем сервис только если он еще не включен
+    if ! sudo systemctl is-enabled "$SERVICE_NAME" >/dev/null 2>&1; then
+        sudo systemctl enable "$SERVICE_NAME"
+        log_success "Systemd сервис включен"
+    else
+        log_info "Systemd сервис уже включен"
+    fi
+    
+    log_success "Systemd сервис создан"
 }
 
 # Запуск сервиса
 start_service() {
     log_info "Запуск сервиса $SERVICE_NAME"
     
-    sudo systemctl start "$SERVICE_NAME"
+    # Проверяем, запущен ли уже сервис
+    if sudo systemctl is-active --quiet "$SERVICE_NAME"; then
+        log_info "Сервис уже запущен, перезапускаем..."
+        sudo systemctl restart "$SERVICE_NAME"
+    else
+        sudo systemctl start "$SERVICE_NAME"
+    fi
     
     # Проверяем статус
     sleep 2
