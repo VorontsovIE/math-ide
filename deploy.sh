@@ -166,23 +166,29 @@ setup_environment() {
         
         # Если указан новый файл окружения, спрашиваем пользователя
         if [ -n "$ENV_FILE" ] && [ -f "$ENV_FILE" ]; then
-            log_warning "Обнаружен существующий .env файл"
-            
-            if [ "$FORCE_MODE" = true ]; then
-                log_info "Автоматический режим: создание резервной копии и замена .env"
-                cp "$DEPLOY_DIR/.env" "$DEPLOY_DIR/.env.backup.$(date +%Y%m%d-%H%M%S)"
-                cp "$ENV_FILE" "$DEPLOY_DIR/.env"
-                log_success "Файл окружения обновлен"
+            # Проверяем, не является ли ENV_FILE тем же файлом
+            if [ "$(realpath "$ENV_FILE")" = "$(realpath "$DEPLOY_DIR/.env")" ]; then
+                log_info "Указанный файл окружения уже находится в директории деплоя"
+                log_info "Используется существующий .env файл"
             else
-                read -p "Заменить существующий .env файл? (y/N): " -n 1 -r
-                echo
-                if [[ $REPLY =~ ^[Yy]$ ]]; then
-                    log_info "Создание резервной копии существующего .env..."
+                log_warning "Обнаружен существующий .env файл"
+                
+                if [ "$FORCE_MODE" = true ]; then
+                    log_info "Автоматический режим: создание резервной копии и замена .env"
                     cp "$DEPLOY_DIR/.env" "$DEPLOY_DIR/.env.backup.$(date +%Y%m%d-%H%M%S)"
                     cp "$ENV_FILE" "$DEPLOY_DIR/.env"
                     log_success "Файл окружения обновлен"
                 else
-                    log_info "Существующий .env файл сохранен"
+                    read -p "Заменить существующий .env файл? (y/N): " -n 1 -r
+                    echo
+                    if [[ $REPLY =~ ^[Yy]$ ]]; then
+                        log_info "Создание резервной копии существующего .env..."
+                        cp "$DEPLOY_DIR/.env" "$DEPLOY_DIR/.env.backup.$(date +%Y%m%d-%H%M%S)"
+                        cp "$ENV_FILE" "$DEPLOY_DIR/.env"
+                        log_success "Файл окружения обновлен"
+                    else
+                        log_info "Существующий .env файл сохранен"
+                    fi
                 fi
             fi
         else
