@@ -337,7 +337,6 @@ Environment=PYTHONPATH=${DEPLOY_DIR}
 Environment=PYTHONUNBUFFERED=1
 Environment=PYTHONDONTWRITEBYTECODE=1
 ExecStart=${DEPLOY_DIR}/.venv/bin/python -m interfaces.telegram_bot
-ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 RestartSec=10
 StartLimitInterval=60
@@ -373,6 +372,16 @@ EOF
     log_info "Созданная конфигурация сервиса:"
     cat /tmp/"$SERVICE_NAME".service
     echo
+    
+    # Проверяем, что EnvironmentFile присутствует в созданном файле
+    if grep -q "EnvironmentFile=" /tmp/"$SERVICE_NAME".service; then
+        log_success "EnvironmentFile найден в конфигурации"
+    else
+        log_error "EnvironmentFile НЕ найден в конфигурации!"
+        log_info "Содержимое файла:"
+        cat /tmp/"$SERVICE_NAME".service
+        exit 1
+    fi
     
     # Копируем файл сервиса
     sudo cp /tmp/"$SERVICE_NAME".service "$SERVICE_FILE"
