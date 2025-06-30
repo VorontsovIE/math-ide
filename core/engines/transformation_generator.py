@@ -56,6 +56,7 @@ class TransformationGenerator:
                     "transformation_types.md"
                 ),
             )
+            logger.info("Промпт для GPT (с подставленными переменными):\n%s", formatted_prompt)
 
             logger.debug("Отправка запроса к GPT для генерации преобразований")
             # Запрос к GPT через GPTClient

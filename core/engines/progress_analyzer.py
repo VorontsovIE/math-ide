@@ -45,6 +45,7 @@ class ProgressAnalyzer:
                 current_step=current_step,
                 steps_count=steps_count,
             )
+            logger.info("Промпт для GPT (с подставленными переменными):\n%s", formatted_prompt)
 
             gpt_response = self.client.chat_completion(
                 messages=[

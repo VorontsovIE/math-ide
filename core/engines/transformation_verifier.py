@@ -49,6 +49,7 @@ class TransformationVerifier:
                 verification_type=verification_type,
                 user_suggested_result=user_suggested_result or "",
             )
+            logger.info("Промпт для GPT (с подставленными переменными):\n%s", formatted_prompt)
 
             gpt_response = self.client.chat_completion(
                 messages=[

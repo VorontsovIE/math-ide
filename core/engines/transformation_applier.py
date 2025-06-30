@@ -54,6 +54,7 @@ class TransformationApplier:
                     transformation.expression, transformation.parameters or []
                 ),
             )
+            logger.info("Промпт для GPT (с подставленными переменными):\n%s", formatted_prompt)
 
             logger.debug("Отправка запроса к GPT для применения преобразования")
             # Запрос к GPT

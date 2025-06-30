@@ -41,6 +41,7 @@ class BranchingAnalyzer:
             formatted_prompt = self.prompt_manager.format_prompt(
                 self.branching_prompt, current_state=step.expression
             )
+            logger.info("Промпт для GPT (с подставленными переменными):\n%s", formatted_prompt)
 
             logger.debug("Отправка запроса к GPT для анализа ветвления")
             # Запрос к GPT
