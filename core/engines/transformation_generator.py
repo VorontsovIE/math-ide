@@ -91,10 +91,34 @@ class TransformationGenerator:
             json_start = content.find("[")
             json_end = content.rfind("]") + 1
 
+            logger.debug("Поиск JSON-массива: начало=%d, конец=%d", json_start, json_end)
+
             if json_start == -1 or json_end == 0:
                 logger.error(
                     "Не найден JSON-массив в ответе GPT. Полный ответ: %s", content
                 )
+                # Попробуем найти JSON-объект вместо массива
+                json_start_obj = content.find("{")
+                json_end_obj = content.rfind("}") + 1
+                logger.debug("Попытка найти JSON-объект: начало=%d, конец=%d", json_start_obj, json_end_obj)
+                
+                if json_start_obj != -1 and json_end_obj != 0:
+                    logger.info("Найден JSON-объект, попытка извлечь массив из него")
+                    json_content_obj = content[json_start_obj:json_end_obj]
+                    logger.debug("Извлеченный JSON-объект: %s", json_content_obj)
+                    
+                    try:
+                        obj_data = safe_json_parse(json_content_obj)
+                        if isinstance(obj_data, dict) and "transformations" in obj_data:
+                            logger.info("Найден массив преобразований в объекте")
+                            transformations_data = obj_data["transformations"]
+                            if isinstance(transformations_data, list):
+                                transformations = self._parse_transformations(transformations_data)
+                                logger.info("Сгенерировано %d преобразований из объекта", len(transformations))
+                                return self._process_transformations(transformations)
+                    except Exception as e:
+                        logger.error("Ошибка при парсинге JSON-объекта: %s", str(e))
+                
                 return GenerationResult(transformations=[])
 
             json_content = content[json_start:json_end]
@@ -104,42 +128,52 @@ class TransformationGenerator:
             # Преобразуем в объекты Transformation
             transformations = self._parse_transformations(transformations_data)
 
-            # Временно возвращаем пустой результат для диагностики
-            logger.info("Сгенерировано %d преобразований", len(transformations))
-
-            # Сортировка по полезности (good > neutral > bad)
-            def usefulness_key(tr: Transformation) -> int:
-                value = tr.metadata.get("usefullness", "neutral")
-                if value == "good":
-                    return 0
-                elif value == "neutral":
-                    return 1
-                else:
-                    return 2
-
-            transformations.sort(key=usefulness_key)
-
-            # Выбор и перемешивание топ-5
-            top5 = transformations[:5]
-            if len(top5) > 1:
-                random.shuffle(top5)
-
-            logger.info("Отобрано %d лучших преобразований", len(top5))
-
-            # Заполняем предварительные результаты, если включен режим предпоказа
-            if self.preview_mode:
-                logger.info("Заполнение предварительных результатов из поля expression")
-                for transformation in top5:
-                    # Используем уже имеющееся поле expression как предварительный результат
-                    transformation.preview_result = transformation.expression
-
-            return GenerationResult(transformations=top5)
+            return self._process_transformations(transformations)
 
         except Exception as e:
             logger.error(
                 "Ошибка при генерации преобразований: %s", str(e), exc_info=True
             )
             return GenerationResult(transformations=[])
+
+    def _process_transformations(self, transformations: List[Transformation]) -> GenerationResult:
+        """
+        Обрабатывает список преобразований: сортирует, выбирает топ-5, заполняет предварительные результаты.
+        """
+        logger.info("Сгенерировано %d преобразований", len(transformations))
+        
+        # Детальное логирование преобразований
+        logger.debug("Детали преобразований:")
+        for i, tr in enumerate(transformations):
+            logger.debug(f"  {i}: {tr.description} ({tr.type}) - полезность: {tr.metadata.get('usefullness', 'unknown')}")
+
+        # Сортировка по полезности (good > neutral > bad)
+        def usefulness_key(tr: Transformation) -> int:
+            value = tr.metadata.get("usefullness", "neutral")
+            if value == "good":
+                return 0
+            elif value == "neutral":
+                return 1
+            else:
+                return 2
+
+        transformations.sort(key=usefulness_key)
+
+        # Выбор и перемешивание топ-5
+        top5 = transformations[:5]
+        if len(top5) > 1:
+            random.shuffle(top5)
+
+        logger.info("Отобрано %d лучших преобразований", len(top5))
+
+        # Заполняем предварительные результаты, если включен режим предпоказа
+        if self.preview_mode:
+            logger.info("Заполнение предварительных результатов из поля expression")
+            for transformation in top5:
+                # Используем уже имеющееся поле expression как предварительный результат
+                transformation.preview_result = transformation.expression
+
+        return GenerationResult(transformations=top5)
 
     def _parse_json_transformations(self, json_content: str) -> List[Dict[str, Any]]:
         """
@@ -157,6 +191,8 @@ class TransformationGenerator:
         except Exception as e:
             logger.error("Ошибка парсинга JSON: %s", str(e))
             logger.error("Проблемный JSON: %s", json_content)
+            logger.error("Содержимое ответа GPT: %s", json_content)
+            logger.error("Попытка извлечения JSON из позиций %d:%d", json_content.find("["), json_content.rfind("]") + 1)
             return []
 
     def _parse_transformations(
@@ -166,6 +202,8 @@ class TransformationGenerator:
         Парсит данные преобразований из JSON в объекты Transformation.
         """
         transformations = []
+        logger.debug("Начинаем парсинг %d элементов преобразований", len(transformations_data))
+        
         for i, data in enumerate(transformations_data):
             try:
                 if not isinstance(data, dict):
@@ -181,6 +219,7 @@ class TransformationGenerator:
                     logger.warning(
                         "Пропускаем элемент %d: отсутствуют поля %s", i, missing_fields
                     )
+                    logger.debug("Данные элемента %d: %s", i, data)
                     continue
 
                 # Обрабатываем определения параметров, если они есть
@@ -232,6 +271,8 @@ class TransformationGenerator:
 
             except Exception as e:
                 logger.warning("Ошибка при обработке преобразования %d: %s", i, str(e))
+                logger.debug("Проблемные данные элемента %d: %s", i, data)
                 continue
 
+        logger.info("Успешно обработано %d из %d преобразований", len(transformations), len(transformations_data))
         return transformations

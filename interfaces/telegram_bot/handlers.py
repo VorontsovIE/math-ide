@@ -179,6 +179,18 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
             f"Сгенерировано {len(generation_result.transformations)} преобразований"
         )
 
+        # Детальное логирование для диагностики
+        logger.debug("Детали результата генерации:")
+        logger.debug(f"  Тип результата: {type(generation_result)}")
+        logger.debug(f"  Количество преобразований: {len(generation_result.transformations)}")
+        
+        if generation_result.transformations:
+            logger.debug("  Преобразования:")
+            for i, tr in enumerate(generation_result.transformations):
+                logger.debug(f"    {i}: {tr.description} ({tr.type})")
+        else:
+            logger.warning("  Список преобразований пуст!")
+
         # Обновляем начальный шаг с доступными преобразованиями
         if history.steps:
             history.steps[0].available_transformations = [
@@ -188,6 +200,13 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
         # Проверяем, есть ли доступные преобразования
         if not generation_result.transformations:
             logger.warning(f"Не найдено ни одного варианта действия для задачи: {cleaned_task}")
+            logger.error("ПРИЧИНА: generation_result.transformations пуст")
+            logger.error("Это может быть вызвано:")
+            logger.error("  1. Ошибкой парсинга JSON от GPT")
+            logger.error("  2. Отсутствием обязательных полей в JSON")
+            logger.error("  3. Пустым массивом от GPT")
+            logger.error("  4. Ошибкой в LaTeX-синтаксисе")
+            
             if status_message:
                 await edit_status_message(
                     status_message,
