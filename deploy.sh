@@ -85,6 +85,31 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Разрешаем относительные пути в абсолютные до смены рабочей директории
+resolve_paths() {
+    log_info "Разрешение путей..."
+    
+    # Разрешаем ENV_FILE в абсолютный путь
+    if [ -n "$ENV_FILE" ]; then
+        if [ -f "$ENV_FILE" ]; then
+            # Получаем абсолютный путь
+            ENV_FILE=$(realpath "$ENV_FILE")
+            log_info "ENV_FILE разрешен в абсолютный путь: $ENV_FILE"
+        else
+            log_error "Файл окружения не найден: $ENV_FILE"
+            exit 1
+        fi
+    fi
+    
+    # Разрешаем DEPLOY_DIR в абсолютный путь
+    DEPLOY_DIR=$(realpath -m "$DEPLOY_DIR")
+    log_info "DEPLOY_DIR разрешен в абсолютный путь: $DEPLOY_DIR"
+    
+    # Обновляем SERVICE_FILE с новым DEPLOY_DIR
+    SERVICE_FILE="/etc/systemd/system/${SERVICE_NAME}.service"
+    log_info "SERVICE_FILE: $SERVICE_FILE"
+}
+
 # Проверка наличия uv
 check_uv() {
     if ! command -v uv &> /dev/null; then
@@ -379,6 +404,9 @@ main() {
     log_info "Сервис: $SERVICE_NAME"
     log_info "Пользователь: $SERVICE_USER"
     log_info "Директория: $DEPLOY_DIR"
+    
+    # Разрешаем пути в абсолютные до смены рабочей директории
+    resolve_paths
     
     # Проверки
     check_uv
