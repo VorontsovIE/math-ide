@@ -160,11 +160,11 @@ update_repository() {
 setup_environment() {
     log_info "Настройка переменных окружения"
     
-    # Проверяем, существует ли уже .env файл
+    # Проверяем, существует ли уже .env файл в директории деплоя
     if [ -f "$DEPLOY_DIR/.env" ]; then
         log_info "Файл .env уже существует в $DEPLOY_DIR"
         
-        # Если указан новый файл окружения, спрашиваем пользователя
+        # Если указан новый файл окружения, обрабатываем его
         if [ -n "$ENV_FILE" ] && [ -f "$ENV_FILE" ]; then
             # Проверяем, не является ли ENV_FILE тем же файлом
             if [ "$(realpath "$ENV_FILE")" = "$(realpath "$DEPLOY_DIR/.env")" ]; then
@@ -195,7 +195,7 @@ setup_environment() {
             log_info "Используется существующий .env файл"
         fi
     else
-        # Создаем новый .env файл
+        # .env файл не существует, создаем новый
         if [ -n "$ENV_FILE" ] && [ -f "$ENV_FILE" ]; then
             log_info "Копирование файла окружения: $ENV_FILE"
             cp "$ENV_FILE" "$DEPLOY_DIR/.env"
