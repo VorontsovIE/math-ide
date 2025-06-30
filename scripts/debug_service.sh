@@ -320,6 +320,7 @@ main() {
     echo "  • Логи с ошибками: sudo journalctl -u $SERVICE_NAME -p err"
     echo "  • Перезапуск сервиса: sudo systemctl restart $SERVICE_NAME"
     echo "  • Проверка конфигурации: sudo systemctl cat $SERVICE_NAME"
+    echo "  • Исправление сервиса: ./scripts/fix_service.sh"
 }
 
 # Запуск основной функции
