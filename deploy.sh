@@ -332,22 +332,34 @@ Type=simple
 User=$SERVICE_USER
 Group=$SERVICE_USER
 WorkingDirectory=$DEPLOY_DIR
-Environment=PATH=$DEPLOY_DIR/.venv/bin
+Environment=PATH=$DEPLOY_DIR/.venv/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONPATH=$DEPLOY_DIR
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
 ExecStart=$DEPLOY_DIR/.venv/bin/python -m interfaces.telegram_bot
+ExecReload=/bin/kill -HUP \$MAINPID
 Restart=always
 RestartSec=10
+StartLimitInterval=60
+StartLimitBurst=3
 StandardOutput=journal
 StandardError=journal
+SyslogIdentifier=math-ide-bot
 
 # Переменные окружения
 EnvironmentFile=$DEPLOY_DIR/.env
 
-# Ограничения безопасности
+# Ограничения безопасности (уменьшены для отладки)
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=$DEPLOY_DIR
+ReadWritePaths=/tmp
+
+# Таймауты
+TimeoutStartSec=30
+TimeoutStopSec=30
 
 [Install]
 WantedBy=multi-user.target
