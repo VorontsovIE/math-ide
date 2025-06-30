@@ -14,28 +14,23 @@ logger = logging.getLogger(__name__)
 
 
 def get_transformations_keyboard(
-    transformations: List[Dict[str, Any]], current_step_id: str
+    transformation_ids: List[str], current_step_id: str, transformations: Optional[List[Any]] = None
 ) -> InlineKeyboardMarkup:
     """Создает клавиатуру с доступными преобразованиями."""
     keyboard = []
 
-    for i, transformation in enumerate(transformations):
-        # Ограничиваем длину описания для кнопки
-        description = transformation.get("description", "")
-        if len(description) > 30:
-            description = description[:27] + "..."
-
-        # Кодируем результат преобразования в base64
-        result_data = {
-            "index": i,
-            "result": transformation.get("expression", ""),
-            "description": transformation.get("description", "")
-        }
-        encoded_result = base64.b64encode(json.dumps(result_data, ensure_ascii=False).encode()).decode()
-
+    for i, transformation_id in enumerate(transformation_ids):
+        # Получаем описание преобразования
+        description = f"Преобразование {i+1}"
+        if transformations and i < len(transformations):
+            desc = transformations[i].get("description", "") if isinstance(transformations[i], dict) else getattr(transformations[i], "description", "")
+            if desc:
+                description = desc[:30] + "..." if len(desc) > 30 else desc
+        
+        # Используем короткий идентификатор для callback_data
         button = InlineKeyboardButton(
             text=f"{i+1}. {description}",
-            callback_data=f"transform_{current_step_id}_{encoded_result}",
+            callback_data=f"transform_{transformation_id}",
         )
         keyboard.append([button])
 

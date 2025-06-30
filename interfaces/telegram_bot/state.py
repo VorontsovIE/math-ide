@@ -3,11 +3,45 @@
 Содержит UserState и глобальное хранилище состояний пользователей.
 """
 
+import uuid
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from core.history import SolutionHistory
 from core.types import SolutionStep, Transformation
+
+
+@dataclass
+class TransformationStorage:
+    """Хранилище преобразований с уникальными идентификаторами."""
+    
+    transformations: Dict[str, Transformation] = field(default_factory=dict)
+    step_transformations: Dict[str, List[str]] = field(default_factory=dict)  # step_id -> [transformation_ids]
+    
+    def add_transformations(self, step_id: str, transformations: List[Transformation]) -> List[str]:
+        """Добавляет преобразования и возвращает их идентификаторы."""
+        transformation_ids = []
+        for transformation in transformations:
+            transformation_id = str(uuid.uuid4())
+            self.transformations[transformation_id] = transformation
+            transformation_ids.append(transformation_id)
+        
+        self.step_transformations[step_id] = transformation_ids
+        return transformation_ids
+    
+    def get_transformation(self, transformation_id: str) -> Optional[Transformation]:
+        """Получает преобразование по идентификатору."""
+        return self.transformations.get(transformation_id)
+    
+    def get_step_transformations(self, step_id: str) -> List[Transformation]:
+        """Получает все преобразования для шага."""
+        transformation_ids = self.step_transformations.get(step_id, [])
+        return [self.transformations[tid] for tid in transformation_ids if tid in self.transformations]
+    
+    def cleanup_old_transformations(self, max_age_hours: int = 24) -> None:
+        """Очищает старые преобразования (пока просто заглушка)."""
+        # TODO: Реализовать очистку старых преобразований
+        pass
 
 
 @dataclass
@@ -17,6 +51,7 @@ class UserState:
     history: Optional[SolutionHistory] = None
     current_step: Optional[SolutionStep] = None
     available_transformations: List[Transformation] = field(default_factory=list)
+    transformation_storage: TransformationStorage = field(default_factory=TransformationStorage)
     last_status_update: float = 0.0  # Время последнего обновления статуса
     status_update_count: int = 0  # Счетчик обновлений статуса в текущей минуте
     status_reset_time: float = 0.0  # Время сброса счетчика обновлений

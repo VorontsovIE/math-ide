@@ -234,6 +234,11 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
             available_transformations=generation_result.transformations,
         )
 
+        # Сохраняем преобразования в хранилище
+        transformation_ids = user_states[user_id].transformation_storage.add_transformations(
+            initial_step_id, generation_result.transformations
+        )
+
         # Подготавливаем изображения
         if status_message:
             await edit_status_message(
@@ -257,10 +262,7 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
         await update.message.reply_photo(
             photo=transformations_img,
             caption="🎯 **Доступные преобразования:**\nВыберите преобразование:",
-            reply_markup=get_transformations_keyboard(
-                [tr.__dict__ for tr in generation_result.transformations],
-                initial_step_id,
-            ),
+            reply_markup=get_transformations_keyboard(transformation_ids, initial_step_id, generation_result.transformations),
         )
         logger.info("Задача успешно инициализирована")
 
@@ -330,26 +332,27 @@ async def _handle_transform_choice(
     query: "CallbackQuery", callback_data: str, state: UserState
 ) -> None:
     """Обработка выбора преобразования."""
-    # Извлекаем закодированные данные из callback
+    # Извлекаем идентификатор преобразования из callback
     try:
-        encoded_data = callback_data.split("_")[2]
-        result_data = json.loads(base64.b64decode(encoded_data).decode())
-        transform_index = result_data["index"]
-        result_expression = result_data["result"]
-        transform_description = result_data["description"]
-    except (IndexError, ValueError, KeyError, Exception) as e:
-        logger.error(f"Ошибка декодирования данных кнопки: {e}")
+        transformation_id = callback_data.split("_")[1]
+        selected_transformation = state.transformation_storage.get_transformation(transformation_id)
+        
+        if not selected_transformation:
+            await query.answer("Преобразование не найдено")
+            return
+            
+        if not selected_transformation.preview_result:
+            await query.answer("Преобразование не содержит результата")
+            return
+
+        result_expression = selected_transformation.preview_result
+        
+    except (IndexError, Exception) as e:
+        logger.error(f"Ошибка обработки данных кнопки: {e}")
         await query.answer("Неверный формат данных")
         return
 
-    # Проверяем, что индекс в допустимых пределах
-    if not state.available_transformations or transform_index >= len(state.available_transformations):
-        await query.answer("Преобразование не найдено")
-        return
-
-    # Получаем выбранное преобразование
-    selected_transformation = state.available_transformations[transform_index]
-    
+    # Проверяем, что есть текущий шаг
     if not state.current_step:
         await query.answer("❌ Ошибка: нет текущего шага")
         return
@@ -376,9 +379,14 @@ async def _handle_transform_choice(
     engine = TransformationGenerator(client, prompt_manager, preview_mode=True)
     generation_result = engine.generate_transformations(new_step)
     
+    # Сохраняем новые преобразования в хранилище
+    new_transformation_ids = state.transformation_storage.add_transformations(
+        step_id, generation_result.transformations
+    )
+    
     # Обновляем состояние с новыми преобразованиями
     state.available_transformations = generation_result.transformations
-    
+
     # Отправляем результат пользователю
     await query.answer("✅ Преобразование применено!")
     
@@ -392,7 +400,7 @@ async def _handle_transform_choice(
             await query.message.reply_photo(
                 photo=expression_img,
                 caption=f"🔧 **Применено преобразование:**\n"
-                        f"_{transform_description}_\n\n"
+                    f"_{selected_transformation.description}_\n\n"
                         f"📝 **Результат:**",
             )
             
@@ -400,21 +408,18 @@ async def _handle_transform_choice(
             await query.message.reply_photo(
                 photo=transformations_img,
                 caption="🎯 **Выберите следующее преобразование:**",
-                reply_markup=get_transformations_keyboard(
-                    [tr.__dict__ for tr in generation_result.transformations],
-                    step_id,
-                ),
+                reply_markup=get_transformations_keyboard(new_transformation_ids, step_id, generation_result.transformations),
             )
         else:
             # Если нет новых преобразований, показываем сообщение о завершении
             await query.message.reply_text(
                 f"🔧 **Применено преобразование:**\n"
-                f"_{transform_description}_\n\n"
+            f"_{selected_transformation.description}_\n\n"
                 f"📝 **Результат:**\n"
-                f"`{result_expression}`\n\n"
+            f"`{result_expression}`\n\n"
                 f"🎉 **Задача решена!**\n"
                 f"Отправьте новую задачу для продолжения."
-            )
+        )
 
 
 async def _handle_back_button(
@@ -458,6 +463,12 @@ async def _handle_refresh_button(
             # Подготавливаем изображения с выражением и преобразованиями
             expression_img, transformations_img = render_transformations_images(state.current_step.expression, generation_result.transformations)
             
+            # Сохраняем новые преобразования в хранилище
+            refresh_transformation_ids = state.transformation_storage.add_transformations(
+                state.history.get_current_step().id if state.history and state.history.get_current_step() else "current",
+                generation_result.transformations
+            )
+            
             # Отправляем изображение с выражением
             await query.message.reply_photo(
                 photo=expression_img,
@@ -469,8 +480,9 @@ async def _handle_refresh_button(
                 photo=transformations_img,
                 caption="🎯 **Выберите преобразование:**",
                 reply_markup=get_transformations_keyboard(
-                    [tr.__dict__ for tr in generation_result.transformations],
+                    refresh_transformation_ids,
                     state.history.get_current_step().id if state.history and state.history.get_current_step() else "current",
+                    generation_result.transformations,
                 ),
             )
     except Exception as e:
