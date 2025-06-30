@@ -294,6 +294,23 @@ install_dependencies() {
     log_success "Зависимости установлены"
 }
 
+# Установка LaTeX-пакетов для рендеринга математических формул
+install_latex_packages() {
+    log_info "Установка LaTeX-пакетов для рендеринга математических формул"
+    
+    # Проверяем, установлены ли уже пакеты
+    if command -v latex &> /dev/null && command -v dvipng &> /dev/null; then
+        log_info "LaTeX-пакеты уже установлены"
+        return
+    fi
+    
+    log_info "Установка необходимых LaTeX-пакетов..."
+    sudo apt-get update
+    sudo apt-get install -y texlive-latex-extra texlive-fonts-recommended dvipng cm-super
+    
+    log_success "LaTeX-пакеты установлены"
+}
+
 # Создание systemd сервиса
 create_systemd_service() {
     log_info "Создание systemd сервиса: $SERVICE_NAME"
@@ -447,6 +464,7 @@ main() {
     update_repository
     setup_environment
     install_dependencies
+    install_latex_packages
     create_systemd_service
     start_service
     

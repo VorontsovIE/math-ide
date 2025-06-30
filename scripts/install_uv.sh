@@ -57,6 +57,10 @@ update_system() {
 install_packages() {
     log_info "Установка необходимых пакетов..."
     sudo apt install -y curl wget git build-essential
+    
+    log_info "Установка LaTeX-пакетов для рендеринга математических формул..."
+    sudo apt-get install -y texlive-latex-extra texlive-fonts-recommended dvipng cm-super
+    
     log_success "Пакеты установлены"
 }
 
