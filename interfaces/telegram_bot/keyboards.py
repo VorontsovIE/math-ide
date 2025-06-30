@@ -4,6 +4,8 @@
 """
 
 import logging
+import base64
+import json
 from typing import Any, Dict, List, Optional
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
@@ -23,9 +25,17 @@ def get_transformations_keyboard(
         if len(description) > 30:
             description = description[:27] + "..."
 
+        # Кодируем результат преобразования в base64
+        result_data = {
+            "index": i,
+            "result": transformation.get("expression", ""),
+            "description": transformation.get("description", "")
+        }
+        encoded_result = base64.b64encode(json.dumps(result_data, ensure_ascii=False).encode()).decode()
+
         button = InlineKeyboardButton(
             text=f"{i+1}. {description}",
-            callback_data=f"transform_{current_step_id}_{i}",
+            callback_data=f"transform_{current_step_id}_{encoded_result}",
         )
         keyboard.append([button])
 

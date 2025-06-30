@@ -8,7 +8,6 @@ from .engines import (
     BranchingAnalyzer,
     ProgressAnalyzer,
     SolutionChecker,
-    TransformationApplier,
     TransformationGenerator,
     TransformationVerifier,
 )
@@ -17,7 +16,6 @@ from .prompts import PromptManager
 
 # Импортируем типы данных из отдельного модуля
 from .types import (
-    ApplyResult,
     CheckResult,
     GenerationResult,
     ParameterDefinition,
@@ -73,7 +71,6 @@ class TransformationEngine:
         self.generator = TransformationGenerator(
             self.client, self.prompt_manager, preview_mode
         )
-        self.applier = TransformationApplier(self.client, self.prompt_manager)
         self.checker = SolutionChecker(self.client, self.prompt_manager)
         self.progress_analyzer = ProgressAnalyzer(self.client, self.prompt_manager)
         self.verifier = TransformationVerifier(self.client, self.prompt_manager)
@@ -100,29 +97,6 @@ class TransformationEngine:
             step = step_or_expression
 
         return self.generator.generate_transformations(step)
-
-    def apply_transformation(
-        self,
-        current_step_or_expression: Union[str, SolutionStep],
-        transformation: Transformation,
-    ) -> ApplyResult:
-        """
-        Применяет выбранное преобразование к текущему шагу решения.
-        Делегирует работу TransformationApplier.
-
-        Args:
-            current_step_or_expression: SolutionStep или строка с выражением
-            transformation: Преобразование для применения
-        """
-        if isinstance(current_step_or_expression, str):
-            # Создаем временный SolutionStep для строки
-            from .types import SolutionStep
-
-            step = SolutionStep(expression=current_step_or_expression)
-        else:
-            step = current_step_or_expression
-
-        return self.applier.apply_transformation(step, transformation)
 
     def check_solution_completeness(
         self,

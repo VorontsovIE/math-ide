@@ -140,19 +140,6 @@ class GenerationResult:
 
 
 @dataclass
-class ApplyResult:
-    """Результат применения преобразования."""
-
-    result: str
-    is_valid: bool
-    explanation: str
-    errors: Optional[List[str]] = None
-    mathematical_verification: Optional[str] = (
-        None  # Математическая проверка корректности
-    )
-
-
-@dataclass
 class CheckResult:
     """Результат проверки завершённости решения."""
 

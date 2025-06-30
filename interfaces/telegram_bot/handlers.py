@@ -5,6 +5,8 @@
 
 import logging
 from typing import TYPE_CHECKING, Union
+import json
+import base64
 
 if TYPE_CHECKING:
     from telegram import Update, Message, CallbackQuery
@@ -328,11 +330,16 @@ async def _handle_transform_choice(
     query: "CallbackQuery", callback_data: str, state: UserState
 ) -> None:
     """Обработка выбора преобразования."""
-    # Извлекаем индекс преобразования
+    # Извлекаем закодированные данные из callback
     try:
-        transform_index = int(callback_data.split("_")[2])
-    except (IndexError, ValueError):
-        await query.answer("Неверный индекс преобразования")
+        encoded_data = callback_data.split("_")[2]
+        result_data = json.loads(base64.b64decode(encoded_data).decode())
+        transform_index = result_data["index"]
+        result_expression = result_data["result"]
+        transform_description = result_data["description"]
+    except (IndexError, ValueError, KeyError, Exception) as e:
+        logger.error(f"Ошибка декодирования данных кнопки: {e}")
+        await query.answer("Неверный формат данных")
         return
 
     # Проверяем, что индекс в допустимых пределах
@@ -343,86 +350,70 @@ async def _handle_transform_choice(
     # Получаем выбранное преобразование
     selected_transformation = state.available_transformations[transform_index]
     
-    # Применяем преобразование
-    from core.engines.transformation_applier import TransformationApplier
-    from core.engines.transformation_generator import TransformationGenerator
-    from core.gpt_client import GPTClient
-    from core.prompts import PromptManager
-    
     if not state.current_step:
         await query.answer("❌ Ошибка: нет текущего шага")
         return
         
+    # Создаем новый шаг с результатом
+    new_step = SolutionStep(expression=result_expression)
+    state.current_step = new_step
+    
+    # Добавляем шаг в историю
+    step_id = state.history.add_step(
+        expression=result_expression,
+        chosen_transformation=selected_transformation.__dict__,
+        available_transformations=[]
+    ) if state.history else "current"
+    
+    # Генерируем новые преобразования для следующего шага
+    logger.info("Генерация новых преобразований для следующего шага...")
+    from core.engines.transformation_generator import TransformationGenerator
+    from core.gpt_client import GPTClient
+    from core.prompts import PromptManager
+    
     client = GPTClient()
     prompt_manager = PromptManager()
-    applier = TransformationApplier(client, prompt_manager)
     engine = TransformationGenerator(client, prompt_manager, preview_mode=True)
-    result = applier.apply_transformation(state.current_step, selected_transformation)
+    generation_result = engine.generate_transformations(new_step)
     
-    if result.is_valid:
-        # Создаем новый шаг с результатом
-        new_step = SolutionStep(expression=result.result)
-        state.current_step = new_step
-        
-        # Добавляем шаг в историю
-        step_id = state.history.add_step(
-            expression=result.result,
-            chosen_transformation=selected_transformation.__dict__,
-            available_transformations=[]
-        ) if state.history else "current"
-        
-        # Генерируем новые преобразования для следующего шага
-        logger.info("Генерация новых преобразований для следующего шага...")
-        generation_result = engine.generate_transformations(new_step)
-        
-        # Обновляем состояние с новыми преобразованиями
-        state.available_transformations = generation_result.transformations
-        
-        # Отправляем результат пользователю
-        await query.answer("✅ Преобразование применено!")
-        
-        if query.message:
-            # Если есть новые преобразования, показываем их
-            if generation_result.transformations:
-                # Подготавливаем изображения с выражением и преобразованиями
-                expression_img, transformations_img = render_transformations_images(result.result, generation_result.transformations)
-                
-                # Отправляем изображение с выражением
-                await query.message.reply_photo(
-                    photo=expression_img,
-                    caption=f"🔧 **Применено преобразование:**\n"
-                            f"_{selected_transformation.description}_\n\n"
-                            f"📝 **Результат:**",
-                )
-                
-                # Отправляем изображение с преобразованиями
-                await query.message.reply_photo(
-                    photo=transformations_img,
-                    caption="🎯 **Выберите следующее преобразование:**",
-                    reply_markup=get_transformations_keyboard(
-                        [tr.__dict__ for tr in generation_result.transformations],
-                        step_id,
-                    ),
-                )
-            else:
-                # Если нет новых преобразований, показываем сообщение о завершении
-                await query.message.reply_text(
-                    f"🔧 **Применено преобразование:**\n"
-                    f"_{selected_transformation.description}_\n\n"
-                    f"📝 **Результат:**\n"
-                    f"`{result.result}`\n\n"
-                    f"🎉 **Задача решена!**\n"
-                    f"Отправьте новую задачу для продолжения."
-                )
-    else:
-        await query.answer("❌ Ошибка при применении преобразования")
-        if query.message:
+    # Обновляем состояние с новыми преобразованиями
+    state.available_transformations = generation_result.transformations
+    
+    # Отправляем результат пользователю
+    await query.answer("✅ Преобразование применено!")
+    
+    if query.message:
+        # Если есть новые преобразования, показываем их
+        if generation_result.transformations:
+            # Подготавливаем изображения с выражением и преобразованиями
+            expression_img, transformations_img = render_transformations_images(result_expression, generation_result.transformations)
+            
+            # Отправляем изображение с выражением
+            await query.message.reply_photo(
+                photo=expression_img,
+                caption=f"🔧 **Применено преобразование:**\n"
+                        f"_{transform_description}_\n\n"
+                        f"📝 **Результат:**",
+            )
+            
+            # Отправляем изображение с преобразованиями
+            await query.message.reply_photo(
+                photo=transformations_img,
+                caption="🎯 **Выберите следующее преобразование:**",
+                reply_markup=get_transformations_keyboard(
+                    [tr.__dict__ for tr in generation_result.transformations],
+                    step_id,
+                ),
+            )
+        else:
+            # Если нет новых преобразований, показываем сообщение о завершении
             await query.message.reply_text(
-                f"❌ **Ошибка:**\n"
-                f"Не удалось применить преобразование:\n"
-                f"_{selected_transformation.description}_\n\n"
-                f"**Причина:** {result.explanation}\n\n"
-                f"Попробуйте другое преобразование или отправьте новую задачу."
+                f"🔧 **Применено преобразование:**\n"
+                f"_{transform_description}_\n\n"
+                f"📝 **Результат:**\n"
+                f"`{result_expression}`\n\n"
+                f"🎉 **Задача решена!**\n"
+                f"Отправьте новую задачу для продолжения."
             )
 
 
