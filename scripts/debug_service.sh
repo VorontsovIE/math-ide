@@ -153,6 +153,20 @@ check_files_and_dirs() {
         log_error "Виртуальное окружение не найдено"
     fi
     echo
+
+    # Проверяем, куда ссылается Python
+    echo "=== Проверка Python интерпретатора ==="
+    PYTHON_PATH=$(readlink -f /opt/math-ide/.venv/bin/python)
+    echo "Python путь: $PYTHON_PATH"
+
+    if [[ "$PYTHON_PATH" == /home/* ]]; then
+        echo "[WARNING] Python ссылается на домашнюю директорию: $PYTHON_PATH"
+        echo "[WARNING] Это может вызвать проблемы с ProtectHome=true в systemd"
+        echo "[INFO] Рекомендуется пересоздать виртуальное окружение или убрать ProtectHome=true"
+    else
+        echo "[SUCCESS] Python не ссылается на домашнюю директорию"
+    fi
+    echo
 }
 
 # Проверка переменных окружения

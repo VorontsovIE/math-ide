@@ -352,9 +352,9 @@ EnvironmentFile=${DEPLOY_DIR}/.env
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
-ProtectHome=true
 ReadWritePaths=${DEPLOY_DIR}
 ReadWritePaths=/tmp
+ReadWritePaths=/home/${SERVICE_USER}/.local
 
 # Таймауты
 TimeoutStartSec=30
