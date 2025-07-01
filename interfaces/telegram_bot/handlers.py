@@ -357,6 +357,9 @@ async def _handle_transform_choice(
         await query.answer("❌ Ошибка: нет текущего шага")
         return
         
+    # НЕМЕДЛЕННО отвечаем на callback query
+    await query.answer("✅ Преобразование применено!")
+    
     # Создаем новый шаг с результатом
     new_step = SolutionStep(expression=result_expression)
     state.current_step = new_step
@@ -368,58 +371,80 @@ async def _handle_transform_choice(
         available_transformations=[]
     ) if state.history else "current"
     
-    # Генерируем новые преобразования для следующего шага
-    logger.info("Генерация новых преобразований для следующего шага...")
-    from core.engines.transformation_generator import TransformationGenerator
-    from core.gpt_client import GPTClient
-    from core.prompts import PromptManager
-    
-    client = GPTClient()
-    prompt_manager = PromptManager()
-    engine = TransformationGenerator(client, prompt_manager, preview_mode=True)
-    generation_result = engine.generate_transformations(new_step)
-    
-    # Сохраняем новые преобразования в хранилище
-    new_transformation_ids = state.transformation_storage.add_transformations(
-        step_id, generation_result.transformations
-    )
-    
-    # Обновляем состояние с новыми преобразованиями
-    state.available_transformations = generation_result.transformations
-
-    # Отправляем результат пользователю
-    await query.answer("✅ Преобразование применено!")
-    
+    # Асинхронно выполняем тяжелые операции
     if query.message:
-        # Если есть новые преобразования, показываем их
-        if generation_result.transformations:
-            # Подготавливаем изображения с выражением и преобразованиями
-            expression_img, transformations_img = render_transformations_images(result_expression, generation_result.transformations)
-            
-            # Отправляем изображение с выражением
-            await query.message.reply_photo(
-                photo=expression_img,
-                caption=f"🔧 **Применено преобразование:**\n"
-                    f"_{selected_transformation.description}_\n\n"
-                        f"📝 **Результат:**",
-            )
-            
-            # Отправляем изображение с преобразованиями
-            await query.message.reply_photo(
-                photo=transformations_img,
-                caption="🎯 **Выберите следующее преобразование:**",
-                reply_markup=get_transformations_keyboard(new_transformation_ids, step_id, generation_result.transformations),
-            )
-        else:
-            # Если нет новых преобразований, показываем сообщение о завершении
-            await query.message.reply_text(
-                f"🔧 **Применено преобразование:**\n"
+        # Отправляем промежуточное сообщение
+        processing_msg = await query.message.reply_text(
+            f"🔧 **Применено преобразование:**\n"
             f"_{selected_transformation.description}_\n\n"
-                f"📝 **Результат:**\n"
+            f"📝 **Результат:**\n"
             f"`{result_expression}`\n\n"
-                f"🎉 **Задача решена!**\n"
-                f"Отправьте новую задачу для продолжения."
+            f"⏳ Генерирую новые преобразования..."
         )
+        
+        try:
+            # Генерируем новые преобразования для следующего шага
+            logger.info("Генерация новых преобразований для следующего шага...")
+            from core.engines.transformation_generator import TransformationGenerator
+            from core.gpt_client import GPTClient
+            from core.prompts import PromptManager
+            
+            client = GPTClient()
+            prompt_manager = PromptManager()
+            engine = TransformationGenerator(client, prompt_manager, preview_mode=True)
+            generation_result = engine.generate_transformations(new_step)
+            
+            # Сохраняем новые преобразования в хранилище
+            new_transformation_ids = state.transformation_storage.add_transformations(
+                step_id, generation_result.transformations
+            )
+            
+            # Обновляем состояние с новыми преобразованиями
+            state.available_transformations = generation_result.transformations
+
+            # Удаляем промежуточное сообщение
+            await processing_msg.delete()
+            
+            # Если есть новые преобразования, показываем их
+            if generation_result.transformations:
+                # Подготавливаем изображения с выражением и преобразованиями
+                expression_img, transformations_img = render_transformations_images(result_expression, generation_result.transformations)
+                
+                # Отправляем изображение с выражением
+                await query.message.reply_photo(
+                    photo=expression_img,
+                    caption=f"🔧 **Применено преобразование:**\n"
+                        f"_{selected_transformation.description}_\n\n"
+                            f"📝 **Результат:**",
+                )
+                
+                # Отправляем изображение с преобразованиями
+                await query.message.reply_photo(
+                    photo=transformations_img,
+                    caption="🎯 **Выберите следующее преобразование:**",
+                    reply_markup=get_transformations_keyboard(new_transformation_ids, step_id, generation_result.transformations),
+                )
+            else:
+                # Если нет новых преобразований, показываем сообщение о завершении
+                await query.message.reply_text(
+                    f"🔧 **Применено преобразование:**\n"
+                f"_{selected_transformation.description}_\n\n"
+                    f"📝 **Результат:**\n"
+                f"`{result_expression}`\n\n"
+                    f"🎉 **Задача решена!**\n"
+                    f"Отправьте новую задачу для продолжения."
+                )
+        except Exception as e:
+            logger.error(f"Ошибка при генерации новых преобразований: {e}")
+            # Обновляем промежуточное сообщение с ошибкой
+            await processing_msg.edit_text(
+                f"🔧 **Применено преобразование:**\n"
+                f"_{selected_transformation.description}_\n\n"
+                f"📝 **Результат:**\n"
+                f"`{result_expression}`\n\n"
+                f"❌ **Ошибка при генерации новых преобразований**\n"
+                f"Попробуйте еще раз или отправьте новую задачу."
+            )
 
 
 async def _handle_back_button(
@@ -440,26 +465,37 @@ async def _handle_refresh_button(
     query: "CallbackQuery", callback_data: str, state: UserState
 ) -> None:
     """Обработка кнопки 'Обновить'."""
+    # НЕМЕДЛЕННО отвечаем на callback query
     await query.answer("🔄 Обновление преобразований...")
     
     if not state.current_step:
         await query.answer("❌ Ошибка: нет текущего шага")
         return
     
-    try:
-        # Генерируем новые преобразования
-        from core.engines.transformation_generator import TransformationGenerator
-        from core.gpt_client import GPTClient
-        from core.prompts import PromptManager
+    # Асинхронно выполняем тяжелые операции
+    if query.message:
+        # Отправляем промежуточное сообщение
+        processing_msg = await query.message.reply_text(
+            f"⏳ Генерирую новые преобразования для:\n"
+            f"`{state.current_step.expression}`"
+        )
         
-        client = GPTClient()
-        prompt_manager = PromptManager()
-        engine = TransformationGenerator(client, prompt_manager, preview_mode=True)
-        
-        generation_result = engine.generate_transformations(state.current_step)
-        state.available_transformations = generation_result.transformations
-        
-        if query.message:
+        try:
+            # Генерируем новые преобразования
+            from core.engines.transformation_generator import TransformationGenerator
+            from core.gpt_client import GPTClient
+            from core.prompts import PromptManager
+            
+            client = GPTClient()
+            prompt_manager = PromptManager()
+            engine = TransformationGenerator(client, prompt_manager, preview_mode=True)
+            
+            generation_result = engine.generate_transformations(state.current_step)
+            state.available_transformations = generation_result.transformations
+            
+            # Удаляем промежуточное сообщение
+            await processing_msg.delete()
+            
             # Подготавливаем изображения с выражением и преобразованиями
             expression_img, transformations_img = render_transformations_images(state.current_step.expression, generation_result.transformations)
             
@@ -485,13 +521,12 @@ async def _handle_refresh_button(
                     generation_result.transformations,
                 ),
             )
-    except Exception as e:
-        logger.error(f"Ошибка при обновлении преобразований: {e}")
-        await query.answer("❌ Ошибка при обновлении")
-        if query.message:
-            await query.message.reply_text(
-                "❌ **Ошибка при обновлении преобразований**\n"
-                "Попробуйте еще раз или отправьте новую задачу."
+        except Exception as e:
+            logger.error(f"Ошибка при обновлении преобразований: {e}")
+            # Обновляем промежуточное сообщение с ошибкой
+            await processing_msg.edit_text(
+                f"❌ **Ошибка при обновлении преобразований**\n"
+                f"Попробуйте еще раз или отправьте новую задачу."
             )
 
 
