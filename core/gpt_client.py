@@ -46,7 +46,7 @@ class GPTClient:
     def __init__(
         self,
         api_key: Optional[str] = None,
-        model: str = "gpt-3.5-turbo",
+        model: str = "o4-mini",
         max_retries: int = 3,
         retry_delay: float = 1.0,
     ) -> None:
@@ -96,7 +96,7 @@ class GPTClient:
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=messages,  # type: ignore
-                    temperature=temperature,
+                    # temperature=temperature,
                 )
 
                 # Проверяем что ответ корректный
