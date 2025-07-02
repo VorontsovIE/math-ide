@@ -143,6 +143,24 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
             await handle_user_transformation_result(update, user_id, task)
             return
 
+    # СРАЗУ отправляем изображение с исходным выражением
+    async def send_expression_image():
+        try:
+            # Создаем изображение с исходным выражением
+            expression_img = render_expression_image(cleaned_task)
+            
+            # Отправляем изображение с исходным выражением
+            await update.message.reply_photo(
+                photo=expression_img,
+                caption="📝 Исходное выражение:",
+            )
+        except Exception as e:
+            logger.error(f"Ошибка при генерации изображения с выражением: {e}")
+    
+    # Запускаем отправку изображения с выражением в фоне
+    import asyncio
+    asyncio.create_task(send_expression_image())
+
     # Отмечаем начало операции
     rate_limiter.start_operation(user_id)
 
@@ -253,18 +271,9 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
         if status_message:
             await status_message.delete()
         
-        # Асинхронно генерируем и отправляем изображения
-        async def send_images():
+        # Асинхронно генерируем и отправляем изображение с результатами преобразований
+        async def send_transformations_image():
             try:
-                # Создаем изображение с исходным выражением
-                expression_img = render_expression_image(cleaned_task)
-                
-                # Отправляем изображение с исходным выражением
-                await update.message.reply_photo(
-                    photo=expression_img,
-                    caption="📝 Исходное выражение:",
-                )
-                
                 # Создаем изображение с результатами преобразований
                 transformations_img = render_transformations_results_image(generation_result.transformations)
                 
@@ -274,11 +283,11 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
                     caption="📊 Результаты преобразований:",
                 )
             except Exception as e:
-                logger.error(f"Ошибка при генерации изображений: {e}")
+                logger.error(f"Ошибка при генерации изображения с преобразованиями: {e}")
         
-        # Запускаем генерацию изображений в фоне
+        # Запускаем генерацию изображения с преобразованиями в фоне
         import asyncio
-        asyncio.create_task(send_images())
+        asyncio.create_task(send_transformations_image())
         logger.info("Задача успешно инициализирована")
 
     except Exception as e:
