@@ -13,38 +13,60 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 logger = logging.getLogger(__name__)
 
 
+
+
+
 def get_transformations_keyboard(
     transformation_ids: List[str], current_step_id: str, transformations: Optional[List[Any]] = None
 ) -> InlineKeyboardMarkup:
     """Создает клавиатуру с доступными преобразованиями."""
     keyboard = []
 
+    # Создаем ряд с кнопками преобразований (горизонтально)
+    transformation_row = []
     for i, transformation_id in enumerate(transformation_ids):
-        # Получаем описание преобразования
-        description = f"Преобразование {i+1}"
-        if transformations and i < len(transformations):
-            desc = transformations[i].get("description", "") if isinstance(transformations[i], dict) else getattr(transformations[i], "description", "")
-            if desc:
-                description = desc[:30] + "..." if len(desc) > 30 else desc
-        
-        # Используем короткий идентификатор для callback_data
+        # Используем только номер преобразования на кнопке
         button = InlineKeyboardButton(
-            text=f"{i+1}. {description}",
+            text=str(i + 1),
             callback_data=f"transform_{transformation_id}",
         )
-        keyboard.append([button])
+        transformation_row.append(button)
+    
+    # Добавляем ряд с кнопками преобразований
+    if transformation_row:
+        keyboard.append(transformation_row)
 
     # Добавляем кнопки навигации
     nav_row = []
-    nav_row.append(
-        InlineKeyboardButton("◀️ Назад", callback_data=f"back_{current_step_id}")
-    )
     nav_row.append(
         InlineKeyboardButton("🔄 Обновить", callback_data=f"refresh_{current_step_id}")
     )
     keyboard.append(nav_row)
 
     return InlineKeyboardMarkup(keyboard)
+
+
+def get_transformations_description_text(transformations: List[Any], use_html: bool = True) -> str:
+    """Формирует текст с пронумерованными описаниями преобразований."""
+    if not transformations:
+        return "Нет доступных преобразований"
+    
+    description_lines = []
+    for i, transformation in enumerate(transformations):
+        # Получаем описание преобразования
+        if isinstance(transformation, dict):
+            description = transformation.get("description", f"Преобразование {i+1}")
+        else:
+            description = getattr(transformation, "description", f"Преобразование {i+1}")
+        
+        if use_html:
+            # Используем HTML-разметку для жирных номеров
+            description_lines.append(f"<b>{i+1}.</b> {description}")
+        else:
+            # Обычный текст без разметки
+            description_lines.append(f"{i+1}. {description}")
+    
+    return "\n".join(description_lines)
 
 
 def get_verification_keyboard(
@@ -78,10 +100,7 @@ def get_verification_keyboard(
     # Кнопки навигации
     nav_row = []
     nav_row.append(
-        InlineKeyboardButton("◀️ Назад", callback_data=f"back_{current_step_id}")
-    )
-    nav_row.append(
-        InlineKeyboardButton("🔄 Повторить", callback_data=f"retry_{transformation_id}")
+        InlineKeyboardButton("🔄 Обновить", callback_data=f"refresh_{current_step_id}")
     )
     keyboard.append(nav_row)
 

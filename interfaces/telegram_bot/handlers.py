@@ -16,9 +16,9 @@ from core.engines import TransformationGenerator
 from core.history import SolutionHistory
 from core.types import SolutionStep
 
-from .keyboards import get_transformations_keyboard
+from .keyboards import get_transformations_keyboard, get_transformations_description_text
 from .rate_limiter import rate_limiter
-from .renderers import render_transformations_images, render_latex_to_image
+from .renderers import render_transformations_results_image, render_latex_to_image
 from .state import UserState, user_states
 from .utils import edit_status_message, send_status_message
 
@@ -239,31 +239,37 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
             initial_step_id, generation_result.transformations
         )
 
-        # Подготавливаем изображения
-        if status_message:
-            await edit_status_message(
-                status_message, "📊 Подготавливаю визуализацию...", user_id
-            )
-
-        # Создаем изображения с выражением и преобразованиями
-        expression_img, transformations_img = render_transformations_images(cleaned_task, generation_result.transformations)
-
+        # Формируем текст с описаниями преобразований
+        transformations_text = get_transformations_description_text(generation_result.transformations)
+        
+        # Сразу отправляем текст с описаниями и клавиатурой
+        await update.message.reply_text(
+            f"🎯 <b>Доступные преобразования:</b>\n\n{transformations_text}\n\nВыберите преобразование:",
+            reply_markup=get_transformations_keyboard(transformation_ids, initial_step_id, generation_result.transformations),
+            parse_mode='HTML',
+        )
+        
         # Удаляем статус
         if status_message:
             await status_message.delete()
-
-        # Отправляем первое сообщение с исходным выражением
-        await update.message.reply_photo(
-            photo=expression_img,
-            caption="📝 **Исходное выражение:**",
-        )
-
-        # Отправляем второе сообщение с преобразованиями
-        await update.message.reply_photo(
-            photo=transformations_img,
-            caption="🎯 **Доступные преобразования:**\nВыберите преобразование:",
-            reply_markup=get_transformations_keyboard(transformation_ids, initial_step_id, generation_result.transformations),
-        )
+        
+        # Асинхронно генерируем и отправляем изображение
+        async def send_image():
+            try:
+                # Создаем изображение с результатами преобразований
+                transformations_img = render_transformations_results_image(generation_result.transformations)
+                
+                # Отправляем изображение с результатами
+                await update.message.reply_photo(
+                    photo=transformations_img,
+                    caption="📊 Результаты преобразований:",
+                )
+            except Exception as e:
+                logger.error(f"Ошибка при генерации изображения: {e}")
+        
+        # Запускаем генерацию изображения в фоне
+        import asyncio
+        asyncio.create_task(send_image())
         logger.info("Задача успешно инициализирована")
 
     except Exception as e:
@@ -375,11 +381,12 @@ async def _handle_transform_choice(
     if query.message:
         # Отправляем промежуточное сообщение
         processing_msg = await query.message.reply_text(
-            f"🔧 **Применено преобразование:**\n"
-            f"_{selected_transformation.description}_\n\n"
-            f"📝 **Результат:**\n"
-            f"`{result_expression}`\n\n"
-            f"⏳ Генерирую новые преобразования..."
+            f"🔧 <b>Применено преобразование:</b>\n"
+            f"<i>{selected_transformation.description}</i>\n\n"
+            f"📝 <b>Результат:</b>\n"
+            f"<code>{result_expression}</code>\n\n"
+            f"⏳ Генерирую новые преобразования...",
+            parse_mode='HTML',
         )
         
         try:
@@ -407,43 +414,86 @@ async def _handle_transform_choice(
             
             # Если есть новые преобразования, показываем их
             if generation_result.transformations:
-                # Подготавливаем изображения с выражением и преобразованиями
-                expression_img, transformations_img = render_transformations_images(result_expression, generation_result.transformations)
+                # Формируем текст с описаниями преобразований
+                transformations_text = get_transformations_description_text(generation_result.transformations)
                 
-                # Отправляем изображение с выражением
-                await query.message.reply_photo(
-                    photo=expression_img,
-                    caption=f"🔧 **Применено преобразование:**\n"
-                        f"_{selected_transformation.description}_\n\n"
-                            f"📝 **Результат:**",
-                )
-                
-                # Отправляем изображение с преобразованиями
-                await query.message.reply_photo(
-                    photo=transformations_img,
-                    caption="🎯 **Выберите следующее преобразование:**",
+                # Сразу отправляем текст с описаниями и клавиатурой
+                await query.message.reply_text(
+                    f"🔧 <b>Применено преобразование:</b>\n"
+                        f"<i>{selected_transformation.description}</i>\n\n"
+                        f"📝 <b>Результат:</b>\n"
+                        f"<code>{result_expression}</code>\n\n"
+                        f"🎯 <b>Доступные преобразования:</b>\n\n{transformations_text}\n\nВыберите преобразование:",
                     reply_markup=get_transformations_keyboard(new_transformation_ids, step_id, generation_result.transformations),
+                    parse_mode='HTML',
                 )
+                
+                # Асинхронно генерируем и отправляем изображения
+                async def send_images():
+                    try:
+                        # Подготавливаем изображение с результатом выбранного преобразования
+                        result_img = render_latex_to_image(result_expression)
+                        
+                        # Отправляем изображение с результатом выбранного преобразования
+                        await query.message.reply_photo(
+                            photo=result_img,
+                            caption="📝 Результат выбранного преобразования:",
+                        )
+                        
+                        # Подготавливаем изображение с результатами всех преобразований
+                        transformations_img = render_transformations_results_image(generation_result.transformations)
+                        
+                        # Отправляем изображение с результатами всех преобразований
+                        await query.message.reply_photo(
+                            photo=transformations_img,
+                            caption="📊 Результаты всех доступных преобразований следующего шага:",
+                        )
+                    except Exception as e:
+                        logger.error(f"Ошибка при генерации изображений: {e}")
+                
+                # Запускаем генерацию изображений в фоне
+                import asyncio
+                asyncio.create_task(send_images())
             else:
                 # Если нет новых преобразований, показываем сообщение о завершении
                 await query.message.reply_text(
-                    f"🔧 **Применено преобразование:**\n"
-                f"_{selected_transformation.description}_\n\n"
-                    f"📝 **Результат:**\n"
-                f"`{result_expression}`\n\n"
-                    f"🎉 **Задача решена!**\n"
-                    f"Отправьте новую задачу для продолжения."
+                    f"🔧 <b>Применено преобразование:</b>\n"
+                    f"<i>{selected_transformation.description}</i>\n\n"
+                    f"📝 <b>Результат:</b>\n"
+                    f"<code>{result_expression}</code>\n\n"
+                    f"🎉 <b>Задача решена!</b>\n"
+                    f"Отправьте новую задачу для продолжения.",
+                    parse_mode='HTML',
                 )
+                
+                # Асинхронно отправляем изображение с финальным результатом
+                async def send_final_image():
+                    try:
+                        # Подготавливаем изображение с финальным результатом
+                        result_img = render_latex_to_image(result_expression)
+                        
+                        # Отправляем изображение с финальным результатом
+                        await query.message.reply_photo(
+                            photo=result_img,
+                            caption="🎉 Финальный результат:",
+                        )
+                    except Exception as e:
+                        logger.error(f"Ошибка при генерации финального изображения: {e}")
+                
+                # Запускаем генерацию финального изображения в фоне
+                import asyncio
+                asyncio.create_task(send_final_image())
         except Exception as e:
             logger.error(f"Ошибка при генерации новых преобразований: {e}")
             # Обновляем промежуточное сообщение с ошибкой
             await processing_msg.edit_text(
-                f"🔧 **Применено преобразование:**\n"
-                f"_{selected_transformation.description}_\n\n"
-                f"📝 **Результат:**\n"
-                f"`{result_expression}`\n\n"
-                f"❌ **Ошибка при генерации новых преобразований**\n"
-                f"Попробуйте еще раз или отправьте новую задачу."
+                f"🔧 <b>Применено преобразование:</b>\n"
+                f"<i>{selected_transformation.description}</i>\n\n"
+                f"📝 <b>Результат:</b>\n"
+                f"<code>{result_expression}</code>\n\n"
+                f"❌ <b>Ошибка при генерации новых преобразований</b>\n"
+                f"Попробуйте еще раз или отправьте новую задачу.",
+                parse_mode='HTML',
             )
 
 
@@ -477,7 +527,8 @@ async def _handle_refresh_button(
         # Отправляем промежуточное сообщение
         processing_msg = await query.message.reply_text(
             f"⏳ Генерирую новые преобразования для:\n"
-            f"`{state.current_step.expression}`"
+            f"<code>{state.current_step.expression}</code>",
+            parse_mode='HTML',
         )
         
         try:
@@ -496,37 +547,50 @@ async def _handle_refresh_button(
             # Удаляем промежуточное сообщение
             await processing_msg.delete()
             
-            # Подготавливаем изображения с выражением и преобразованиями
-            expression_img, transformations_img = render_transformations_images(state.current_step.expression, generation_result.transformations)
-            
             # Сохраняем новые преобразования в хранилище
             refresh_transformation_ids = state.transformation_storage.add_transformations(
                 state.history.get_current_step().id if state.history and state.history.get_current_step() else "current",
                 generation_result.transformations
             )
             
-            # Отправляем изображение с выражением
-            await query.message.reply_photo(
-                photo=expression_img,
-                caption=f"🔄 **Обновленные преобразования для:**",
-            )
+            # Формируем текст с описаниями преобразований
+            transformations_text = get_transformations_description_text(generation_result.transformations)
             
-            # Отправляем изображение с преобразованиями
-            await query.message.reply_photo(
-                photo=transformations_img,
-                caption="🎯 **Выберите преобразование:**",
+            # Сразу отправляем текст с описаниями и клавиатурой
+            await query.message.reply_text(
+                f"🔄 <b>Обновленные преобразования для:</b>\n\n{transformations_text}\n\nВыберите преобразование:",
                 reply_markup=get_transformations_keyboard(
                     refresh_transformation_ids,
                     state.history.get_current_step().id if state.history and state.history.get_current_step() else "current",
                     generation_result.transformations,
                 ),
+                parse_mode='HTML',
             )
+            
+            # Асинхронно генерируем и отправляем изображение
+            async def send_image():
+                try:
+                    # Подготавливаем изображение с результатами преобразований
+                    transformations_img = render_transformations_results_image(generation_result.transformations)
+                    
+                    # Отправляем изображение с результатами
+                    await query.message.reply_photo(
+                        photo=transformations_img,
+                        caption="📊 Результаты преобразований:",
+                    )
+                except Exception as e:
+                    logger.error(f"Ошибка при генерации изображения: {e}")
+            
+            # Запускаем генерацию изображения в фоне
+            import asyncio
+            asyncio.create_task(send_image())
         except Exception as e:
             logger.error(f"Ошибка при обновлении преобразований: {e}")
             # Обновляем промежуточное сообщение с ошибкой
             await processing_msg.edit_text(
-                f"❌ **Ошибка при обновлении преобразований**\n"
-                f"Попробуйте еще раз или отправьте новую задачу."
+                f"❌ <b>Ошибка при обновлении преобразований</b>\n"
+                f"Попробуйте еще раз или отправьте новую задачу.",
+                parse_mode='HTML',
             )
 
 
