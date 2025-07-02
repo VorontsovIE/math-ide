@@ -172,25 +172,23 @@ def render_latex_to_image(latex_expression: str) -> io.BytesIO:
         return img_buffer
 
 
-def render_transformations_images(
-    current_expression: str, transformations: "List[Transformation]"
-) -> tuple[io.BytesIO, io.BytesIO]:
-    """Рендерит два изображения: одно с текущим выражением, другое с преобразованиями."""
+def render_expression_image(current_expression: str) -> io.BytesIO:
+    """Рендерит изображение только с текущим выражением."""
     try:
-        # Первое изображение - только с выражением
+        # Создаём фигуру matplotlib
         expression_fig, expression_ax = plt.subplots(figsize=(8, 1.5))  # Немного уменьшаем высоту
         expression_ax.axis("off")
         
         # Используем offsetbox для корректного рендеринга LaTeX
         latex_expression = f"${current_expression}$"
-        logger.info(f"Рендеринг первого изображения с выражением: {repr(latex_expression)}")
+        logger.info(f"Рендеринг изображения с выражением: {repr(latex_expression)}")
         ob = offsetbox.AnchoredText(latex_expression, loc='center', prop=dict(size=16))
         ob.patch.set(alpha=0.0)  # Прозрачный фон
         expression_ax.add_artist(ob)
         
         plt.tight_layout(pad=0.05)  # Уменьшаем отступы
 
-        # Сохраняем первое изображение с меньшими отступами
+        # Сохраняем изображение с меньшими отступами
         expression_buffer = io.BytesIO()
         plt.savefig(
             expression_buffer, 
@@ -203,7 +201,35 @@ def render_transformations_images(
         expression_buffer.seek(0)
         plt.close(expression_fig)
 
-        # Второе изображение - с преобразованиями
+        return expression_buffer
+
+    except Exception as e:
+        logger.error(f"Ошибка при рендеринге изображения выражения: {e}", exc_info=True)
+        
+        # Создаём простое изображение в случае ошибки
+        error_fig, error_ax = plt.subplots(figsize=(8, 1.5))
+        
+        # Используем offsetbox для корректного рендеринга LaTeX
+        latex_expression = f"${current_expression}$"
+        ob = offsetbox.AnchoredText(latex_expression, loc='center', prop=dict(size=14))
+        ob.patch.set(alpha=0.0)  # Прозрачный фон
+        error_ax.add_artist(ob)
+        
+        error_ax.axis("off")
+        plt.tight_layout(pad=0.05)
+
+        error_buffer = io.BytesIO()
+        plt.savefig(error_buffer, format="png", bbox_inches="tight", pad_inches=0.03, dpi=150, facecolor="white")
+        error_buffer.seek(0)
+        plt.close(error_fig)
+
+        return error_buffer
+
+
+def render_transformations_image(transformations: "List[Transformation]") -> io.BytesIO:
+    """Рендерит изображение только с доступными преобразованиями."""
+    try:
+        # Создаем изображение с преобразованиями
         num_transformations = len(transformations)
         # Уменьшаем высоту, так как теперь все в одной формуле
         fig_height = 1.0 + num_transformations * 0.3
@@ -291,7 +317,7 @@ def render_transformations_images(
                 transform=transformations_ax.transAxes,
             )
 
-        # Сохраняем второе изображение с меньшими отступами
+        # Сохраняем изображение с меньшими отступами
         transformations_buffer = io.BytesIO()
         plt.savefig(
             transformations_buffer, 
@@ -304,35 +330,17 @@ def render_transformations_images(
         transformations_buffer.seek(0)
         plt.close(transformations_fig)
 
-        return expression_buffer, transformations_buffer
+        return transformations_buffer
 
     except Exception as e:
-        logger.error(f"Ошибка при рендеринге изображений: {e}", exc_info=True)
+        logger.error(f"Ошибка при рендеринге изображения преобразований: {e}", exc_info=True)
         
-        # Создаём простые изображения в случае ошибки
-        # Первое изображение
-        error_fig1, error_ax1 = plt.subplots(figsize=(8, 1.5))
-        
-        # Используем offsetbox для корректного рендеринга LaTeX
-        latex_expression = f"${current_expression}$"
-        ob = offsetbox.AnchoredText(latex_expression, loc='center', prop=dict(size=14))
-        ob.patch.set(alpha=0.0)  # Прозрачный фон
-        error_ax1.add_artist(ob)
-        
-        error_ax1.axis("off")
-        plt.tight_layout(pad=0.05)
-
-        error_buffer1 = io.BytesIO()
-        plt.savefig(error_buffer1, format="png", bbox_inches="tight", pad_inches=0.03, dpi=150, facecolor="white")
-        error_buffer1.seek(0)
-        plt.close(error_fig1)
-
-        # Второе изображение - показываем сами преобразования даже в случае ошибки
+        # Создаём простое изображение в случае ошибки
         num_transformations = len(transformations)
         fig_height = 1.0 + num_transformations * 0.3
 
-        error_fig2, error_ax2 = plt.subplots(figsize=(8, fig_height))
-        error_ax2.axis("off")
+        error_fig, error_ax = plt.subplots(figsize=(8, fig_height))
+        error_ax.axis("off")
         plt.tight_layout(pad=0.05)
 
         # Создаем единую многострочную LaTeX-формулу с нумерацией
@@ -365,58 +373,202 @@ def render_transformations_images(
                 if not has_cyrillic:
                     # Используем обычный text для простых LaTeX-формул
                     logger.info("Используем ax.text для рендеринга простой формулы")
-                    error_ax2.text(
+                    error_ax.text(
                         0.5,  # Возвращаем в центр
                         0.5,
                         f"${latex_formula}$",  # Возвращаем $...$ для простых формул
                         horizontalalignment="center",  # Возвращаем центрирование
                         verticalalignment="center",
                         fontsize=12,
-                        transform=error_ax2.transAxes,
+                        transform=error_ax.transAxes,
                         usetex=True,
                     )
                 else:
                     # Для текста с кириллицей используем обычный текст
                     logger.info("Используем обычный текст (есть кириллица)")
-                    error_ax2.text(
+                    error_ax.text(
                         0.5,  # Возвращаем в центр
                         0.5,
                         latex_formula,
                         horizontalalignment="center",  # Возвращаем центрирование
                         verticalalignment="center",
                         fontsize=12,
-                        transform=error_ax2.transAxes,
+                        transform=error_ax.transAxes,
                         usetex=False,
                     )
             else:
                 # Если нет преобразований с результатами
-                error_ax2.text(
+                error_ax.text(
                     0.5,
                     0.5,
                     "Нет доступных преобразований",
                     horizontalalignment="center",
                     verticalalignment="center",
                     fontsize=12,
-                    transform=error_ax2.transAxes,
+                    transform=error_ax.transAxes,
                 )
         else:
             # Если нет преобразований вообще
-            error_ax2.text(
+            error_ax.text(
                 0.5,
                 0.5,
                 "Нет доступных преобразований",
                 horizontalalignment="center",
                 verticalalignment="center",
                 fontsize=12,
-                transform=error_ax2.transAxes,
+                transform=error_ax.transAxes,
             )
 
-        error_buffer2 = io.BytesIO()
-        plt.savefig(error_buffer2, format="png", bbox_inches="tight", pad_inches=0.03, dpi=150, facecolor="white")
-        error_buffer2.seek(0)
-        plt.close(error_fig2)
+        error_buffer = io.BytesIO()
+        plt.savefig(error_buffer, format="png", bbox_inches="tight", pad_inches=0.03, dpi=150, facecolor="white")
+        error_buffer.seek(0)
+        plt.close(error_fig)
 
-        return error_buffer1, error_buffer2
+        return error_buffer
+
+
+def render_transformations_images(
+    current_expression: str, transformations: "List[Transformation]"
+) -> tuple[io.BytesIO, io.BytesIO]:
+    """Рендерит два изображения: одно с текущим выражением, другое с преобразованиями."""
+    # Используем новые отдельные функции
+    expression_buffer = render_expression_image(current_expression)
+    transformations_buffer = render_transformations_image(transformations)
+    
+    return expression_buffer, transformations_buffer
+
+
+def render_transformations_results_image(
+    transformations: "List[Transformation]"
+) -> io.BytesIO:
+    """Рендерит изображение только с результатами преобразований (без описаний)."""
+    try:
+        # Создаем изображение с результатами преобразований
+        num_transformations = len(transformations)
+        fig_height = 1.0 + num_transformations * 0.3
+
+        fig, ax = plt.subplots(figsize=(8, fig_height))
+        ax.axis("off")
+        plt.tight_layout(pad=0.05)
+
+        # Создаем единую многострочную LaTeX-формулу с нумерацией
+        if transformations:
+            # Собираем все преобразования в одну формулу
+            latex_lines = []
+            for idx, tr in enumerate(transformations):
+                if tr.preview_result:
+                    # Применяем fix_latex_expression для замены русских слов
+                    logger.info(f"Исходное преобразование {idx + 1}: {repr(tr.preview_result)}")
+                    fixed_result = fix_latex_expression(tr.preview_result)
+                    logger.info(f"Исправленное преобразование {idx + 1}: {repr(fixed_result)}")
+                    # Для первой строки добавляем \\hspace{-1.25em} чтобы убрать отступ
+                    if idx == 0:
+                        latex_lines.append(f"\\hspace{{-1.25em}}({idx + 1}) \\quad {fixed_result}")
+                    else:
+                        latex_lines.append(f"({idx + 1}) \\quad {fixed_result}")
+            
+            if latex_lines:
+                # Создаем простой список строк вместо окружения align*
+                latex_formula = " \\\\[1.5em] ".join(latex_lines)
+                
+                # Логгируем формулу для отладки
+                logger.info(f"Создана LaTeX-формула для преобразований:")
+                logger.info(f"Количество строк: {len(latex_lines)}")
+                logger.info(f"Строки: {latex_lines}")
+                logger.info(f"Финальная формула: {repr(latex_formula)}")
+                
+                # Проверяем на кириллицу после применения fix_latex_expression
+                has_cyrillic = any(contains_cyrillic(fix_latex_expression(tr.preview_result)) for tr in transformations if tr.preview_result)
+                logger.info(f"Содержит кириллицу: {has_cyrillic}")
+                
+                if not has_cyrillic:
+                    # Используем обычный text для простых LaTeX-формул
+                    logger.info("Используем ax.text для рендеринга простой формулы")
+                    ax.text(
+                        0.5,  # Возвращаем в центр
+                        0.5,
+                        f"${latex_formula}$",  # Возвращаем $...$ для простых формул
+                        horizontalalignment="center",  # Возвращаем центрирование
+                        verticalalignment="center",
+                        fontsize=12,
+                        transform=ax.transAxes,
+                        usetex=True,
+                    )
+                else:
+                    # Для текста с кириллицей используем обычный текст
+                    logger.info("Используем обычный текст (есть кириллица)")
+                    ax.text(
+                        0.5,  # Возвращаем в центр
+                        0.5,
+                        latex_formula,
+                        horizontalalignment="center",  # Возвращаем центрирование
+                        verticalalignment="center",
+                        fontsize=12,
+                        transform=ax.transAxes,
+                        usetex=False,
+                    )
+            else:
+                # Если нет преобразований с результатами
+                ax.text(
+                    0.5,
+                    0.5,
+                    "Нет доступных преобразований",
+                    horizontalalignment="center",
+                    verticalalignment="center",
+                    fontsize=12,
+                    transform=ax.transAxes,
+                )
+        else:
+            # Если нет преобразований вообще
+            ax.text(
+                0.5,
+                0.5,
+                "Нет доступных преобразований",
+                horizontalalignment="center",
+                verticalalignment="center",
+                fontsize=12,
+                transform=ax.transAxes,
+            )
+
+        # Сохраняем изображение с меньшими отступами
+        buffer = io.BytesIO()
+        plt.savefig(
+            buffer, 
+            format="png", 
+            bbox_inches="tight", 
+            pad_inches=0.03,  # Уменьшаем отступы
+            dpi=150, 
+            facecolor="white"
+        )
+        buffer.seek(0)
+        plt.close(fig)
+
+        return buffer
+
+    except Exception as e:
+        logger.error(f"Ошибка при рендеринге изображения результатов: {e}", exc_info=True)
+        
+        # Создаём простое изображение в случае ошибки
+        error_fig, error_ax = plt.subplots(figsize=(8, 2))
+        error_ax.axis("off")
+        plt.tight_layout(pad=0.05)
+
+        error_ax.text(
+            0.5,
+            0.5,
+            "Ошибка при рендеринге результатов",
+            horizontalalignment="center",
+            verticalalignment="center",
+            fontsize=12,
+            transform=error_ax.transAxes,
+        )
+
+        error_buffer = io.BytesIO()
+        plt.savefig(error_buffer, format="png", bbox_inches="tight", pad_inches=0.03, dpi=150, facecolor="white")
+        error_buffer.seek(0)
+        plt.close(error_fig)
+
+        return error_buffer
 
 async def check_and_suggest_rollback(
     engine: Any,

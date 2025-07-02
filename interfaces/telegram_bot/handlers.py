@@ -18,7 +18,7 @@ from core.types import SolutionStep
 
 from .keyboards import get_transformations_keyboard, get_transformations_description_text
 from .rate_limiter import rate_limiter
-from .renderers import render_transformations_results_image, render_latex_to_image
+from .renderers import render_transformations_results_image, render_latex_to_image, render_expression_image
 from .state import UserState, user_states
 from .utils import edit_status_message, send_status_message
 
@@ -253,9 +253,18 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
         if status_message:
             await status_message.delete()
         
-        # Асинхронно генерируем и отправляем изображение
-        async def send_image():
+        # Асинхронно генерируем и отправляем изображения
+        async def send_images():
             try:
+                # Создаем изображение с исходным выражением
+                expression_img = render_expression_image(cleaned_task)
+                
+                # Отправляем изображение с исходным выражением
+                await update.message.reply_photo(
+                    photo=expression_img,
+                    caption="📝 Исходное выражение:",
+                )
+                
                 # Создаем изображение с результатами преобразований
                 transformations_img = render_transformations_results_image(generation_result.transformations)
                 
@@ -265,11 +274,11 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
                     caption="📊 Результаты преобразований:",
                 )
             except Exception as e:
-                logger.error(f"Ошибка при генерации изображения: {e}")
+                logger.error(f"Ошибка при генерации изображений: {e}")
         
-        # Запускаем генерацию изображения в фоне
+        # Запускаем генерацию изображений в фоне
         import asyncio
-        asyncio.create_task(send_image())
+        asyncio.create_task(send_images())
         logger.info("Задача успешно инициализирована")
 
     except Exception as e:
