@@ -18,6 +18,7 @@ from .handlers import (
 )
 from .keyboards import (
     get_transformations_keyboard,
+    get_transformations_description_text,
     get_user_transformation_keyboard,
     get_verification_keyboard,
 )
@@ -42,6 +43,7 @@ from .utils import (
 # from .renderers import (
 #     render_latex_to_image,
 #     render_transformations_images,
+#     render_transformations_results_image,
 #     fix_latex_expression,
 #     check_and_suggest_rollback
 # )
