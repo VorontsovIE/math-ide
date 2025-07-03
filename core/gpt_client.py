@@ -150,8 +150,7 @@ class GPTClient:
                 logger.debug(f"GPT ответ получен. Токены: {usage.total_tokens}")
 
                 # Логируем содержимое ответа
-                content_preview = content[:200] + "..." if len(content) > 200 else content
-                logger.info(f"Ответ модели {self.model}: {content_preview}")
+                # logger.info(f"Ответ модели {self.model}: {content_preview}")  # УДАЛЕНО: теперь только подробный лог
                 logger.debug(f"Полный ответ: {content}")
 
                 finish_reason = response.choices[0].finish_reason
