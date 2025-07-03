@@ -59,7 +59,6 @@ class TestTransformationEngine:
         assert isinstance(result, GenerationResult)
         assert len(result.transformations) > 0
         assert result.transformations[0].description == "Раскрыть скобки"
-        assert result.transformations[0].type == "expand"
 
     @patch("core.gpt_client.GPTClient.chat_completion")
     @patch("core.prompts.PromptManager.format_prompt")
@@ -238,7 +237,6 @@ class TestSolutionHistory:
         transformations = [
             {
                 "description": "Раскрыть скобки",
-                "type": "expand",
                 "expression": "2x + 2 = 4",
             }
         ]
@@ -260,7 +258,6 @@ class TestSolutionHistory:
         transformations = [
             {
                 "description": "Раскрыть скобки",
-                "type": "expand",
                 "expression": "2x + 2 = 4",
             }
         ]
@@ -299,7 +296,6 @@ class TestSolutionHistory:
         """Тест получения сводки шага."""
         chosen_transformation = {
             "description": "Раскрыть скобки",
-            "type": "expand",
             "expression": "2x + 2 = 4",
         }
 

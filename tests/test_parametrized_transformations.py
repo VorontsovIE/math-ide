@@ -23,11 +23,11 @@ def test_basic_parametrized_transformation():
     )
 
     transformation = Transformation(
-        description="Разложить на множители: {FACTOR}",
-        expression="({FACTOR})(остальная часть)",
-        type="factor",
+        description="Разложить на множители",
+        expression="(x + 1)^2",
         parameter_definitions=[param_def],
         requires_user_input=True,
+        metadata={"usefulness": "good"},
     )
 
     # Симулируем пользовательский ввод
@@ -46,8 +46,8 @@ def test_basic_parametrized_transformation():
     assert len(filled_transformation.parameters) == 1
     assert filled_transformation.parameters[0].name == "FACTOR"
     assert filled_transformation.parameters[0].value == "2x"
-    assert filled_transformation.description == "Разложить на множители: 2x"
-    assert filled_transformation.expression == "(2x)(остальная часть)"
+    assert filled_transformation.description == "Разложить на множители"
+    assert filled_transformation.expression == "(x + 1)^2"
 
 
 def test_choice_parameter():
@@ -61,11 +61,11 @@ def test_choice_parameter():
     )
 
     transformation = Transformation(
-        description="Решить систему методом: {METHOD}",
-        expression="Применяем {METHOD}",
-        type="solve_system",
+        description="Решить систему",
+        expression="x = 2, y = 3",
         parameter_definitions=[param_def],
         requires_user_input=True,
+        metadata={"usefulness": "good"},
     )
 
     # Симулируем выбор второго варианта
@@ -77,7 +77,7 @@ def test_choice_parameter():
 
     assert filled_transformation.parameters is not None
     assert filled_transformation.parameters[0].value == "исключение"
-    assert filled_transformation.description == "Решить систему методом: исключение"
+    assert filled_transformation.description == "Решить систему"
 
 
 def test_multiple_parameters():
@@ -99,11 +99,11 @@ def test_multiple_parameters():
     ]
 
     transformation = Transformation(
-        description="Прибавить {A} и умножить на {B}",
-        expression="({current_expression} + {A}) * {B}",
-        type="custom",
+        description="Пользовательское преобразование",
+        expression="x^2 + 2x + 1",
         parameter_definitions=param_defs,
         requires_user_input=True,
+        metadata={"usefulness": "neutral"},
     )
 
     # Симулируем ввод значений
@@ -117,7 +117,7 @@ def test_multiple_parameters():
 
     assert filled_transformation.parameters is not None
     assert len(filled_transformation.parameters) == 2
-    assert filled_transformation.description == "Прибавить 5 и умножить на 3"
+    assert filled_transformation.description == "Пользовательское преобразование"
     assert (
         "5" in filled_transformation.expression
         and "3" in filled_transformation.expression

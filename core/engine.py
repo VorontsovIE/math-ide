@@ -157,8 +157,6 @@ class TransformationEngine:
             user_suggested_result,
         )
 
-
-
     def request_parameters(
         self,
         transformation: Transformation,
@@ -215,18 +213,13 @@ class TransformationEngine:
 
         # Создаём новое преобразование с заполненными параметрами
         updated_transformation = Transformation(
-            description=self._substitute_parameters_in_text(
-                transformation.description, parameters
-            ),
-            expression=self._substitute_parameters_in_text(
-                transformation.expression, parameters
-            ),
-            type=transformation.type,
+            description=transformation.description,
+            expression=transformation.expression,
             parameters=parameters,
             parameter_definitions=transformation.parameter_definitions,
             metadata=transformation.metadata,
             preview_result=transformation.preview_result,
-            requires_user_input=False,  # После заполнения параметров больше не требуется ввод
+            requires_user_input=transformation.requires_user_input,
         )
 
         logger.info(

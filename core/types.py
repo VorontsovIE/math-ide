@@ -82,7 +82,6 @@ class Transformation:
 
     description: str
     expression: str  # Было latex
-    type: str  # Тип преобразования (желательно из BaseTransformationType)
     parameters: Optional[List[TransformationParameter]] = None
     parameter_definitions: Optional[List[ParameterDefinition]] = (
         None  # Определения параметров для запроса
@@ -92,9 +91,6 @@ class Transformation:
         None  # Предварительный результат применения преобразования
     )
     requires_user_input: bool = False  # Требует ли преобразование ввода от пользователя
-
-
-
 
 
 @dataclass

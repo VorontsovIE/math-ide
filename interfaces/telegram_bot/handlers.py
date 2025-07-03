@@ -202,7 +202,7 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
         if generation_result.transformations:
             logger.debug("  Преобразования:")
             for i, tr in enumerate(generation_result.transformations):
-                logger.debug(f"    {i}: {tr.description} ({tr.type})")
+                logger.debug(f"    {i}: {tr.description}")
         else:
             logger.warning("  Список преобразований пуст!")
 

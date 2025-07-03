@@ -31,11 +31,11 @@ def demo_parametrized_transformations():
     )
     
     transformation_number = Transformation(
-        description="Вычесть {NUMBER} из обеих частей",
-        expression="2x + 4 - {NUMBER} = 10 - {NUMBER}",
-        type="subtract",
+        description="Вычесть 2 из обеих частей",
+        expression="2x = 2",
         parameter_definitions=[param_def_number],
         requires_user_input=True,
+        metadata={"usefulness": "good"},
     )
     
     print(f"   Описание: {transformation_number.description}")
@@ -68,11 +68,11 @@ def demo_parametrized_transformations():
     )
     
     transformation_method = Transformation(
-        description="Решить систему методом: {METHOD}",
-        expression="Применяем метод {METHOD} к системе уравнений",
-        type="solve_system",
+        description="Решить систему",
+        expression="x = 2, y = 3",
         parameter_definitions=[param_def_method],
         requires_user_input=True,
+        metadata={"usefulness": "good"},
     )
     
     print(f"   Описание: {transformation_method.description}")
@@ -101,11 +101,11 @@ def demo_parametrized_transformations():
     )
     
     transformation_expression = Transformation(
-        description="Разложить на множители: {FACTOR}",
-        expression="({FACTOR})(остальная часть выражения)",
-        type="factor",
+        description="Разложить на множители",
+        expression="(x + 1)^2",
         parameter_definitions=[param_def_expression],
         requires_user_input=True,
+        metadata={"usefulness": "good"},
     )
     
     print(f"   Описание: {transformation_expression.description}")
@@ -141,11 +141,11 @@ def demo_parametrized_transformations():
     ]
     
     transformation_multiple = Transformation(
-        description="Прибавить {A} и умножить на {B}",
-        expression="({current_expression} + {A}) * {B}",
-        type="custom",
+        description="Пользовательское преобразование",
+        expression="x^2 + 2x + 1",
         parameter_definitions=param_defs_multiple,
         requires_user_input=True,
+        metadata={"usefulness": "neutral"},
     )
     
     print(f"   Описание: {transformation_multiple.description}")

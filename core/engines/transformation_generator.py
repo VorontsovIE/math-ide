@@ -152,7 +152,7 @@ class TransformationGenerator:
         # Детальное логирование преобразований
         logger.debug("Детали преобразований:")
         for i, tr in enumerate(transformations):
-            logger.debug(f"  {i}: {tr.description} ({tr.type}) - полезность: {tr.metadata.get('usefulness', 'unknown')}")
+            logger.debug(f"  {i}: {tr.description} - полезность: {tr.metadata.get('usefulness', 'unknown')}")
 
         # Сортировка по полезности (good > neutral > bad)
         def usefulness_key(tr: Transformation) -> int:
@@ -218,7 +218,7 @@ class TransformationGenerator:
                     continue
 
                 # Проверяем обязательные поля
-                required_fields = ["description", "expression", "type"]
+                required_fields = ["description", "expression"]
                 missing_fields = [
                     field for field in required_fields if field not in data
                 ]
@@ -264,7 +264,6 @@ class TransformationGenerator:
                 transformation = Transformation(
                     description=data["description"],
                     expression=data["expression"],
-                    type=data["type"],
                     parameter_definitions=(
                         parameter_definitions if parameter_definitions else None
                     ),

@@ -13,7 +13,6 @@ For each transformation, return a JSON object with:
 - `expression`: result after applying the transformation (in LaTeX)
 - `metadata`:
   - `usefulness`: "good" | "neutral" | "bad"
-- `type`: "stub"
 - `requires_user_input`: false
 - `parameter_definitions`: []
 

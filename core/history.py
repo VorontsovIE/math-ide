@@ -124,7 +124,6 @@ class SolutionHistory:
         if step.chosen_transformation:
             summary["chosen_transformation"] = {
                 "description": step.chosen_transformation.get("description", ""),
-                "type": step.chosen_transformation.get("type", ""),
                 "expression": step.chosen_transformation.get("expression", ""),
             }
 
@@ -269,18 +268,15 @@ if __name__ == "__main__":
         available_transformations=[
             {
                 "description": "Раскрыть скобки в левой части",
-                "type": "expand",
                 "expression": "2x + 2 = 4",
             },
             {
                 "description": "Разделить обе части на 2",
-                "type": "divide",
                 "expression": "x + 1 = 2",
             },
         ],
         chosen_transformation={
             "description": "Раскрыть скобки в левой части",
-            "type": "expand",
             "expression": "2x + 2 = 4",
         },
         result_expression="2x + 2 = 4",
@@ -291,18 +287,15 @@ if __name__ == "__main__":
         available_transformations=[
             {
                 "description": "Вычесть 2 из обеих частей",
-                "type": "subtract",
                 "expression": "2x = 2",
             },
             {
                 "description": "Разделить обе части на 2",
-                "type": "divide",
                 "expression": "x + 1 = 2",
             },
         ],
         chosen_transformation={
             "description": "Разделить обе части на 2",
-            "type": "divide",
             "expression": "x + 1 = 2",
         },
         result_expression="x + 1 = 2",
