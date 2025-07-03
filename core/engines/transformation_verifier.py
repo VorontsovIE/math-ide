@@ -67,6 +67,10 @@ class TransformationVerifier:
             )
 
             content = gpt_response.content
+            logger.info("=== ОТВЕТ МОДЕЛИ (ВЕРИФИКАЦИЯ) ===")
+            logger.info("Содержимое ответа GPT:")
+            logger.info(content)
+            logger.info("=== КОНЕЦ ОТВЕТА ===")
             if not content:
                 return VerificationResult(
                     is_correct=False,

@@ -75,6 +75,10 @@ class SolutionChecker:
 
             # Парсим ответ
             content = response.content.strip()
+            logger.info("=== ОТВЕТ МОДЕЛИ (ПРОВЕРКА ЗАВЕРШЕННОСТИ) ===")
+            logger.info("Содержимое ответа GPT:")
+            logger.info(content)
+            logger.info("=== КОНЕЦ ОТВЕТА ===")
             logger.debug("Получен ответ от GPT: %s", content)
 
             # Проверяем, что ответ не пустой

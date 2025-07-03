@@ -61,6 +61,10 @@ class ProgressAnalyzer:
             )
 
             content = gpt_response.content
+            logger.info("=== ОТВЕТ МОДЕЛИ (АНАЛИЗ ПРОГРЕССА) ===")
+            logger.info("Содержимое ответа GPT:")
+            logger.info(content)
+            logger.info("=== КОНЕЦ ОТВЕТА ===")
             if not content:
                 return ProgressAnalysisResult(
                     progress_assessment="unknown",

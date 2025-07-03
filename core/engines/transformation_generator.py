@@ -83,6 +83,10 @@ class TransformationGenerator:
 
             # Парсим ответ
             content = gpt_response.content
+            logger.info("=== ОТВЕТ МОДЕЛИ ===")
+            logger.info("Содержимое ответа GPT:")
+            logger.info(content)
+            logger.info("=== КОНЕЦ ОТВЕТА ===")
             logger.debug("Получен ответ от GPT: %s", content)
 
             # Проверяем, что ответ не пустой
