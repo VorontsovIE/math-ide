@@ -195,39 +195,7 @@ class InputHandler:
             except KeyboardInterrupt:
                 return None
 
-    def confirm_branching(self) -> bool:
-        """Ask user to confirm branching approach."""
-        return self.confirm_action("Использовать ветвящийся подход к решению?")
 
-    def get_branch_choice(self, branches: List[Any]) -> Optional[int]:
-        """Get user's choice of branch to continue with."""
-        if not branches:
-            return None
-
-        self.console.print("\nДоступные ветви:")
-        for i, branch in enumerate(branches, 1):
-            self.console.print(f"{i}. {branch.description}")
-
-        while True:
-            try:
-                choice = self.console.input(
-                    f"Выберите ветвь (1-{len(branches)}, 0-отмена): "
-                )
-
-                if choice == "0":
-                    return None
-
-                choice_num = int(choice) - 1
-                if 0 <= choice_num < len(branches):
-                    return choice_num
-                else:
-                    self.console.print(
-                        f"[red]Выберите число от 1 до {len(branches)}[/red]"
-                    )
-            except ValueError:
-                self.console.print("[red]Введите корректное число[/red]")
-            except KeyboardInterrupt:
-                return None
 
     def get_rollback_choice(self, num_steps: int) -> Optional[int]:
         """Get user's choice for rollback step."""

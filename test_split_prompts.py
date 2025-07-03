@@ -40,11 +40,7 @@ def test_split_prompts():
         print(f"✅ System промпт отформатирован ({len(formatted_system)} символов)")
         print(f"✅ User промпт отформатирован ({len(formatted_user)} символов)")
         
-        # Тест 2: Анализ ветвления
-        print("\n2️⃣ Тест анализа ветвления:")
-        system_prompt, user_prompt = pm.load_split_prompt("branching")
-        print(f"✅ System промпт загружен ({len(system_prompt)} символов)")
-        print(f"✅ User промпт загружен ({len(user_prompt)} символов)")
+
         
         # Тест 3: Проверка решения
         print("\n3️⃣ Тест проверки решения:")

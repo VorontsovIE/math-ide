@@ -5,7 +5,6 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 # Импортируем новые компоненты
 from .engines import (
-    BranchingAnalyzer,
     ProgressAnalyzer,
     SolutionChecker,
     TransformationGenerator,
@@ -74,7 +73,6 @@ class TransformationEngine:
         self.checker = SolutionChecker(self.client, self.prompt_manager)
         self.progress_analyzer = ProgressAnalyzer(self.client, self.prompt_manager)
         self.verifier = TransformationVerifier(self.client, self.prompt_manager)
-        self.branching_analyzer = BranchingAnalyzer(self.client, self.prompt_manager)
 
         logger.debug("Все компоненты успешно инициализированы")
 
@@ -159,12 +157,7 @@ class TransformationEngine:
             user_suggested_result,
         )
 
-    def analyze_branching_solution(self, step: SolutionStep) -> SolutionStep:
-        """
-        Анализирует, требует ли решение ветвления.
-        Делегирует работу BranchingAnalyzer.
-        """
-        return self.branching_analyzer.analyze_branching_solution(step)
+
 
     def request_parameters(
         self,

@@ -13,7 +13,6 @@ from core.engines import (
 from core.gpt_client import GPTClient
 from core.history import SolutionHistory
 from core.prompts import PromptManager
-from core.types import SolutionStep, SolutionType
 
 from .cli_components.display_manager import DisplayManager
 from .cli_components.input_handler import InputHandler
@@ -67,9 +66,7 @@ def solve(problem: str, model: str, debug: bool) -> None:
         while True:
             try:
                 # Check if solved
-                current_step = SolutionStep(
-                    expression=current_problem, solution_type=SolutionType.SINGLE
-                )
+                current_step = SolutionStep(expression=current_problem)
                 is_solved = solution_checker.check_solution_completeness(
                     current_step, problem
                 )
@@ -303,9 +300,7 @@ def auto(problem: str, steps: Optional[int], model: str) -> None:
 
         while step_count < max_steps:
             # Create current step
-            current_step = SolutionStep(
-                expression=current_problem, solution_type=SolutionType.SINGLE
-            )
+            current_step = SolutionStep(expression=current_problem)
 
             # Check if solved
             is_solved = solution_checker.check_solution_completeness(

@@ -5,10 +5,8 @@
 - SolutionChecker: проверка завершённости решения
 - ProgressAnalyzer: анализ прогресса решения
 - TransformationVerifier: верификация преобразований
-- BranchingAnalyzer: анализ ветвящихся решений
 """
 
-from .branching_analyzer import BranchingAnalyzer
 from .progress_analyzer import ProgressAnalyzer
 from .solution_checker import SolutionChecker
 from .transformation_generator import TransformationGenerator
@@ -19,5 +17,4 @@ __all__ = [
     "SolutionChecker",
     "ProgressAnalyzer",
     "TransformationVerifier",
-    "BranchingAnalyzer",
 ]

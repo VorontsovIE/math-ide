@@ -10,7 +10,7 @@ from rich.panel import Panel
 from rich.table import Table
 
 from core.history import SolutionHistory
-from core.types import SolutionStep, SolutionType, Transformation
+from core.types import SolutionStep, Transformation
 
 from .latex_renderer import LatexRenderer
 
@@ -63,53 +63,7 @@ class DisplayManager:
 
         self.console.print(table)
 
-    def display_branching_step(self, step: SolutionStep) -> None:
-        """Отображает ветвящийся шаг решения."""
-        if step.solution_type == SolutionType.SINGLE:
-            # Обычное отображение для одиночного шага
-            self.console.print(
-                Panel.fit(
-                    self.latex_renderer.render_latex(step.expression),
-                    title="Текущее выражение",
-                    border_style="green",
-                )
-            )
-            return
 
-        # Отображение ветвящегося решения
-        type_descriptions = {
-            SolutionType.SYSTEM: "Система уравнений/неравенств",
-            SolutionType.CASES: "Разбор случаев",
-            SolutionType.ALTERNATIVES: "Альтернативные методы решения",
-            SolutionType.UNION: "Объединение решений",
-            SolutionType.INTERSECTION: "Пересечение решений",
-        }
-
-        title = type_descriptions.get(step.solution_type, "Ветвящееся решение")
-
-        self.console.print(Panel.fit(step.expression, title=title, border_style="blue"))
-
-        # Создаем таблицу для ветвей
-        table = Table(title="Ветви решения")
-        table.add_column("№", justify="right", style="cyan")
-        table.add_column("Название", style="green")
-        table.add_column("Выражение", style="magenta")
-        if any(branch.condition for branch in step.branches):
-            table.add_column("Условие", style="yellow")
-
-        for idx, branch in enumerate(step.branches, 1):
-            row = [
-                str(idx),
-                branch.name,
-                self.latex_renderer.render_latex(branch.expression),
-            ]
-
-            if any(b.condition for b in step.branches):
-                row.append(branch.condition or "-")
-
-            table.add_row(*cast(List[Any], row))
-
-        self.console.print(table)
 
     def display_history(self, history: SolutionHistory) -> None:
         """Отображает историю решения."""
@@ -292,7 +246,6 @@ class DisplayManager:
 
         self.console.print(table)
 
-    def show_branching_analysis(self, analysis: Any) -> None:
-        """Show branching analysis results."""
+
         self.console.print("[blue]Анализ ветвления завершён[/blue]")
         # Дополнительная логика отображения результатов анализа

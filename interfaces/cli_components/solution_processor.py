@@ -8,7 +8,6 @@ from core.history import SolutionHistory
 from core.types import (
     ParameterType,
     SolutionStep,
-    SolutionType,
     Transformation,
     TransformationParameter,
 )
@@ -41,9 +40,7 @@ class SolutionProcessor:
         """
         try:
             # Create current step
-            current_step = SolutionStep(
-                expression=problem, solution_type=SolutionType.SINGLE
-            )
+            current_step = SolutionStep(expression=problem)
 
             # Check if problem is already solved
             is_solved = self.solution_checker.check_solution_completeness(

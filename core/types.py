@@ -94,41 +94,16 @@ class Transformation:
     requires_user_input: bool = False  # Требует ли преобразование ввода от пользователя
 
 
-class SolutionType(Enum):
-    """Типы решений для поддержки ветвящихся решений."""
 
-    SINGLE = "single"  # Одно выражение
-    SYSTEM = "system"  # Система уравнений/неравенств
-    ALTERNATIVES = "alternatives"  # Альтернативные пути решения
-    CASES = "cases"  # Разбор случаев (например, с модулем |x|)
-    UNION = "union"  # Объединение решений
-    INTERSECTION = "intersection"  # Пересечение решений
-
-
-@dataclass
-class SolutionBranch:
-    """
-    Представляет одну ветвь решения в ветвящемся решении.
-    """
-
-    id: str
-    name: str  # Название ветви (например, "Случай 1: x ≥ 0")
-    expression: str  # Выражение этой ветви
-    condition: Optional[str] = None  # Условие для этой ветви
-    is_valid: bool = True  # Является ли ветвь валидной
-    metadata: Dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
 class SolutionStep:
     """
     Представляет один шаг в процессе решения математической задачи.
-    Поддерживает как простые выражения, так и ветвящиеся решения.
     """
 
     expression: str  # Основное выражение или описание шага
-    solution_type: SolutionType = SolutionType.SINGLE
-    branches: List[SolutionBranch] = field(default_factory=list)
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -184,73 +159,6 @@ def get_transformation_types_markdown() -> str:
     return "\n".join([f"- `{k}` — {v}" for k, v in desc.items()])
 
 
-def create_solution_step(
-    expression: str, solution_type: SolutionType = SolutionType.SINGLE
-) -> SolutionStep:
+def create_solution_step(expression: str) -> SolutionStep:
     """Создает простой шаг решения."""
-    return SolutionStep(expression=expression, solution_type=solution_type)
-
-
-def create_system_step(system_description: str, equations: List[str]) -> SolutionStep:
-    """Создает шаг с системой уравнений."""
-    branches = []
-    for i, equation in enumerate(equations):
-        branch = SolutionBranch(
-            id=f"eq_{i}", name=f"Уравнение {i+1}", expression=equation
-        )
-        branches.append(branch)
-
-    return SolutionStep(
-        expression=system_description,
-        solution_type=SolutionType.SYSTEM,
-        branches=branches,
-    )
-
-
-def create_cases_step(problem_description: str, cases: List[tuple]) -> SolutionStep:
-    """
-    Создает шаг с разбором случаев.
-
-    Args:
-        problem_description: Описание проблемы
-        cases: Список кортежей (условие, выражение, название)
-    """
-    branches = []
-    for i, (condition, expression, name) in enumerate(cases):
-        branch = SolutionBranch(
-            id=f"case_{i}",
-            name=name or f"Случай {i+1}",
-            expression=expression,
-            condition=condition,
-        )
-        branches.append(branch)
-
-    return SolutionStep(
-        expression=problem_description,
-        solution_type=SolutionType.CASES,
-        branches=branches,
-    )
-
-
-def create_alternatives_step(
-    problem_description: str, alternatives: List[tuple]
-) -> SolutionStep:
-    """
-    Создает шаг с альтернативными путями решения.
-
-    Args:
-        problem_description: Описание проблемы
-        alternatives: Список кортежей (выражение, название_метода)
-    """
-    branches = []
-    for i, (expression, method_name) in enumerate(alternatives):
-        branch = SolutionBranch(
-            id=f"alt_{i}", name=method_name or f"Метод {i+1}", expression=expression
-        )
-        branches.append(branch)
-
-    return SolutionStep(
-        expression=problem_description,
-        solution_type=SolutionType.ALTERNATIVES,
-        branches=branches,
-    )
+    return SolutionStep(expression=expression)
