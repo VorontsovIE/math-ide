@@ -447,7 +447,7 @@ class TransformationParameter:
 
 **Нужно изменить логику проверки завершённости решения?**
 - Смотрите `core/engines/solution_checker.py` - основная логика проверки
-- Смотрите `prompts/check.md` - промпты для GPT
+- Смотрите `prompts/check_system.md` и `prompts/check_user.md` - промпты для GPT
 
 **Нужно добавить новый интерфейс (например, Web)?**
 - Смотрите `interfaces/cli.py` и `interfaces/telegram_bot.py` - примеры интерфейсов
@@ -465,7 +465,7 @@ class TransformationParameter:
 
 **Нужно изменить логику анализа прогресса?**
 - Смотрите `core/engines/progress_analyzer.py` - анализ прогресса
-- Смотрите `prompts/progress_analysis.md` - промпты для анализа
+- Смотрите `prompts/progress_analysis_system.md` и `prompts/progress_analysis_user.md` - промпты для анализа
 
 **Нужно добавить поддержку ветвления решений?**
 

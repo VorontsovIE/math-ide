@@ -2,7 +2,7 @@ from core.prompts import PromptManager
 from core.types import get_transformation_types_markdown
 
 pm = PromptManager()
-prompt = pm.load_prompt('generation.md')
+prompt = pm.load_prompt('generation_system.md')
 print('Промпт загружен')
 
 try:
