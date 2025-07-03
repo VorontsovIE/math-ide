@@ -152,11 +152,11 @@ class TransformationGenerator:
         # Детальное логирование преобразований
         logger.debug("Детали преобразований:")
         for i, tr in enumerate(transformations):
-            logger.debug(f"  {i}: {tr.description} ({tr.type}) - полезность: {tr.metadata.get('usefullness', 'unknown')}")
+            logger.debug(f"  {i}: {tr.description} ({tr.type}) - полезность: {tr.metadata.get('usefulness', 'unknown')}")
 
         # Сортировка по полезности (good > neutral > bad)
         def usefulness_key(tr: Transformation) -> int:
-            value = tr.metadata.get("usefullness", "neutral")
+            value = tr.metadata.get("usefulness", "neutral")
             if value == "good":
                 return 0
             elif value == "neutral":

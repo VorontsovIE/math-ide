@@ -12,9 +12,7 @@ For each transformation, return a JSON object with:
 - `description`: a human-readable action (in Russian)
 - `expression`: result after applying the transformation (in LaTeX)
 - `metadata`:
-  - `correctness`: "correct" or "wrong"
-  - `usefullness`: "good" | "neutral" | "bad"
-  - `difficulty`, `reasoning`, `mathematical_check`: use "stub"
+  - `usefulness`: "good" | "neutral" | "bad"
 - `type`: "stub"
 - `requires_user_input`: false
 - `parameter_definitions`: []

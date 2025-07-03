@@ -45,7 +45,7 @@ class TestTransformationEngine:
                     "description": "Раскрыть скобки",
                     "expression": "2x + 2 = 4",
                     "type": "expand",
-                    "metadata": {"difficulty": "elementary school", "usefullness": "good"}
+                    "metadata": {"usefulness": "good"}
                 }
             ]""",
             usage=GPTUsage(prompt_tokens=100, completion_tokens=50, total_tokens=150),
@@ -199,7 +199,7 @@ class TestTransformationEngine:
                     "description": "Вычесть 4 из обеих частей",
                     "expression": "2x = 6",
                     "type": "subtract",
-                    "metadata": {"usefullness": "good"}
+                    "metadata": {"usefulness": "good"}
                 }
             ]""",
             usage=GPTUsage(prompt_tokens=100, completion_tokens=50, total_tokens=150),
