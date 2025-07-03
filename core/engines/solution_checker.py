@@ -25,8 +25,8 @@ class SolutionChecker:
         self.client = client
         self.prompt_manager = prompt_manager
 
-        # Загружаем промпт для проверки
-        self.check_prompt = self.prompt_manager.load_prompt("check.md")
+        # Загружаем разделенный промпт для проверки
+        self.system_prompt, self.user_prompt = self.prompt_manager.load_split_prompt("check")
         logger.debug("SolutionChecker инициализирован")
 
     def check_solution_completeness(
@@ -41,13 +41,15 @@ class SolutionChecker:
                 current_step.expression,
             )
 
-            # Форматируем промпт
-            formatted_prompt = self.prompt_manager.format_prompt(
-                self.check_prompt,
+            # Форматируем разделенный промпт
+            formatted_system, formatted_user = self.prompt_manager.format_split_prompt(
+                self.system_prompt,
+                self.user_prompt,
                 original_task=original_task,
                 current_state=current_step.expression,
             )
-            logger.info("Промпт для GPT (с подставленными переменными):\n%s", formatted_prompt)
+            logger.info("System промпт для GPT:\n%s", formatted_system)
+            logger.info("User промпт для GPT:\n%s", formatted_user)
 
             logger.debug("Отправка запроса к GPT для проверки завершённости")
             # Запрос к GPT
@@ -55,9 +57,9 @@ class SolutionChecker:
                 messages=[
                     {
                         "role": "system",
-                        "content": "Ты - эксперт по математике. Отвечай только в JSON-формате.",
+                        "content": formatted_system,
                     },
-                    {"role": "user", "content": formatted_prompt},
+                    {"role": "user", "content": formatted_user},
                 ],
                 temperature=0.3,
             )

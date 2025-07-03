@@ -36,8 +36,8 @@ class TransformationGenerator:
         self.prompt_manager = prompt_manager
         self.preview_mode = preview_mode
 
-        # Загружаем промпт для генерации
-        self.generation_prompt = self.prompt_manager.load_prompt("generation.md")
+        # Загружаем разделенный промпт для генерации
+        self.system_prompt, self.user_prompt = self.prompt_manager.load_split_prompt("generation")
         logger.debug("TransformationGenerator инициализирован")
 
     def generate_transformations(self, step: SolutionStep) -> GenerationResult:
@@ -47,16 +47,18 @@ class TransformationGenerator:
         try:
             logger.info("Генерация преобразований для выражения: %s", step.expression)
 
-            # Форматируем промпт
-            formatted_prompt = self.prompt_manager.format_prompt(
-                self.generation_prompt,
+            # Форматируем разделенный промпт
+            formatted_system, formatted_user = self.prompt_manager.format_split_prompt(
+                self.system_prompt,
+                self.user_prompt,
                 current_state=step.expression,
                 transformation_types=get_transformation_types_markdown(),
                 transformation_types_list=self.prompt_manager.load_prompt(
                     "transformation_types.md"
                 ),
             )
-            logger.info("Промпт для GPT (с подставленными переменными):\n%s", formatted_prompt)
+            logger.info("System промпт для GPT:\n%s", formatted_system)
+            logger.info("User промпт для GPT:\n%s", formatted_user)
 
             logger.debug("Отправка запроса к GPT для генерации преобразований")
             # Запрос к GPT через GPTClient
@@ -64,9 +66,9 @@ class TransformationGenerator:
                 messages=[
                     {
                         "role": "system",
-                        "content": "Ты - эксперт по математике. Отвечай только в JSON-формате.",
+                        "content": formatted_system,
                     },
-                    {"role": "user", "content": formatted_prompt},
+                    {"role": "user", "content": formatted_user},
                 ],
                 temperature=0.7,
             )

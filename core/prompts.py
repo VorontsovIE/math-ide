@@ -5,7 +5,7 @@
 
 import logging
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 
 from .exceptions import PromptFormatError, PromptNotFoundError
 
@@ -33,6 +33,24 @@ class PromptManager:
             self._cache[filename] = content
             return content
 
+    def load_split_prompt(self, base_name: str) -> Tuple[str, str]:
+        """
+        Загружает разделенный промпт (system и user части).
+        
+        Args:
+            base_name: Базовое имя промпта (без расширения)
+            
+        Returns:
+            Кортеж (system_prompt, user_prompt)
+        """
+        system_filename = f"{base_name}_system.md"
+        user_filename = f"{base_name}_user.md"
+        
+        system_prompt = self.load_prompt(system_filename)
+        user_prompt = self.load_prompt(user_filename)
+        
+        return system_prompt, user_prompt
+
     def format_prompt(self, prompt: str, **kwargs: Any) -> str:
         """Форматирует промпт с подстановкой переменных."""
         try:
@@ -40,10 +58,41 @@ class PromptManager:
         except (KeyError, ValueError) as e:
             raise PromptFormatError(f"Ошибка форматирования промпта: {str(e)}")
 
+    def format_split_prompt(self, system_prompt: str, user_prompt: str, **kwargs: Any) -> Tuple[str, str]:
+        """
+        Форматирует разделенный промпт с подстановкой переменных.
+        
+        Args:
+            system_prompt: System часть промпта
+            user_prompt: User часть промпта
+            **kwargs: Переменные для подстановки
+            
+        Returns:
+            Кортеж (formatted_system_prompt, formatted_user_prompt)
+        """
+        formatted_system = self.format_prompt(system_prompt, **kwargs)
+        formatted_user = self.format_prompt(user_prompt, **kwargs)
+        
+        return formatted_system, formatted_user
+
     def load_and_format_prompt(self, filename: str, **kwargs: Any) -> str:
         """Загружает и форматирует промпт одной операцией."""
         prompt = self.load_prompt(filename)
         return self.format_prompt(prompt, **kwargs)
+
+    def load_and_format_split_prompt(self, base_name: str, **kwargs: Any) -> Tuple[str, str]:
+        """
+        Загружает и форматирует разделенный промпт одной операцией.
+        
+        Args:
+            base_name: Базовое имя промпта (без расширения)
+            **kwargs: Переменные для подстановки
+            
+        Returns:
+            Кортеж (formatted_system_prompt, formatted_user_prompt)
+        """
+        system_prompt, user_prompt = self.load_split_prompt(base_name)
+        return self.format_split_prompt(system_prompt, user_prompt, **kwargs)
 
     def clear_cache(self) -> None:
         """Очищает кеш промптов."""

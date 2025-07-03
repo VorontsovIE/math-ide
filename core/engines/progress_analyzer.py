@@ -20,9 +20,8 @@ class ProgressAnalyzer:
     def __init__(self, client: GPTClient, prompt_manager: PromptManager):
         self.client = client
         self.prompt_manager = prompt_manager
-        self.progress_analysis_prompt = self.prompt_manager.load_prompt(
-            "progress_analysis.md"
-        )
+        # Загружаем разделенный промпт для анализа прогресса
+        self.system_prompt, self.user_prompt = self.prompt_manager.load_split_prompt("progress_analysis")
         logger.debug("ProgressAnalyzer инициализирован")
 
     def analyze_progress(
@@ -38,22 +37,25 @@ class ProgressAnalyzer:
         try:
             logger.info("Анализ прогресса решения")
 
-            formatted_prompt = self.prompt_manager.format_prompt(
-                self.progress_analysis_prompt,
+            # Форматируем разделенный промпт
+            formatted_system, formatted_user = self.prompt_manager.format_split_prompt(
+                self.system_prompt,
+                self.user_prompt,
                 original_task=original_task,
                 history_steps=str(history_steps),
                 current_step=current_step,
                 steps_count=steps_count,
             )
-            logger.info("Промпт для GPT (с подставленными переменными):\n%s", formatted_prompt)
+            logger.info("System промпт для GPT:\n%s", formatted_system)
+            logger.info("User промпт для GPT:\n%s", formatted_user)
 
             gpt_response = self.client.chat_completion(
                 messages=[
                     {
                         "role": "system",
-                        "content": "Ты - эксперт по математике. Отвечай только в JSON-формате.",
+                        "content": formatted_system,
                     },
-                    {"role": "user", "content": formatted_prompt},
+                    {"role": "user", "content": formatted_user},
                 ],
                 temperature=0.3,
             )

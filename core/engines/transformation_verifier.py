@@ -20,7 +20,8 @@ class TransformationVerifier:
     def __init__(self, client: GPTClient, prompt_manager: PromptManager):
         self.client = client
         self.prompt_manager = prompt_manager
-        self.verification_prompt = self.prompt_manager.load_prompt("verification.md")
+        # Загружаем разделенный промпт для верификации
+        self.system_prompt, self.user_prompt = self.prompt_manager.load_split_prompt("verification")
         logger.debug("TransformationVerifier инициализирован")
 
     def verify_transformation(
@@ -41,23 +42,26 @@ class TransformationVerifier:
                 current_result,
             )
 
-            formatted_prompt = self.prompt_manager.format_prompt(
-                self.verification_prompt,
+            # Форматируем разделенный промпт
+            formatted_system, formatted_user = self.prompt_manager.format_split_prompt(
+                self.system_prompt,
+                self.user_prompt,
                 original_expression=original_expression,
                 transformation_description=transformation_description,
                 current_result=current_result,
                 verification_type=verification_type,
                 user_suggested_result=user_suggested_result or "",
             )
-            logger.info("Промпт для GPT (с подставленными переменными):\n%s", formatted_prompt)
+            logger.info("System промпт для GPT:\n%s", formatted_system)
+            logger.info("User промпт для GPT:\n%s", formatted_user)
 
             gpt_response = self.client.chat_completion(
                 messages=[
                     {
                         "role": "system",
-                        "content": "Ты - эксперт по математике. Отвечай только в JSON-формате.",
+                        "content": formatted_system,
                     },
-                    {"role": "user", "content": formatted_prompt},
+                    {"role": "user", "content": formatted_user},
                 ],
                 temperature=0.1,
             )
