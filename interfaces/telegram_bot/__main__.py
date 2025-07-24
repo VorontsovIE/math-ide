@@ -19,10 +19,10 @@ from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQu
 from .handlers import (
     cancel,
     handle_task,
-    handle_transformation_choice,
     help_command,
     show_history,
     start,
+    handle_callback_query,
 )
 from .rate_limiter import rate_limiter
 from .state import user_states
@@ -92,8 +92,8 @@ def main() -> None:
     application.add_handler(CommandHandler("cancel", cancel))
     application.add_handler(CommandHandler("history", show_history))
 
-    # Обработчик callback-запросов (кнопки) - ИСПРАВЛЕНО
-    application.add_handler(CallbackQueryHandler(handle_transformation_choice))
+    # Обработчик callback-запросов (кнопки) - НОВЫЙ СЦЕНАРИЙ
+    application.add_handler(CallbackQueryHandler(handle_callback_query))
 
     # Обработчик текстовых сообщений (задачи)
     application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_task))
