@@ -174,9 +174,7 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
                         variants = state.result_variants_cache[cache_key]
                     else:
                         from core.engine import TransformationEngine
-                        from core.gpt_client import GPTClient
-                        from core.prompts import PromptManager
-                        engine = TransformationEngine(GPTClient(), PromptManager())
+                        engine = TransformationEngine()
                         variants = engine.generate_result_variants(expr, selected_transformation.description)
                         state.result_variants_cache[cache_key] = variants
                     # Показываем варианты
@@ -783,9 +781,7 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
                 return
             expr = state.current_step.expression if state.current_step else ""
             from core.engine import TransformationEngine
-            from core.gpt_client import GPTClient
-            from core.prompts import PromptManager
-            engine = TransformationEngine(GPTClient(), PromptManager())
+            engine = TransformationEngine()
             variants = engine.generate_result_variants(expr, selected_transformation.description)
             state.result_variants_cache[cache_key] = variants
             logger.info(f"Сгенерировано {len(variants)} вариантов результата через LLM")
@@ -879,7 +875,7 @@ async def next_step_after_result(user_id: int, state: UserState, update_or_query
     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
     # После применения преобразования всегда показываем transform_ кнопки для новых преобразований
     reply_markup = get_transformations_keyboard(transformation_ids, step_id, generation_result.transformations)
-    text = f"🎯 <b>Доступные преобразования:</b>\n\n{transformations_text}\n\nВыберите преобразование:" + stats
+    text = f"✅ <b>Преобразование применено!</b>\n\n🎯 <b>Доступные преобразования для следующего шага:</b>\n\n{transformations_text}\n\nВыберите преобразование:" + stats
     # --- Отправка только текста и клавиатуры ---
     if hasattr(update_or_query, "message") and update_or_query.message:
         await update_or_query.message.reply_text(
