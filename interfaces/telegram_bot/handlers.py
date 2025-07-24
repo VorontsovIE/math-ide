@@ -155,11 +155,13 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
                 state.total_free_answers += 1
                 if verification.is_correct:
                     state.correct_free_answers += 1
-                    await update.message.reply_text("✅ Верно! Отправьте новое уравнение для продолжения.")
-                    # Сбрасываем состояние ожидания - НЕ применяем результат автоматически
+                    await update.message.reply_text("✅ Верно!")
+                    # Применяем правильный результат и переходим к следующему шагу
+                    user_result = update.message.text.strip()
+                    await next_step_after_result(user_id, state, update, user_result)
                     state.waiting_for_user_result = False
                     state.last_chosen_transformation_id = None
-                    logger.info("DEBUG: manual result correct, waiting for new equation")
+                    logger.info("DEBUG: manual result correct, proceeding to next step")
                 else:
                     await update.message.reply_text("❌ Неверно! Теперь выберите правильный вариант из списка.")
                     logger.info("DEBUG: manual result incorrect, triggering show_variants_")
@@ -863,26 +865,30 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
                     break
         await query.message.reply_text(msg)
         
-        # Сбрасываем состояние ожидания - НЕ применяем никакое преобразование
+        # Если выбран правильный вариант, применяем его и переходим к следующему шагу
+        if chosen.get("correctness"):
+            chosen_result = chosen["expression"]
+            await next_step_after_result(user_id, state, query, chosen_result)
+        
+        # Сбрасываем состояние ожидания
         state.waiting_for_user_result = False
         state.last_chosen_transformation_id = None
-        
-        # НЕ переходим к следующему шагу - ждем от пользователя нового действия
         await query.answer()
         return
 
-async def next_step_after_result(user_id: int, state: UserState, update_or_query):
+async def next_step_after_result(user_id: int, state: UserState, update_or_query, result_expression: str):
     from core.engines import TransformationGenerator
     from core.gpt_client import GPTClient
     from core.prompts import PromptManager
+    from core.types import SolutionStep
+    
+    # Обновляем current_step на новый результат
+    state.current_step = SolutionStep(expression=result_expression)
+    
     client = GPTClient()
     prompt_manager = PromptManager()
     engine = TransformationGenerator(client, prompt_manager, preview_mode=True)
-    current_step = state.current_step
-    if not current_step:
-        logger.error("Нет current_step для пользователя %s", user_id)
-        return
-    generation_result = engine.generate_transformations(current_step)
+    generation_result = engine.generate_transformations(state.current_step)
     
     # Увеличиваем номер шага при генерации преобразований
     state.student_step_number += 1
