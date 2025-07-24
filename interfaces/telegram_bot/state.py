@@ -66,6 +66,16 @@ class UserState:
     waiting_for_user_suggestion: bool = False  # Ожидание предложения пользователя
     waiting_for_user_result: bool = False  # Ожидание результата от пользователя
     verification_context: Optional[Dict[str, Any]] = None  # Контекст для проверки
+    # Новые поля для сценария 2024-06
+    student_step_number: int = 1  # Номер шага студента (сколько раз зашёл в пункт 2)
+    correct_free_answers: int = 0  # Количество правильных ответов в свободной форме
+    total_free_answers: int = 0  # Всего попыток в свободной форме
+    correct_choice_answers: int = 0  # Количество правильных ответов при выборе результата
+    total_choice_answers: int = 0  # Всего попыток при выборе результата
+    # Кэш для вариантов результата преобразования: (step_number, transformation_id) -> list[dict]
+    result_variants_cache: dict = field(default_factory=dict)
+    # Поле для контроля состояния пользователя
+    last_chosen_transformation_id: Optional[str] = None  # ID последнего выбранного преобразования
 
 
 # Хранилище состояний пользователей

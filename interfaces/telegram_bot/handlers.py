@@ -135,7 +135,7 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
         state = user_states.get(user_id)
         logger.info(f"DEBUG: user state on entry: {state}")
         if state:
-            if state.waiting_for_user_result and hasattr(state, 'last_chosen_transformation_id'):
+            if state.waiting_for_user_result and state.last_chosen_transformation_id:
                 logger.info("DEBUG: entering manual result check branch")
                 # Проверка результата через LLM
                 transformation_id = state.last_chosen_transformation_id
@@ -153,9 +153,11 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
                 state.total_free_answers += 1
                 if verification.is_correct:
                     state.correct_free_answers += 1
-                    await update.message.reply_text("✅ Верно! Ваш результат принят как новый исходный.")
+                    await update.message.reply_text("✅ Верно! Ваш результат принят как новое исходное выражение.")
                     state.current_step = SolutionStep(expression=user_result)
+                    # Сбрасываем состояние ожидания
                     state.waiting_for_user_result = False
+                    state.last_chosen_transformation_id = None
                     logger.info("DEBUG: manual result correct, moving to next step")
                     await next_step_after_result(user_id, state, update)
                 else:
@@ -192,6 +194,18 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
                 return
             logger.info("DEBUG: state exists but not waiting_for_user_result")
         logger.info("DEBUG: main branch, new task initialization")
+        
+        # Сбрасываем состояние для новой задачи
+        if state:
+            state.waiting_for_user_result = False
+            state.last_chosen_transformation_id = None
+            state.student_step_number = 1
+            state.correct_free_answers = 0
+            state.total_free_answers = 0
+            state.correct_choice_answers = 0
+            state.total_choice_answers = 0
+            state.result_variants_cache = {}
+        
         # Отмечаем начало операции
         rate_limiter.start_operation(user_id)
 
@@ -304,9 +318,9 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
             # Формируем текст с описаниями преобразований
             transformations_text = get_transformations_description_text(generation_result.transformations)
             
-            # Сразу отправляем текст с описаниями и клавиатурой
+            # Сразу отправляем текст с описаниями и клавиатурой  
             await update.message.reply_text(
-                f"🎯 <b>Доступные преобразования:</b>\n\n{transformations_text}\n\nВыберите преобразование:",
+                f"🎯 <b>Доступные преобразования для решения:</b>\n\n{transformations_text}\n\nВыберите преобразование для начала решения:",
                 reply_markup=get_transformations_keyboard(transformation_ids, initial_step_id, generation_result.transformations),
                 parse_mode='HTML',
             )
@@ -769,6 +783,12 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
         
         await query.answer(f"✅ Выбрано преобразование: {selected_transformation.description}")
         
+        # Всегда показываем выбранное преобразование в отдельном сообщении
+        await query.message.reply_text(
+            f"🔧 <b>Выбрано преобразование:</b>\n<i>{selected_transformation.description}</i>",
+            parse_mode='HTML',
+        )
+        
         # Для первого шага - сразу переходим к следующему этапу
         if state.student_step_number == 2:  # После инкремента первый шаг становится 2
             logger.info(f"DEBUG: Первый шаг (student_step_number=2), сразу применяем преобразование")
@@ -787,13 +807,13 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
                 ]
             ]
             stats = (
-                f"\n\n<b>Статистика:</b>\n"
+                f"<b>Статистика:</b>\n"
                 f"Шаг: {state.student_step_number}\n"
                 f"Свободная форма: {state.correct_free_answers} из {state.total_free_answers}\n"
                 f"Выбор результата: {state.correct_choice_answers} из {state.total_choice_answers}"
             )
             await query.message.reply_text(
-                f"🔧 <b>Выбрано преобразование:</b>\n<i>{selected_transformation.description}</i>\n\nКакой будет результат этого преобразования?" + stats,
+                f"📝 Введите результат применения этого преобразования:\n\n{stats}",
                 reply_markup=InlineKeyboardMarkup(keyboard),
                 parse_mode='HTML',
             )
@@ -874,7 +894,20 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
                     msg += f"\n{str(i+1)}: {v['expression']}"
                     break
         await query.message.reply_text(msg)
-        await next_step_after_result(user_id, state, query)
+        
+        # Применяем правильный результат и переходим к следующему шагу
+        correct_result = None
+        for v in variants:
+            if v.get("correctness"):
+                correct_result = v["expression"]
+                break
+        
+        if correct_result:
+            state.current_step = SolutionStep(expression=correct_result)
+            # Сбрасываем состояние ожидания
+            state.waiting_for_user_result = False
+            state.last_chosen_transformation_id = None
+            await next_step_after_result(user_id, state, query)
         await query.answer()
         return
 
