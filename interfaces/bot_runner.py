@@ -17,7 +17,6 @@ from telegram.ext import (
 from .telegram_bot.handlers import (
     cancel,
     handle_task,
-    handle_transformation_choice,
     help_command,
     show_history,
     start,
@@ -39,8 +38,8 @@ def run_bot(token: str) -> None:
     application.add_handler(CommandHandler("cancel", cancel))
     application.add_handler(CommandHandler("history", show_history))
 
-    # Обработчик callback-запросов (кнопки)
-    application.add_handler(CallbackQueryHandler(handle_transformation_choice))
+    # Обработчик callback-запросов (кнопки) - УСТАРЕЛ, используется telegram_bot/__main__.py
+    # application.add_handler(CallbackQueryHandler(handle_transformation_choice))
 
     # Обработчик текстовых сообщений (задачи)
     application.add_handler(
