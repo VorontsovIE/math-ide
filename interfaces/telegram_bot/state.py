@@ -67,7 +67,7 @@ class UserState:
     waiting_for_user_result: bool = False  # Ожидание результата от пользователя
     verification_context: Optional[Dict[str, Any]] = None  # Контекст для проверки
     # Новые поля для сценария 2024-06
-    student_step_number: int = 1  # Номер шага студента (сколько раз зашёл в пункт 2)
+    student_step_number: int = 0  # Номер шага студента (увеличивается при генерации преобразований)
     correct_free_answers: int = 0  # Количество правильных ответов в свободной форме
     total_free_answers: int = 0  # Всего попыток в свободной форме
     correct_choice_answers: int = 0  # Количество правильных ответов при выборе результата

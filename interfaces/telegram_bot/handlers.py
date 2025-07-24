@@ -199,7 +199,7 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
         if state:
             state.waiting_for_user_result = False
             state.last_chosen_transformation_id = None
-            state.student_step_number = 1
+            state.student_step_number = 0  # Начинаем с 0, увеличится до 1 при генерации
             state.correct_free_answers = 0
             state.total_free_answers = 0
             state.correct_choice_answers = 0
@@ -253,6 +253,12 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
             # Генерируем возможные преобразования
             logger.info("Генерация возможных преобразований...")
             generation_result = engine.generate_transformations(current_step)
+            
+            # Увеличиваем номер шага при генерации преобразований
+            if state:
+                state.student_step_number += 1
+                logger.info(f"student_step_number увеличен до {state.student_step_number}")
+            
             logger.info(
                 f"Сгенерировано {len(generation_result.transformations)} преобразований"
             )
@@ -710,8 +716,6 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
             await query.answer("Преобразование не найдено")
             return
             
-        # Инкрементируем номер шага студента
-        state.student_step_number += 1
         state.last_chosen_transformation_id = transformation_id
         
         await query.answer(f"✅ Выбрано преобразование: {selected_transformation.description}")
@@ -722,16 +726,39 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
             parse_mode='HTML',
         )
         
-        # Для первого шага - сразу переходим к следующему этапу
-        if state.student_step_number == 2:  # После инкремента первый шаг становится 2
-            logger.info(f"DEBUG: Первый шаг (student_step_number=2), сразу применяем преобразование")
-            # Применяем преобразование и переходим к следующему шагу
-            result_expression = selected_transformation.preview_result
-            new_step = SolutionStep(expression=result_expression)
-            state.current_step = new_step
-            await next_step_after_result(user_id, state, query)
+        stats = (
+            f"<b>Статистика:</b>\n"
+            f"Шаг: {state.student_step_number}\n"
+            f"Свободная форма: {state.correct_free_answers} из {state.total_free_answers}\n"
+            f"Выбор результата: {state.correct_choice_answers} из {state.total_choice_answers}"
+        )
+        
+        # Для первого шага (student_step_number == 1) - сразу показываем варианты результата
+        if state.student_step_number == 1:
+            logger.info(f"DEBUG: Первый шаг (student_step_number=1), показываем варианты результата")
+            # Генерируем варианты результата
+            expr = state.current_step.expression if state.current_step else ""
+            cache_key = (state.student_step_number, transformation_id)
+            
+            from core.engine import TransformationEngine
+            engine = TransformationEngine()
+            variants = engine.generate_result_variants(expr, selected_transformation.description)
+            state.result_variants_cache[cache_key] = variants
+            
+            # Показываем варианты
+            from .renderers import render_transformations_results_image
+            img = render_transformations_results_image([
+                type('FakeTr', (), {"preview_result": v["expression"]}) for v in variants
+            ])
+            from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+            keyboard = [[InlineKeyboardButton(str(i+1), callback_data=f"choose_variant_{transformation_id}_{i}") for i in range(len(variants))]]
+            await query.message.reply_photo(
+                photo=img,
+                caption=f"Выберите номер правильного результата:\n\n{stats}",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+            )
         else:
-            logger.info(f"DEBUG: Не первый шаг (student_step_number={state.student_step_number}), показываем варианты ввода")
+            logger.info(f"DEBUG: Не первый шаг (student_step_number={state.student_step_number}), показываем ручной ввод")
             # Показываем кнопки "ввести вручную" / "показать варианты"
             keyboard = [
                 [
@@ -739,12 +766,6 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
                     InlineKeyboardButton("👀 Посмотреть варианты ответа", callback_data=f"show_variants_{transformation_id}"),
                 ]
             ]
-            stats = (
-                f"<b>Статистика:</b>\n"
-                f"Шаг: {state.student_step_number}\n"
-                f"Свободная форма: {state.correct_free_answers} из {state.total_free_answers}\n"
-                f"Выбор результата: {state.correct_choice_answers} из {state.total_choice_answers}"
-            )
             await query.message.reply_text(
                 f"📝 Введите результат применения этого преобразования:\n\n{stats}",
                 reply_markup=InlineKeyboardMarkup(keyboard),
@@ -860,6 +881,11 @@ async def next_step_after_result(user_id: int, state: UserState, update_or_query
         logger.error("Нет current_step для пользователя %s", user_id)
         return
     generation_result = engine.generate_transformations(current_step)
+    
+    # Увеличиваем номер шага при генерации преобразований
+    state.student_step_number += 1
+    logger.info(f"student_step_number увеличен до {state.student_step_number}")
+    
     state.available_transformations = generation_result.transformations
     step_id = state.history.add_step(
         expression=current_step.expression,
