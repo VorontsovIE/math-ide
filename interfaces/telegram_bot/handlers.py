@@ -865,19 +865,16 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
                     break
         await query.message.reply_text(msg)
         
-        # Применяем правильный результат и переходим к следующему шагу
-        correct_result = None
-        for v in variants:
-            if v.get("correctness"):
-                correct_result = v["expression"]
-                break
+        # Применяем ВЫБРАННЫЙ пользователем результат (независимо от правильности)
+        chosen_result = chosen["expression"]
+        state.current_step = SolutionStep(expression=chosen_result)
         
-        if correct_result:
-            state.current_step = SolutionStep(expression=correct_result)
-            # Сбрасываем состояние ожидания
-            state.waiting_for_user_result = False
-            state.last_chosen_transformation_id = None
-            await next_step_after_result(user_id, state, query)
+        # Сбрасываем состояние ожидания
+        state.waiting_for_user_result = False
+        state.last_chosen_transformation_id = None
+        
+        # Переходим к следующему шагу с ВЫБРАННЫМ результатом
+        await next_step_after_result(user_id, state, query)
         return
 
 async def next_step_after_result(user_id: int, state: UserState, update_or_query):
