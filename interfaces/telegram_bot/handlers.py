@@ -807,8 +807,12 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
         return
     # Выбор варианта
     if data.startswith("choose_variant_"):
-        _, transformation_id, idx = data.split("_")
-        idx = int(idx)
+        # Формат: choose_variant_{UUID}_{index}
+        # UUID может содержать дефисы, поэтому парсим аккуратно
+        parts = data.split("_")
+        # Последняя часть - это индекс, всё остальное после choose и variant - это UUID
+        idx = int(parts[-1])
+        transformation_id = "_".join(parts[2:-1])  # Склеиваем UUID обратно
         step_number = state.student_step_number
         cache_key = (step_number, transformation_id)
         variants = state.result_variants_cache.get(cache_key, [])
