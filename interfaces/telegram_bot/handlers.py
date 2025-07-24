@@ -388,27 +388,30 @@ async def _handle_transform_choice(
         selected_transformation = state.transformation_storage.get_transformation(transformation_id)
         
         if not selected_transformation:
-            await query.answer("Преобразование не найдено")
+            if query.message:
+                await query.message.reply_text("❌ Преобразование не найдено")
             return
             
         if not selected_transformation.preview_result:
-            await query.answer("Преобразование не содержит результата")
+            if query.message:
+                await query.message.reply_text("❌ Преобразование не содержит результата")
             return
 
         result_expression = selected_transformation.preview_result
         
     except (IndexError, Exception) as e:
         logger.error(f"Ошибка обработки данных кнопки: {e}")
-        await query.answer("Неверный формат данных")
+        await query.answer("❌ Ошибка данных")
         return
 
-    # Проверяем, что есть текущий шаг
-    if not state.current_step:
-        await query.answer("❌ Ошибка: нет текущего шага")
-        return
-        
     # НЕМЕДЛЕННО отвечаем на callback query
     await query.answer("✅ Преобразование применено!")
+    
+    # Проверяем, что есть текущий шаг
+    if not state.current_step:
+        if query.message:
+            await query.message.reply_text("❌ Ошибка: нет текущего шага")
+        return
     
     # СРАЗУ отправляем изображение с результатом выбранного преобразования
     if query.message:
@@ -568,7 +571,8 @@ async def _handle_refresh_button(
     await query.answer("🔄 Обновление преобразований...")
     
     if not state.current_step:
-        await query.answer("❌ Ошибка: нет текущего шага")
+        if query.message:
+            await query.message.reply_text("❌ Ошибка: нет текущего шага")
         return
     
     # Асинхронно выполняем тяжелые операции
@@ -708,17 +712,18 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
     
     # Обработка выбора преобразования (transform_)
     if data.startswith("transform_"):
+        # НЕМЕДЛЕННО отвечаем на callback query для предотвращения таймаута
+        await query.answer("✅ Преобразование выбрано!")
+        
         logger.info(f"DEBUG: Обработка transform_ callback: {data}")
         transformation_id = data.split("_")[1]
         selected_transformation = state.transformation_storage.get_transformation(transformation_id)
         
         if not selected_transformation:
-            await query.answer("Преобразование не найдено")
+            await query.message.reply_text("❌ Преобразование не найдено")
             return
             
         state.last_chosen_transformation_id = transformation_id
-        
-        await query.answer(f"✅ Выбрано преобразование: {selected_transformation.description}")
         
         # Всегда показываем выбранное преобразование в отдельном сообщении
         await query.message.reply_text(
@@ -775,6 +780,9 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
     
     # Ручной ввод результата
     if data.startswith("manual_result_"):
+        # НЕМЕДЛЕННО отвечаем на callback query
+        await query.answer("✏️ Переходим к ручному вводу")
+        
         logger.info(f"DEBUG: Обработка manual_result_ callback: {data}")
         transformation_id = data.split("_")[2]
         state.waiting_for_user_result = True
@@ -783,10 +791,12 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
         await query.message.reply_text(
             "📝 Введите результат преобразования в LaTeX-формате (одной строкой):"
         )
-        await query.answer()
         return
     # Показ вариантов ответа
     if data.startswith("show_variants_"):
+        # НЕМЕДЛЕННО отвечаем на callback query
+        await query.answer("👀 Генерируем варианты...")
+        
         transformation_id = data.split("_")[2]
         step_number = state.student_step_number
         cache_key = (step_number, transformation_id)
@@ -798,7 +808,7 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
             # Генерируем варианты через LLM
             selected_transformation = state.transformation_storage.get_transformation(transformation_id)
             if not selected_transformation:
-                await query.answer("Преобразование не найдено")
+                await query.message.reply_text("❌ Преобразование не найдено")
                 return
             expr = state.current_step.expression if state.current_step else ""
             from core.engine import TransformationEngine
@@ -824,10 +834,12 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
         )
         state.waiting_for_user_result = False
         state.waiting_for_choice = (transformation_id, step_number)
-        await query.answer()
         return
     # Выбор варианта
     if data.startswith("choose_variant_"):
+        # НЕМЕДЛЕННО отвечаем на callback query
+        await query.answer("✅ Вариант выбран!")
+        
         # Формат: choose_variant_{UUID}_{index}
         # UUID может содержать дефисы, поэтому парсим аккуратно
         parts = data.split("_")
@@ -838,7 +850,7 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
         cache_key = (step_number, transformation_id)
         variants = state.result_variants_cache.get(cache_key, [])
         if not variants or idx >= len(variants):
-            await query.answer("Вариант не найден")
+            await query.message.reply_text("❌ Вариант не найден")
             return
         chosen = variants[idx]
         state.total_choice_answers += 1
@@ -866,7 +878,6 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
             state.waiting_for_user_result = False
             state.last_chosen_transformation_id = None
             await next_step_after_result(user_id, state, query)
-        await query.answer()
         return
 
 async def next_step_after_result(user_id: int, state: UserState, update_or_query):

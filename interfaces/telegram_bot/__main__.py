@@ -59,10 +59,18 @@ async def error_handler(update, context):
     """Обработчик ошибок."""
     logger.error(f"Exception while handling an update: {context.error}")
     
+    # Если это таймаут callback query, не отправляем сообщение пользователю
+    if "Timed out" in str(context.error):
+        logger.warning("Callback query timeout detected - this should be fixed by immediate query.answer() calls")
+        return
+    
     if update and update.effective_message:
-        await update.effective_message.reply_text(
-            "Произошла ошибка при обработке вашего запроса. Попробуйте еще раз."
-        )
+        try:
+            await update.effective_message.reply_text(
+                "Произошла ошибка при обработке вашего запроса. Попробуйте еще раз."
+            )
+        except Exception as e:
+            logger.error(f"Failed to send error message to user: {e}")
 
 
 def main() -> None:
