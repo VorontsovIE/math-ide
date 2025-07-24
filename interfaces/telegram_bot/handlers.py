@@ -155,13 +155,11 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
                 state.total_free_answers += 1
                 if verification.is_correct:
                     state.correct_free_answers += 1
-                    await update.message.reply_text("✅ Верно! Ваш результат принят как новое исходное выражение.")
-                    state.current_step = SolutionStep(expression=user_result)
-                    # Сбрасываем состояние ожидания
+                    await update.message.reply_text("✅ Верно! Отправьте новое уравнение для продолжения.")
+                    # Сбрасываем состояние ожидания - НЕ применяем результат автоматически
                     state.waiting_for_user_result = False
                     state.last_chosen_transformation_id = None
-                    logger.info("DEBUG: manual result correct, moving to next step")
-                    await next_step_after_result(user_id, state, update)
+                    logger.info("DEBUG: manual result correct, waiting for new equation")
                 else:
                     await update.message.reply_text("❌ Неверно! Теперь выберите правильный вариант из списка.")
                     logger.info("DEBUG: manual result incorrect, triggering show_variants_")
@@ -865,16 +863,12 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
                     break
         await query.message.reply_text(msg)
         
-        # Применяем ВЫБРАННЫЙ пользователем результат (независимо от правильности)
-        chosen_result = chosen["expression"]
-        state.current_step = SolutionStep(expression=chosen_result)
-        
-        # Сбрасываем состояние ожидания
+        # Сбрасываем состояние ожидания - НЕ применяем никакое преобразование
         state.waiting_for_user_result = False
         state.last_chosen_transformation_id = None
         
-        # Переходим к следующему шагу с ВЫБРАННЫМ результатом
-        await next_step_after_result(user_id, state, query)
+        # НЕ переходим к следующему шагу - ждем от пользователя нового действия
+        await query.answer()
         return
 
 async def next_step_after_result(user_id: int, state: UserState, update_or_query):
