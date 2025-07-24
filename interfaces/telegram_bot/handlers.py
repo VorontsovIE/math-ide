@@ -135,7 +135,9 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
         state = user_states.get(user_id)
         logger.info(f"DEBUG: user state on entry: {state}")
         if state:
-            if state.waiting_for_user_result and state.last_chosen_transformation_id:
+            logger.info(f"DEBUG: waiting_for_user_result={state.waiting_for_user_result}, last_chosen_transformation_id={state.last_chosen_transformation_id}")
+            # Если есть ID выбранного преобразования, считаем это вводом результата (даже если waiting_for_user_result=False)
+            if state.last_chosen_transformation_id:
                 logger.info("DEBUG: entering manual result check branch")
                 # Проверка результата через LLM
                 transformation_id = state.last_chosen_transformation_id
@@ -798,7 +800,7 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
             state.current_step = new_step
             await next_step_after_result(user_id, state, query)
         else:
-            logger.info(f"DEBUG: Не первый шаг, показываем варианты ввода")
+            logger.info(f"DEBUG: Не первый шаг (student_step_number={state.student_step_number}), показываем варианты ввода")
             # Показываем кнопки "ввести вручную" / "показать варианты"
             keyboard = [
                 [
@@ -821,11 +823,13 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
     
     # Ручной ввод результата
     if data.startswith("manual_result_"):
+        logger.info(f"DEBUG: Обработка manual_result_ callback: {data}")
         transformation_id = data.split("_")[2]
         state.waiting_for_user_result = True
         state.last_chosen_transformation_id = transformation_id
+        logger.info(f"DEBUG: Установлены флаги - waiting_for_user_result=True, last_chosen_transformation_id={transformation_id}")
         await query.message.reply_text(
-            "Введите результат преобразования в LaTeX-формате (одной строкой):"
+            "📝 Введите результат преобразования в LaTeX-формате (одной строкой):"
         )
         await query.answer()
         return
