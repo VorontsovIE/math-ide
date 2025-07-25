@@ -41,6 +41,9 @@ def get_transformations_keyboard(
     nav_row.append(
         InlineKeyboardButton("🔄 Обновить", callback_data=f"refresh_{current_step_id}")
     )
+    nav_row.append(
+        InlineKeyboardButton("📝 Новая задача", callback_data="new_task")
+    )
     keyboard.append(nav_row)
 
     return InlineKeyboardMarkup(keyboard)

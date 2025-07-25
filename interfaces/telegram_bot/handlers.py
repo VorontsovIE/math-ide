@@ -184,7 +184,10 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
                         type('FakeTr', (), {"preview_result": v["expression"]}) for v in variants
                     ])
                     from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-                    keyboard = [[InlineKeyboardButton(str(i+1), callback_data=f"choose_variant_{transformation_id}_{i}") for i in range(len(variants))]]
+                    keyboard = [
+                        [InlineKeyboardButton(str(i+1), callback_data=f"choose_variant_{transformation_id}_{i}") for i in range(len(variants))],
+                        [InlineKeyboardButton("📝 Новая задача", callback_data="new_task")]
+                    ]
                     await update.message.reply_photo(
                         photo=img,
                         caption="Выберите номер правильного результата:",
@@ -756,7 +759,10 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
                 type('FakeTr', (), {"preview_result": v["expression"]}) for v in variants
             ])
             from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-            keyboard = [[InlineKeyboardButton(str(i+1), callback_data=f"choose_variant_{transformation_id}_{i}") for i in range(len(variants))]]
+            keyboard = [
+                [InlineKeyboardButton(str(i+1), callback_data=f"choose_variant_{transformation_id}_{i}") for i in range(len(variants))],
+                [InlineKeyboardButton("📝 Новая задача", callback_data="new_task")]
+            ]
             await query.message.reply_photo(
                 photo=img,
                 caption=f"Выберите номер правильного результата:\n\n{stats}",
@@ -769,6 +775,9 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
                 [
                     InlineKeyboardButton("✏️ Ввести результат вручную", callback_data=f"manual_result_{transformation_id}"),
                     InlineKeyboardButton("👀 Посмотреть варианты ответа", callback_data=f"show_variants_{transformation_id}"),
+                ],
+                [
+                    InlineKeyboardButton("📝 Новая задача", callback_data="new_task"),
                 ]
             ]
             await query.message.reply_text(
@@ -825,8 +834,11 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
         img = render_transformations_results_image([
             type('FakeTr', (), {"preview_result": v["expression"]}) for v in variants
         ])
-        # Кнопки — только номера
-        keyboard = [[InlineKeyboardButton(str(i+1), callback_data=f"choose_variant_{transformation_id}_{i}") for i in range(len(variants))]]
+        # Кнопки — номера и новая задача
+        keyboard = [
+            [InlineKeyboardButton(str(i+1), callback_data=f"choose_variant_{transformation_id}_{i}") for i in range(len(variants))],
+            [InlineKeyboardButton("📝 Новая задача", callback_data="new_task")]
+        ]
         await query.message.reply_photo(
             photo=img,
             caption="Выберите номер правильного результата:",
@@ -865,15 +877,55 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
                     break
         await query.message.reply_text(msg)
         
-        # Если выбран правильный вариант, применяем его и переходим к следующему шагу
+        # В любом случае (правильный или неправильный) применяем правильный результат
         if chosen.get("correctness"):
+            # Выбран правильный вариант - применяем его
             chosen_result = chosen["expression"]
-            await next_step_after_result(user_id, state, query, chosen_result)
+        else:
+            # Выбран неправильный вариант - находим и применяем правильный
+            correct_variant = None
+            for v in variants:
+                if v.get("correctness"):
+                    correct_variant = v
+                    break
+            if correct_variant:
+                chosen_result = correct_variant["expression"]
+            else:
+                logger.error("Не найден правильный вариант в списке")
+                await query.message.reply_text("❌ Ошибка: не найден правильный вариант")
+                return
+        
+        # Применяем результат и переходим к следующему шагу
+        await next_step_after_result(user_id, state, query, chosen_result)
         
         # Сбрасываем состояние ожидания
         state.waiting_for_user_result = False
         state.last_chosen_transformation_id = None
         await query.answer()
+        return
+    
+    # Новая задача
+    if data == "new_task":
+        # НЕМЕДЛЕННО отвечаем на callback query
+        await query.answer("📝 Начинаем новую задачу!")
+        
+        # Полный сброс состояния пользователя
+        state.waiting_for_user_result = False
+        state.last_chosen_transformation_id = None
+        state.student_step_number = 0
+        state.correct_free_answers = 0
+        state.total_free_answers = 0
+        state.correct_choice_answers = 0
+        state.total_choice_answers = 0
+        state.result_variants_cache = {}
+        state.current_step = None
+        state.available_transformations = []
+        
+        await query.message.reply_text(
+            "📝 <b>Новая задача!</b>\n\n"
+            "Отправьте математическое уравнение для решения.",
+            parse_mode='HTML'
+        )
         return
 
 async def next_step_after_result(user_id: int, state: UserState, update_or_query, result_expression: str):

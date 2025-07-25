@@ -227,6 +227,49 @@ class TransformationEngine:
         )
         return updated_transformation
 
+    def generate_result_variants(
+        self,
+        current_expression: str,
+        suggested_transformation: str,
+    ) -> list[dict]:
+        """
+        Генерирует 1 правильный и 4 неправильных результата применения выбранного преобразования к выражению.
+        Возвращает список dict'ов с ключами: description, expression, correctness.
+        """
+        logger.info(f"Генерация вариантов результата для выражения: {current_expression}, преобразование: {suggested_transformation}")
+        system_prompt, user_prompt = self.prompt_manager.load_split_prompt("results_generation")
+        formatted_system, formatted_user = self.prompt_manager.format_split_prompt(
+            system_prompt,
+            user_prompt,
+            current_state=current_expression,
+            suggested_transformation=suggested_transformation,
+        )
+        logger.info(f"System промпт results_generation:\n{formatted_system}")
+        logger.info(f"User промпт results_generation:\n{formatted_user}")
+        response = self.client.chat_completion([
+            {"role": "system", "content": formatted_system},
+            {"role": "user", "content": formatted_user},
+        ], temperature=0.5)
+        content = response.content
+        logger.info("=== ОТВЕТ МОДЕЛИ (results_generation) ===")
+        logger.info(content)
+        logger.info("=== КОНЕЦ ОТВЕТА ===")
+        # Ищем JSON-массив
+        json_start = content.find("[")
+        json_end = content.rfind("]") + 1
+        if json_start == -1 or json_end == 0:
+            logger.error(f"Не найден JSON-массив в ответе results_generation. Ответ: {content}")
+            return []
+        json_content = content[json_start:json_end]
+        try:
+            import json
+            variants = json.loads(json_content)
+            logger.info(f"Успешно распарсено {len(variants)} вариантов результата.")
+            return variants
+        except Exception as e:
+            logger.error(f"Ошибка парсинга JSON в results_generation: {e}")
+            return []
+
     def _substitute_parameters_in_text(
         self, text: str, parameters: List[TransformationParameter]
     ) -> str:
