@@ -64,7 +64,7 @@ class UserState:
     )
     # Новые поля для проверки преобразований
     waiting_for_user_suggestion: bool = False  # Ожидание предложения пользователя
-    waiting_for_user_result: bool = False  # Ожидание результата от пользователя
+
     verification_context: Optional[Dict[str, Any]] = None  # Контекст для проверки
     # Новые поля для сценария 2024-06
     student_step_number: int = 0  # Номер шага студента (увеличивается при генерации преобразований)

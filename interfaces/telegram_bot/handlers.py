@@ -135,8 +135,8 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
         state = user_states.get(user_id)
         logger.info(f"DEBUG: user state on entry: {state}")
         if state:
-            logger.info(f"DEBUG: waiting_for_user_result={state.waiting_for_user_result}, last_chosen_transformation_id={state.last_chosen_transformation_id}")
-            # Если есть ID выбранного преобразования, считаем это вводом результата (даже если waiting_for_user_result=False)
+            logger.info(f"DEBUG: last_chosen_transformation_id={state.last_chosen_transformation_id}")
+            # Если есть ID выбранного преобразования, считаем это вводом результата
             if state.last_chosen_transformation_id:
                 logger.info("DEBUG: entering manual result check branch")
                 # Проверка результата через LLM
@@ -159,14 +159,11 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
                     # Применяем правильный результат и переходим к следующему шагу
                     user_result = update.message.text.strip()
                     await next_step_after_result(user_id, state, update, user_result)
-                    state.waiting_for_user_result = False
                     state.last_chosen_transformation_id = None
                     logger.info("DEBUG: manual result correct, proceeding to next step")
                 else:
                     await update.message.reply_text("❌ Неверно! Теперь выберите правильный вариант из списка.")
                     logger.info("DEBUG: manual result incorrect, triggering show_variants_")
-                    # Переводим в режим ожидания выбора варианта и вызываем show_variants_
-                    state.waiting_for_user_result = False
                     # Генерируем/получаем варианты и показываем их
                     step_number = state.student_step_number
                     cache_key = (step_number, transformation_id)
@@ -195,12 +192,11 @@ async def handle_task(update: "Update", context: "ContextTypes.DEFAULT_TYPE") ->
                     )
                 logger.info("DEBUG: return after manual result branch")
                 return
-            logger.info("DEBUG: state exists but not waiting_for_user_result")
+            logger.info("DEBUG: state exists but no last_chosen_transformation_id")
         logger.info("DEBUG: main branch, new task initialization")
         
         # Сбрасываем состояние для новой задачи
         if state:
-            state.waiting_for_user_result = False
             state.last_chosen_transformation_id = None
             state.student_step_number = 0  # Начинаем с 0, увеличится до 1 при генерации
             state.correct_free_answers = 0
@@ -794,9 +790,8 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
         
         logger.info(f"DEBUG: Обработка manual_result_ callback: {data}")
         transformation_id = data.split("_")[2]
-        state.waiting_for_user_result = True
         state.last_chosen_transformation_id = transformation_id
-        logger.info(f"DEBUG: Установлены флаги - waiting_for_user_result=True, last_chosen_transformation_id={transformation_id}")
+        logger.info(f"DEBUG: Установлен флаг - last_chosen_transformation_id={transformation_id}")
         await query.message.reply_text(
             "📝 Введите результат преобразования в LaTeX-формате (одной строкой):"
         )
@@ -844,7 +839,6 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
             caption="Выберите номер правильного результата:",
             reply_markup=InlineKeyboardMarkup(keyboard),
         )
-        state.waiting_for_user_result = False
         state.waiting_for_choice = (transformation_id, step_number)
         return
     # Выбор варианта
@@ -899,7 +893,6 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
         await next_step_after_result(user_id, state, query, chosen_result)
         
         # Сбрасываем состояние ожидания
-        state.waiting_for_user_result = False
         state.last_chosen_transformation_id = None
         await query.answer()
         return
@@ -910,7 +903,6 @@ async def handle_callback_query(update: "Update", context: "ContextTypes.DEFAULT
         await query.answer("📝 Начинаем новую задачу!")
         
         # Полный сброс состояния пользователя
-        state.waiting_for_user_result = False
         state.last_chosen_transformation_id = None
         state.student_step_number = 0
         state.correct_free_answers = 0
